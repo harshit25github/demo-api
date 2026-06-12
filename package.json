@@ -1,0 +1,25 @@
+{
+  "name": "coa-flight-agent",
+  "version": "1.0.0",
+  "description": "Basic Flight Agent setup using the OpenAI Agents SDK.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node examples/test-flight-agent.js",
+    "test:flight": "node examples/test-flight-agent.js",
+    "test:extractor-prompts": "node --test tests/extractor-prompts-static.test.js",
+    "test:tools": "node --test tests/flight-agent-tools.test.js",
+    "test:flight:session": "node --test tests/flight-agent-session-live.js",
+    "test:flight:session-report": "node tests/flight-agent-session-complex-report-live.js",
+    "test:flight:airline": "node --test tests/flight-agent-airline-filter-live.js",
+    "test:flight:layover-airport": "node --test tests/flight-agent-layover-airport-filter-live.js",
+    "test:flight:tool-routing": "node tests/flight-agent-tool-routing-complex-live.js",
+    "test:flight:multiturn": "node tests/flight-agent-multiturn-live.js",
+    "test:flight:complex": "node tests/flight-agent-complex-multiturn-live.js"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.11.6",
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
+  }
+}
