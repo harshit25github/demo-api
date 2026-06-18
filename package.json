@@ -14,6 +14,11 @@
     "test:flight:airline": "node --test tests/flight-agent-airline-filter-live.js",
     "test:flight:layover-airport": "node --test tests/flight-agent-layover-airport-filter-live.js",
     "test:flight:tool-routing": "node tests/flight-agent-tool-routing-complex-live.js",
+    "test:flight:prefilled-context": "node tests/flight-agent-prefilled-context-live.js",
+    "test:flight:search-filter-flow": "node --test tests/flight-agent-search-filter-flow.test.js",
+    "test:flight:current-results": "node --test tests/flight-agent-current-results-reasoning-live.js",
+    "test:gateway:routing": "node tests/gateway-routing-live.js",
+    "test:gateway:flight-flow": "node tests/gateway-flight-handoff-tool-flow-live.js",
     "test:flight:multiturn": "node tests/flight-agent-multiturn-live.js",
     "test:flight:complex": "node tests/flight-agent-complex-multiturn-live.js"
   },

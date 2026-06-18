@@ -42,6 +42,49 @@ function createSearchKey(UID) {
   return `search_${UID}_${Date.now()}`;
 }
 
+const dummyAirportFilters = [
+  {
+    Code: 'LAX',
+    Price: 341.23,
+    Text: 'Los Angeles Intl',
+    Name: null,
+    Count: 241,
+    IsNearby: false,
+    IsDisabled: false,
+    AirportCityName: null,
+  },
+  {
+    Code: 'BUR',
+    Price: 420.6,
+    Text: 'Burbank Bob Hope Airport',
+    Name: null,
+    Count: 161,
+    IsNearby: true,
+    IsDisabled: false,
+    AirportCityName: null,
+  },
+  {
+    Code: 'ONT',
+    Price: 316.4,
+    Text: 'Ontario',
+    Name: null,
+    Count: 97,
+    IsNearby: true,
+    IsDisabled: false,
+    AirportCityName: null,
+  },
+  {
+    Code: 'SNA',
+    Price: 399.40002,
+    Text: 'Santa Ana John Wayne',
+    Name: null,
+    Count: 86,
+    IsNearby: true,
+    IsDisabled: false,
+    AirportCityName: null,
+  },
+];
+
 function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
   const firstOnd = onds[0];
   const lastOnd = onds[onds.length - 1];
@@ -69,6 +112,8 @@ function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
         flight_number: 'AC 101',
         origin: firstOnd.origin,
         destination: firstOnd.destination,
+        departure_airport_code: 'LAX',
+        arrival_airport_code: 'LAX',
         departure_time: '09:00',
         arrival_time: '11:10',
         departure_time_window: 'MORNING',
@@ -93,6 +138,8 @@ function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
         flight_number: 'CA 204',
         origin: firstOnd.origin,
         destination: firstOnd.destination,
+        departure_airport_code: 'BUR',
+        arrival_airport_code: 'ONT',
         departure_time: '14:30',
         arrival_time: '17:05',
         departure_time_window: 'AFTERNOON',
@@ -117,6 +164,8 @@ function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
         flight_number: 'EK 309',
         origin: firstOnd.origin,
         destination: firstOnd.destination,
+        departure_airport_code: 'SNA',
+        arrival_airport_code: 'SNA',
         departure_time: '05:45',
         arrival_time: '13:40',
         departure_time_window: 'EARLYMORNING',
@@ -141,7 +190,8 @@ function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
 function getFlightContext(runContext) {
   const appContext = runContext?.context || {};
   // UID is stable per chat/user and is reused by later tools such as apply_filter.
-  appContext.UID ||= 'demo-user';
+  appContext.UID ||= appContext.uid || 'demo-user';
+  appContext.uid ||= appContext.UID;
   appContext.toolCallLog ||= [];
   return appContext;
 }
@@ -162,11 +212,18 @@ export const FlightSearchTool = tool({
 
     // Store the latest search state in context for follow-up filter turns.
     appContext.searchKey = searchKey;
+    appContext.sid = searchKey;
     appContext.lastSearch = input;
     appContext.flightResults = result.flights;
     appContext.filteredFlightResults = result.flights;
-    // Real API integration should save its layover airport filter array into
-    // appContext.layoverAirportFilterOptions for ApplyFilterTool follow-up turns.
+    // Real API integration should save its dynamic filter arrays into context.
+    // ApplyFilterTool uses these arrays as source of truth and never generates codes.
+    appContext.DepartAirports ||= dummyAirportFilters;
+    appContext.DepLandAirports ||= dummyAirportFilters;
+    appContext.departureAirportFilterOptions = appContext.DepartAirports;
+    appContext.arrivalAirportFilterOptions = appContext.DepLandAirports;
+    result.DepartAirports = appContext.DepartAirports;
+    result.DepLandAirports = appContext.DepLandAirports;
 
     // A new search creates a new result set, so old filters must not leak in.
     appContext.lastAppliedFilters = [];

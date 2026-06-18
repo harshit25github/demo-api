@@ -85,7 +85,11 @@ export async function runFlightAgent({
   const session = getFlightAgentSession(sessionId);
   const appContext = getFlightAgentContext(sessionId, context);
 
-  appContext.UID ||= 'demo-user';
+  // Accept both application naming conventions for hydrated flight context.
+  appContext.UID ||= appContext.uid || 'demo-user';
+  appContext.uid ||= appContext.UID;
+  appContext.searchKey ||= appContext.sid;
+  appContext.sid ||= appContext.searchKey;
   appContext.requestId = requestId;
   appContext.sessionId = sessionId;
   appContext.toolCallLog ||= [];
@@ -101,6 +105,10 @@ export async function runFlightAgent({
 
     const latencyMs = Date.now() - startedAt;
     const output = result.finalOutput || '';
+
+    // Keep aliases synchronized after tools create or replace the active search.
+    appContext.uid ||= appContext.UID;
+    appContext.sid = appContext.searchKey || appContext.sid;
 
     log('info', 'flight_agent.response', {
       requestId,

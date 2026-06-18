@@ -7,4 +7,9 @@ export {
   runFlightAgent,
   flightAgentRunner,
 } from './runner.js';
-export { ApplyFilterTool, FlightSearchTool, flightTools } from './tools/index.js';
+export {
+  ApplyFilterTool,
+  FlightSearchTool,
+  GetGeneratedContractsContextTool,
+  flightTools,
+} from './tools/index.js';
