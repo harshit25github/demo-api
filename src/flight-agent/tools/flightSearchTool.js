@@ -42,7 +42,24 @@ function createSearchKey(UID) {
   return `search_${UID}_${Date.now()}`;
 }
 
-const dummyAirportFilters = [
+const dummyAirlineFilters = [
+  { Code: 'AC', Text: 'Air Canada', Name: 'Air Canada', IsDisabled: false },
+  { Code: 'AC+', Text: 'Air Canada', Name: 'Air Canada', IsDisabled: false },
+  { Code: 'CA', Text: 'Air China', Name: 'Air China', IsDisabled: false },
+  { Code: 'EK', Text: 'Emirates', Name: 'Emirates', IsDisabled: false },
+  { Code: 'QR', Text: 'Qatar Airways', Name: 'Qatar Airways', IsDisabled: false },
+  { Code: '6E', Text: 'IndiGo', Name: 'IndiGo', IsDisabled: true },
+];
+
+const dummyLayoverAirportFilters = [
+  { Code: 'AMS', Text: 'Amsterdam Schiphol', Name: null, AirportCityName: 'Amsterdam', IsDisabled: false },
+  { Code: 'DXB', Text: 'Dubai', Name: null, AirportCityName: 'Dubai', IsDisabled: false },
+  { Code: 'DOH', Text: 'Doha Hamad International Airport', Name: null, AirportCityName: 'Doha', IsDisabled: false },
+  { Code: 'FRA', Text: 'Frankfurt Airport', Name: null, AirportCityName: 'Frankfurt', IsDisabled: false },
+  { Code: 'SIN', Text: 'Singapore Changi', Name: null, AirportCityName: 'Singapore', IsDisabled: true },
+];
+
+const losAngelesAirportFilters = [
   {
     Code: 'LAX',
     Price: 341.23,
@@ -85,6 +102,92 @@ const dummyAirportFilters = [
   },
 ];
 
+const newYorkAirportFilters = [
+  {
+    Code: 'JFK',
+    Price: 520.1,
+    Text: 'John F Kennedy Intl',
+    Name: null,
+    Count: 210,
+    IsNearby: false,
+    IsDisabled: false,
+    AirportCityName: 'New York',
+  },
+  {
+    Code: 'EWR',
+    Price: 498.4,
+    Text: 'Newark Liberty Intl',
+    Name: null,
+    Count: 178,
+    IsNearby: true,
+    IsDisabled: false,
+    AirportCityName: 'Newark',
+  },
+  {
+    Code: 'LGA',
+    Price: 530.2,
+    Text: 'LaGuardia',
+    Name: null,
+    Count: 96,
+    IsNearby: true,
+    IsDisabled: false,
+    AirportCityName: 'New York',
+  },
+];
+
+const dubaiAirportFilters = [
+  {
+    Code: 'DXB',
+    Price: 610.35,
+    Text: 'Dubai International',
+    Name: null,
+    Count: 170,
+    IsNearby: false,
+    IsDisabled: false,
+    AirportCityName: 'Dubai',
+  },
+  {
+    Code: 'DWC',
+    Price: 655.8,
+    Text: 'Al Maktoum International',
+    Name: null,
+    Count: 42,
+    IsNearby: true,
+    IsDisabled: false,
+    AirportCityName: 'Dubai',
+  },
+];
+
+const delhiAirportFilters = [
+  {
+    Code: 'DEL',
+    Price: 730.15,
+    Text: 'Indira Gandhi International',
+    Name: null,
+    Count: 190,
+    IsNearby: false,
+    IsDisabled: false,
+    AirportCityName: 'Delhi',
+  },
+];
+
+function getDummyAirportFiltersForLocation(location) {
+  const text = String(location || '').trim().toLowerCase();
+  if (/\b(nyc|new york|jfk|ewr|newark|lga)\b/.test(text)) {
+    return newYorkAirportFilters;
+  }
+  if (/\b(lax|los angeles|la)\b/.test(text)) {
+    return losAngelesAirportFilters;
+  }
+  if (/\b(dubai|dxb|dwc)\b/.test(text)) {
+    return dubaiAirportFilters;
+  }
+  if (/\b(delhi|del)\b/.test(text)) {
+    return delhiAirportFilters;
+  }
+  return losAngelesAirportFilters;
+}
+
 function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
   const firstOnd = onds[0];
   const lastOnd = onds[onds.length - 1];
@@ -123,6 +226,7 @@ function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
         total_duration_minutes: 130,
         layover_duration_hours: 0,
         layover_duration_minutes: 0,
+        layover_airport_codes: [],
         stops: 0,
         baggage: ['2', '1'],
         cabin_class,
@@ -149,6 +253,7 @@ function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
         total_duration_minutes: 155,
         layover_duration_hours: 0.75,
         layover_duration_minutes: 45,
+        layover_airport_codes: ['AMS', 'DXB'],
         stops: 1,
         baggage: ['2', '1', '0'],
         cabin_class,
@@ -175,6 +280,7 @@ function buildDummyFlights({ onds, trip_type, passengers, cabin_class }) {
         total_duration_minutes: 475,
         layover_duration_hours: 2.25,
         layover_duration_minutes: 135,
+        layover_airport_codes: ['DXB', 'DOH'],
         stops: 2,
         baggage: ['2'],
         cabin_class,
@@ -218,10 +324,16 @@ export const FlightSearchTool = tool({
     appContext.filteredFlightResults = result.flights;
     // Real API integration should save its dynamic filter arrays into context.
     // ApplyFilterTool uses these arrays as source of truth and never generates codes.
-    appContext.DepartAirports ||= dummyAirportFilters;
-    appContext.DepLandAirports ||= dummyAirportFilters;
+    appContext.airlineFilterOptions ||= dummyAirlineFilters;
+    appContext.layoverAirportFilterOptions ||= dummyLayoverAirportFilters;
+    appContext.DepartAirports ||= getDummyAirportFiltersForLocation(input.onds[0]?.origin);
+    appContext.DepLandAirports ||= getDummyAirportFiltersForLocation(
+      input.onds[input.onds.length - 1]?.destination,
+    );
     appContext.departureAirportFilterOptions = appContext.DepartAirports;
     appContext.arrivalAirportFilterOptions = appContext.DepLandAirports;
+    result.airlineFilterOptions = appContext.airlineFilterOptions;
+    result.layoverAirportFilterOptions = appContext.layoverAirportFilterOptions;
     result.DepartAirports = appContext.DepartAirports;
     result.DepLandAirports = appContext.DepLandAirports;
 

@@ -2,6 +2,7 @@ import { Agent, handoff } from '@openai/agents';
 import { flightAgentConfig } from './config.js';
 import { FlightAgent } from './flightAgent.js';
 import { GATEWAY_PROMPT } from './instructions.js';
+import { TripPlannerAgent } from './tripPlannerAgent.js';
 
 const gatewayModel = process.env.OPENAI_GATEWAY_MODEL || flightAgentConfig.model;
 const isGpt5Model = /^gpt-5/i.test(gatewayModel);
@@ -44,11 +45,6 @@ function createDummySpecialist(name, handoffDescription) {
     modelSettings: gatewayAgentConfig.modelSettings,
   });
 }
-
-export const TripPlannerAgent = createDummySpecialist(
-  'Trip Planner Agent',
-  'Handles destination planning, itineraries, things to do, and travel planning requests.',
-);
 
 export const PolicyHelperAgent = createDummySpecialist(
   'Policy Helper Agent',

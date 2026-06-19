@@ -7,6 +7,18 @@ export {
   runFlightAgent,
   flightAgentRunner,
 } from './runner.js';
+export { GatewayAgent, gatewayAgentConfig, gatewayHandoffs } from './gatewayAgent.js';
+export {
+  gatewayRunner,
+  runGatewayAgent,
+  runGatewayAgentStream,
+} from './gatewayRunner.js';
+export {
+  createSanitizedTripPlannerTextStream,
+  sanitizeGatewayOutputForFinalAgent,
+} from './gatewayOutputGuardrail.js';
+export { assertNoLinks, containsLinkLikeText, sanitizeNoLinks } from './linkSanitizer.js';
+export { TripPlannerAgent, tripPlannerAgentConfig } from './tripPlannerAgent.js';
 export {
   ApplyFilterTool,
   FlightSearchTool,

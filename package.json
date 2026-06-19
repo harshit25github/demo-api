@@ -8,6 +8,9 @@
     "start": "node examples/test-flight-agent.js",
     "test:flight": "node examples/test-flight-agent.js",
     "test:extractor-prompts": "node --test tests/extractor-prompts-static.test.js",
+    "test:link-sanitizer": "node --test tests/link-sanitizer.test.js",
+    "test:gateway:trip-planner": "node --test tests/gateway-trip-planner-hard-validation.test.js",
+    "test:apply-filter:fuzzy": "node --test tests/apply-filter-fuzzy-source-matching.test.js",
     "test:tools": "node --test tests/flight-agent-tools.test.js",
     "test:flight:session": "node --test tests/flight-agent-session-live.js",
     "test:flight:session-report": "node tests/flight-agent-session-complex-report-live.js",
@@ -20,7 +23,8 @@
     "test:gateway:routing": "node tests/gateway-routing-live.js",
     "test:gateway:flight-flow": "node tests/gateway-flight-handoff-tool-flow-live.js",
     "test:flight:multiturn": "node tests/flight-agent-multiturn-live.js",
-    "test:flight:complex": "node tests/flight-agent-complex-multiturn-live.js"
+    "test:flight:complex": "node tests/flight-agent-complex-multiturn-live.js",
+    "test:flight:e2e-multiturn": "node tests/flight-agent-e2e-multiturn-live.js"
   },
   "dependencies": {
     "@openai/agents": "^0.11.6",

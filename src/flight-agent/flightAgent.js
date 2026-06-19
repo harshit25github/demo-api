@@ -20,6 +20,37 @@ function buildActiveSearchSummary(context) {
   });
 }
 
+function summarizeFilterOptions(options = []) {
+  const list = Array.isArray(options) ? options : [];
+  return list
+    .filter((option) => option && option.IsDisabled !== true)
+    .map((option) => ({
+      Code: option.Code,
+      Text: option.Text || option.Name || option.AirportCityName || null,
+      AirportCityName: option.AirportCityName || null,
+      IsNearby: Boolean(option.IsNearby),
+    }));
+}
+
+function buildActiveFilterOptionsSummary(context) {
+  return JSON.stringify({
+    airlines: summarizeFilterOptions(context?.airlineFilterOptions || context?.airlineFilters),
+    layoverAirports: summarizeFilterOptions(
+      context?.layoverAirportFilterOptions || context?.layoverAirportFilters,
+    ),
+    departureAirports: summarizeFilterOptions(
+      context?.DepartAirports ||
+        context?.departureAirportFilterOptions ||
+        context?.departureAirportFilters,
+    ),
+    arrivalAirports: summarizeFilterOptions(
+      context?.DepLandAirports ||
+        context?.arrivalAirportFilterOptions ||
+        context?.arrivalAirportFilters,
+    ),
+  });
+}
+
 export function buildFlightAgentInstructions(runContext) {
   const context = runContext?.context || {};
   const hasActiveSearch = Boolean(context.searchKey || context.sid);
@@ -36,9 +67,12 @@ Current search state:
 - Active search exists: ${hasActiveSearch ? 'yes' : 'no'}.
 - Current flight result records available in shared context: ${hasCurrentResults ? 'yes' : 'no'}.
 - Existing search parameters: ${buildActiveSearchSummary(context)}
+- Active filter source options: ${buildActiveFilterOptionsSummary(context)}
 - For a partial core-search change, reuse every unchanged existing search parameter above.
 - Do not ask again for origin, destination, dates, trip type, passengers, or cabin when already available above.
 - For cheapest/best/compare/shortest-duration/current-option reasoning, call getGeneratedContractsContext even when cards are not shown in chat history.
+- If the user asks what airline, layover-airport, departure-airport, arrival-airport, alternate, or nearby options are available, answer from Active filter source options without calling tools.
+- If the user asks to use, apply, select, keep, or show one of those options, call apply_filter using the active searchKey.
 `;
 }
 

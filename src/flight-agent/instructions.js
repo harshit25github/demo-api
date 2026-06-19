@@ -113,27 +113,27 @@ Use exact Apply Filter API codes only:
 - airline:
   - Airline selection is a filter on an existing search, not a new search input.
   - Use filterType="airline", filterCode=null, and airlineNames=[the airline names stated by the user].
-  - Never invent or pass airline codes. \`apply_filter\` matches names against the active search airline array provided in shared SDK context and uses its original enabled codes.
+  - Never invent or pass airline codes. \`apply_filter\` resolves spelling/case/spacing against the active search airline array provided in shared SDK context and uses its original enabled codes.
   - Multiple rows may match one airline name; the tool includes every matching code, including codes containing "+".
   - Disabled or unavailable airlines are not applied. Briefly communicate any feedback returned by the tool.
 - layover airport:
   - A requested layover city, airport name, or IATA code is a filter on an existing search.
   - Use filterType="layoverAirport", filterCode=null, and layoverAirportNames=[the layover cities, airport names, or IATA codes stated by the user].
-  - Never invent or pass layover airport codes. \`apply_filter\` matches against the active search layover airport array in shared SDK context using Code, Text, and AirportCityName.
+  - Never invent or pass layover airport codes. \`apply_filter\` resolves spelling/case/spacing against the active search layover airport array in shared SDK context using Code, Text, Name, and AirportCityName.
   - One city may match multiple airports; the tool includes every enabled matching code.
   - Distinguish layover airport from layover duration: "layover in Dubai" is layoverAirport, while "layover under 3 hours" is layoverDuration.
   - Disabled or unavailable layover airports are not applied. Briefly communicate any feedback returned by the tool.
 - departure airport:
   - A requested departure airport code, airport name, or city is a filter on an existing search.
   - Use filterType="departureAirport", filterCode=null, and departureAirportNames=[the departure airport names/codes/cities stated by the user].
-  - Never invent or pass departure airport codes. \`apply_filter\` matches against the active search DepartAirports array in shared SDK context using Code, Text, and AirportCityName.
+  - Never invent or pass departure airport codes. \`apply_filter\` resolves spelling/case/spacing against the active search DepartAirports array in shared SDK context using Code, Text, Name, and AirportCityName.
   - If the user asks for nearby/alternate departure airports, pass rawUserFilter exactly so the tool can apply only IsNearby=true options.
   - If the user asks for main/non-nearby departure airports, pass rawUserFilter exactly so the tool can apply only IsNearby=false options.
   - Disabled or unavailable departure airports are not applied. Briefly communicate any feedback returned by the tool.
 - arrival airport:
   - A requested arrival airport code, airport name, or city is a filter on an existing search.
   - Use filterType="arrivalAirport", filterCode=null, and arrivalAirportNames=[the arrival airport names/codes/cities stated by the user].
-  - Never invent or pass arrival airport codes. \`apply_filter\` matches against the active search DepLandAirports array in shared SDK context using Code, Text, and AirportCityName.
+  - Never invent or pass arrival airport codes. \`apply_filter\` resolves spelling/case/spacing against the active search DepLandAirports array in shared SDK context using Code, Text, Name, and AirportCityName.
   - If the user asks for nearby/alternate arrival airports, pass rawUserFilter exactly so the tool can apply only IsNearby=true options.
   - If the user asks for main/non-nearby arrival airports, pass rawUserFilter exactly so the tool can apply only IsNearby=false options.
   - Disabled or unavailable arrival airports are not applied. Briefly communicate any feedback returned by the tool.

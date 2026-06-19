@@ -386,11 +386,205 @@ function buildIgnoredMinimumFeedback(filterType, ignoredMinimum, validMaximum) {
 }
 
 function normalizeSourceOptionValue(value) {
-  return toSearchText(value).replace(/\s+/g, ' ');
+  return toSearchText(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeComparableSourceValue(value) {
+  return normalizeSourceOptionValue(value)
+    .replace(/[^a-z0-9+\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function uniqueStrings(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function damerauLevenshteinDistance(leftValue, rightValue) {
+  const left = normalizeComparableSourceValue(leftValue);
+  const right = normalizeComparableSourceValue(rightValue);
+  const rows = left.length + 1;
+  const columns = right.length + 1;
+  const distances = Array.from({ length: rows }, () => Array(columns).fill(0));
+
+  for (let row = 0; row < rows; row += 1) {
+    distances[row][0] = row;
+  }
+  for (let column = 0; column < columns; column += 1) {
+    distances[0][column] = column;
+  }
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let column = 1; column < columns; column += 1) {
+      const cost = left[row - 1] === right[column - 1] ? 0 : 1;
+      distances[row][column] = Math.min(
+        distances[row - 1][column] + 1,
+        distances[row][column - 1] + 1,
+        distances[row - 1][column - 1] + cost,
+      );
+
+      if (
+        row > 1 &&
+        column > 1 &&
+        left[row - 1] === right[column - 2] &&
+        left[row - 2] === right[column - 1]
+      ) {
+        distances[row][column] = Math.min(
+          distances[row][column],
+          distances[row - 2][column - 2] + 1,
+        );
+      }
+    }
+  }
+
+  return distances[left.length][right.length];
+}
+
+function isConfidentFuzzyMatch(requestedValue, candidateValue, distance) {
+  const requested = normalizeComparableSourceValue(requestedValue);
+  const candidate = normalizeComparableSourceValue(candidateValue);
+  const maxLength = Math.max(requested.length, candidate.length);
+  if (Math.min(requested.length, candidate.length) < 4 || maxLength === 0) {
+    return false;
+  }
+
+  const similarity = 1 - distance / maxLength;
+  return distance <= 1 || (distance <= 2 && maxLength >= 7 && similarity >= 0.72);
+}
+
+function getSourceOptionCandidates(option, fields) {
+  return fields
+    .map((field) => option?.[field])
+    .filter((value) => value !== null && value !== undefined && String(value).trim())
+    .map((value) => String(value).trim());
+}
+
+function displaySourceOption(option, preferredFields) {
+  const value = preferredFields
+    .map((field) => option?.[field])
+    .find((candidate) => candidate !== null && candidate !== undefined && String(candidate).trim());
+  return value ? String(value).trim() : String(option?.Code || '').trim();
+}
+
+function resolveSourceOptionMatches({
+  requestedValue,
+  options,
+  candidateFields,
+  displayFields,
+  allowPartial = false,
+}) {
+  const requested = normalizeComparableSourceValue(requestedValue);
+  if (!requested) {
+    return { status: 'missing', matches: [], displayLabels: [], matchType: null };
+  }
+
+  const candidateRows = options.flatMap((option) =>
+    getSourceOptionCandidates(option, candidateFields).map((candidate) => ({
+      option,
+      candidate,
+      normalizedCandidate: normalizeComparableSourceValue(candidate),
+    })),
+  );
+
+  const exactCandidateKeys = uniqueStrings(
+    candidateRows
+      .filter((row) => row.normalizedCandidate === requested)
+      .map((row) => row.normalizedCandidate),
+  );
+
+  if (exactCandidateKeys.length > 0) {
+    const matches = options.filter((option) =>
+      getSourceOptionCandidates(option, candidateFields).some((candidate) =>
+        exactCandidateKeys.includes(normalizeComparableSourceValue(candidate)),
+      ),
+    );
+    return {
+      status: 'matched',
+      matches,
+      displayLabels: uniqueStrings(matches.map((option) => displaySourceOption(option, displayFields))),
+      matchType: 'exact',
+    };
+  }
+
+  if (allowPartial && requested.length >= 3) {
+    const partialCandidateKeys = uniqueStrings(
+      candidateRows
+        .filter(
+          (row) =>
+            row.normalizedCandidate.length >= 3 &&
+            (row.normalizedCandidate.includes(requested) ||
+              requested.includes(row.normalizedCandidate)),
+        )
+        .map((row) => row.normalizedCandidate),
+    );
+
+    if (partialCandidateKeys.length > 0) {
+      const matches = options.filter((option) =>
+        getSourceOptionCandidates(option, candidateFields).some((candidate) =>
+          partialCandidateKeys.includes(normalizeComparableSourceValue(candidate)),
+        ),
+      );
+      return {
+        status: 'matched',
+        matches,
+        displayLabels: uniqueStrings(matches.map((option) => displaySourceOption(option, displayFields))),
+        matchType: 'partial',
+      };
+    }
+  }
+
+  const scoredRows = candidateRows
+    .map((row) => ({
+      ...row,
+      distance: damerauLevenshteinDistance(requested, row.normalizedCandidate),
+    }))
+    .filter((row) => isConfidentFuzzyMatch(requested, row.normalizedCandidate, row.distance))
+    .sort((left, right) => left.distance - right.distance);
+
+  if (scoredRows.length === 0) {
+    return { status: 'missing', matches: [], displayLabels: [], matchType: null };
+  }
+
+  const bestDistance = scoredRows[0].distance;
+  const bestCandidateKeys = uniqueStrings(
+    scoredRows
+      .filter((row) => row.distance === bestDistance)
+      .map((row) => row.normalizedCandidate),
+  );
+
+  if (bestCandidateKeys.length > 1) {
+    return { status: 'ambiguous', matches: [], displayLabels: [], matchType: 'fuzzy' };
+  }
+
+  const matches = options.filter((option) =>
+    getSourceOptionCandidates(option, candidateFields).some((candidate) =>
+      bestCandidateKeys.includes(normalizeComparableSourceValue(candidate)),
+    ),
+  );
+
+  return {
+    status: 'matched',
+    matches,
+    displayLabels: uniqueStrings(matches.map((option) => displaySourceOption(option, displayFields))),
+    matchType: 'fuzzy',
+  };
+}
+
+function addCorrectionFeedback(feedback, label, requestedName, displayLabels) {
+  if (!displayLabels.length) {
+    return;
+  }
+
+  const requested = normalizeComparableSourceValue(requestedName);
+  const alreadyExact = displayLabels.some(
+    (displayLabel) => normalizeComparableSourceValue(displayLabel) === requested,
+  );
+  if (!alreadyExact) {
+    feedback.push(`Applied ${label} filter for ${displayLabels.join(', ')}.`);
+  }
 }
 
 function emptySourceFilter({
@@ -446,21 +640,37 @@ function resolveAirlineFilter(filter, airlineOptions) {
   const enabledOptions = airlineOptions.filter((option) => option && option.IsDisabled !== true);
   const matchedCodes = [];
   const missingNames = [];
+  const ambiguousNames = [];
+  const resolvedNames = [];
+  const feedback = [];
 
   for (const requestedName of requestedNames) {
-    const normalizedRequestedName = normalizeSourceOptionValue(requestedName);
-    const matches = enabledOptions.filter((option) =>
-      [option.Name, option.Text]
-        .filter(Boolean)
-        .some((name) => normalizeSourceOptionValue(name) === normalizedRequestedName),
-    );
+    const resolved = resolveSourceOptionMatches({
+      requestedValue: requestedName,
+      options: enabledOptions,
+      candidateFields: ['Code', 'Name', 'Text'],
+      displayFields: ['Name', 'Text', 'Code'],
+    });
 
-    if (matches.length === 0) {
+    if (resolved.status === 'ambiguous') {
+      ambiguousNames.push(requestedName);
+      feedback.push(
+        `${requestedName} matched multiple airlines in the current results. Please clarify the airline.`,
+      );
+      continue;
+    }
+
+    if (resolved.status === 'missing') {
       missingNames.push(requestedName);
       continue;
     }
 
-    for (const match of matches) {
+    if (resolved.matchType === 'fuzzy') {
+      addCorrectionFeedback(feedback, 'airline', requestedName, resolved.displayLabels);
+    }
+    resolvedNames.push(...resolved.displayLabels);
+
+    for (const match of resolved.matches) {
       if (match.Code && !matchedCodes.includes(match.Code)) {
         // Keep the exact source code, including suffixes such as "+".
         matchedCodes.push(match.Code);
@@ -468,9 +678,10 @@ function resolveAirlineFilter(filter, airlineOptions) {
     }
   }
 
-  const feedback = [];
   if (requestedNames.length > 0 && matchedCodes.length === 0) {
-    feedback.push('The requested airline was not found in the current flight results.');
+    if (missingNames.length > 0 && ambiguousNames.length === 0) {
+      feedback.push('The requested airline was not found in the current flight results.');
+    }
   } else if (missingNames.length > 0) {
     feedback.push(
       `${missingNames.join(', ')} was not available in the current flight results, so I applied filters for the available requested airlines.`,
@@ -486,7 +697,7 @@ function resolveAirlineFilter(filter, airlineOptions) {
           maxDurationMinutes: null,
           minPrice: null,
           maxPrice: null,
-          airlineNames: requestedNames,
+          airlineNames: uniqueStrings(resolvedNames),
           layoverAirportNames: null,
           departureAirportNames: null,
           arrivalAirportNames: null,
@@ -543,21 +754,38 @@ function resolveLayoverAirportFilter(filter, layoverAirportOptions) {
   );
   const matchedCodes = [];
   const missingNames = [];
+  const ambiguousNames = [];
+  const resolvedNames = [];
+  const feedback = [];
 
   for (const requestedName of requestedNames) {
-    const normalizedRequestedName = normalizeSourceOptionValue(requestedName);
-    const matches = enabledOptions.filter((option) =>
-      [option.Code, option.Text, option.AirportCityName]
-        .filter(Boolean)
-        .some((value) => normalizeSourceOptionValue(value) === normalizedRequestedName),
-    );
+    const resolved = resolveSourceOptionMatches({
+      requestedValue: requestedName,
+      options: enabledOptions,
+      candidateFields: ['Code', 'Text', 'Name', 'AirportCityName'],
+      displayFields: ['AirportCityName', 'Text', 'Name', 'Code'],
+      allowPartial: true,
+    });
 
-    if (matches.length === 0) {
+    if (resolved.status === 'ambiguous') {
+      ambiguousNames.push(requestedName);
+      feedback.push(
+        `${requestedName} matched multiple layover airports in the current results. Please clarify the layover airport.`,
+      );
+      continue;
+    }
+
+    if (resolved.status === 'missing') {
       missingNames.push(requestedName);
       continue;
     }
 
-    for (const match of matches) {
+    if (resolved.matchType === 'fuzzy') {
+      addCorrectionFeedback(feedback, 'layover airport', requestedName, resolved.displayLabels);
+    }
+    resolvedNames.push(...resolved.displayLabels);
+
+    for (const match of resolved.matches) {
       if (match.Code && !matchedCodes.includes(match.Code)) {
         // Keep the exact code supplied by the current search's layover option array.
         matchedCodes.push(match.Code);
@@ -565,9 +793,10 @@ function resolveLayoverAirportFilter(filter, layoverAirportOptions) {
     }
   }
 
-  const feedback = [];
   if (requestedNames.length > 0 && matchedCodes.length === 0) {
-    feedback.push('The requested layover airport was not found in the current flight results.');
+    if (missingNames.length > 0 && ambiguousNames.length === 0) {
+      feedback.push('The requested layover airport was not found in the current flight results.');
+    }
   } else if (missingNames.length > 0) {
     feedback.push(
       `${missingNames.join(', ')} was not available as a layover airport in the current results, so I applied filters for the available requested layover airports.`,
@@ -584,7 +813,7 @@ function resolveLayoverAirportFilter(filter, layoverAirportOptions) {
           minPrice: null,
           maxPrice: null,
           airlineNames: null,
-          layoverAirportNames: requestedNames,
+          layoverAirportNames: uniqueStrings(resolvedNames),
           departureAirportNames: null,
           arrivalAirportNames: null,
           rawUserFilter: filter.rawUserFilter,
@@ -620,20 +849,20 @@ function getAirportNearbyPreference(rawUserFilter) {
 }
 
 function optionMatchesRequestedAirport(option, requestedAirport) {
-  const requested = normalizeSourceOptionValue(requestedAirport);
+  const requested = normalizeComparableSourceValue(requestedAirport);
   if (!requested) {
     return false;
   }
 
-  const code = normalizeSourceOptionValue(option.Code);
+  const code = normalizeComparableSourceValue(option.Code);
   if (code && code === requested) {
     return true;
   }
 
-  return [option.Text, option.AirportCityName]
+  return [option.Text, option.Name, option.AirportCityName]
     .filter(Boolean)
     .some((value) => {
-      const candidate = normalizeSourceOptionValue(value);
+      const candidate = normalizeComparableSourceValue(value);
       return candidate === requested || candidate.includes(requested) || requested.includes(candidate);
     });
 }
@@ -676,6 +905,8 @@ function resolveFlightEndpointAirportFilter(filter, airportOptions, inputField) 
   );
   const matchedCodes = [];
   const missingNames = [];
+  const ambiguousNames = [];
+  const resolvedNames = [];
   const feedback = [];
   const label = buildAirportFeedbackLabel(filter.filterType);
 
@@ -687,16 +918,48 @@ function resolveFlightEndpointAirportFilter(filter, airportOptions, inputField) 
     }
   } else {
     for (const requestedName of requestedNames) {
-      const matches = eligibleOptions.filter((option) =>
+      const exactOrPartialMatches = eligibleOptions.filter((option) =>
         optionMatchesRequestedAirport(option, requestedName),
       );
+      const resolved =
+        exactOrPartialMatches.length > 0
+          ? {
+              status: 'matched',
+              matches: exactOrPartialMatches,
+              displayLabels: uniqueStrings(
+                exactOrPartialMatches.map((option) =>
+                  displaySourceOption(option, ['AirportCityName', 'Text', 'Name', 'Code']),
+                ),
+              ),
+              matchType: 'partial',
+            }
+          : resolveSourceOptionMatches({
+              requestedValue: requestedName,
+              options: eligibleOptions,
+              candidateFields: ['Code', 'Text', 'Name', 'AirportCityName'],
+              displayFields: ['AirportCityName', 'Text', 'Name', 'Code'],
+              allowPartial: true,
+            });
 
-      if (matches.length === 0) {
+      if (resolved.status === 'ambiguous') {
+        ambiguousNames.push(requestedName);
+        feedback.push(
+          `${requestedName} matched multiple ${label}s in the current results. Please clarify the ${label}.`,
+        );
+        continue;
+      }
+
+      if (resolved.status === 'missing') {
         missingNames.push(requestedName);
         continue;
       }
 
-      for (const match of matches) {
+      if (resolved.matchType === 'fuzzy') {
+        addCorrectionFeedback(feedback, label, requestedName, resolved.displayLabels);
+      }
+      resolvedNames.push(...resolved.displayLabels);
+
+      for (const match of resolved.matches) {
         if (match.Code && !matchedCodes.includes(match.Code)) {
           matchedCodes.push(match.Code);
         }
@@ -715,14 +978,21 @@ function resolveFlightEndpointAirportFilter(filter, airportOptions, inputField) 
       `No eligible nearby/alternate ${label}s were found in the current flight results.`,
     );
   } else if (requestedNames.length > 0 && matchedCodes.length === 0) {
-    feedback.push(`The requested ${label} was not found in the current flight results.`);
+    if (missingNames.length > 0 && ambiguousNames.length === 0) {
+      feedback.push(`The requested ${label} was not found in the current flight results.`);
+    }
   } else if (missingNames.length > 0) {
     feedback.push(
       `${missingNames.join(', ')} was not available as a ${label} in the current results, so I applied filters for the available requested airports.`,
     );
   }
 
-  const sourceNames = requestedNames.length > 0 ? requestedNames : null;
+  const sourceNames =
+    resolvedNames.length > 0
+      ? uniqueStrings(resolvedNames)
+      : requestedNames.length > 0
+        ? requestedNames
+        : null;
   const normalizedFilters =
     matchedCodes.length > 0
       ? matchedCodes.map((filterCode) =>
