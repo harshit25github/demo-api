@@ -15,9 +15,11 @@ const {
   Agent,
   Runner,
   Usage,
+  tool,
   defineToolOutputGuardrail,
   ToolGuardrailFunctionOutputFactory,
 } = await import('@openai/agents');
+const { z } = await import('zod');
 
 function textAnswer(text: string) {
   return {
@@ -358,4 +360,160 @@ test('maxFunctionToolConcurrency 1 runs tools serially', async () => {
   }).run(manager, 'go', { maxTurns: 6 });
 
   assert.equal(maxActive, 1, `tools overlapped: ${maxActive} ran concurrently`);
+});
+
+/**
+ * The reason the refactor can delete `SDK_TOOL_ERROR_PREFIX` parsing: EVERY way a
+ * specialist call can fail funnels through the output guardrail, and none of them
+ * throws out of the Manager run. That makes the guardrail a single choke point for
+ * both masking the failure and recording it.
+ *
+ * Covers a nested run that exceeds its own maxTurns, a nested model that throws,
+ * an extractor that throws, and an extractor that returns an unusable shape.
+ */
+test('every specialist failure mode reaches the output guardrail and is replaced', async () => {
+  const REPLACEMENT = 'GENERIC_FAILURE_LINE';
+
+  const noopTool = tool({
+    name: 'noop',
+    description: 'noop',
+    parameters: z.object({}),
+    async execute() { return 'noop-result'; },
+  });
+
+  async function runFailure(specialist: any, extractor: (result: any) => string) {
+    const guardrailSaw: string[] = [];
+    const managerInputs: string[] = [];
+
+    const specialistTool = specialist.asTool({
+      toolName: 'spec',
+      toolDescription: 'spec',
+      inputBuilder: ({ params }: any) => String(params.input),
+      runOptions: { maxTurns: 2 },
+      customOutputExtractor: extractor,
+    });
+    specialistTool.outputGuardrails = [defineToolOutputGuardrail({
+      name: 'shape',
+      async run({ output }: any) {
+        guardrailSaw.push(String(output));
+        let parsed: any;
+        try { parsed = JSON.parse(String(output)); } catch { parsed = null; }
+        return parsed && typeof parsed.status === 'string'
+          ? ToolGuardrailFunctionOutputFactory.allow()
+          : ToolGuardrailFunctionOutputFactory.rejectContent(REPLACEMENT);
+      },
+    })];
+
+    let managerCalls = 0;
+    const managerModel = {
+      async getResponse(request: any) {
+        managerCalls += 1;
+        managerInputs.push(JSON.stringify(request.input));
+        return managerCalls === 1
+          ? toolCall('spec', 'subtask', 'call_1')
+          : textAnswer('final answer');
+      },
+    };
+    const manager = new Agent({
+      name: 'Manager', instructions: 'Route.',
+      model: managerModel as any, tools: [specialistTool],
+    });
+
+    let threw: unknown = null;
+    try {
+      await new Runner({ tracingDisabled: true }).run(manager, 'go', { maxTurns: 8 });
+    } catch (error) { threw = error; }
+
+    const seenByManager = managerInputs[1]
+      ? JSON.parse(managerInputs[1]).find((item: any) => item.type === 'function_call_result')
+      : null;
+    return { threw, guardrailSaw, seenByManager };
+  }
+
+  const validExtractor = (result: any) =>
+    JSON.stringify({ status: 'success', summary: String(result.finalOutput ?? '') });
+
+  const cases: Array<[string, any, (result: any) => string]> = [
+    ['nested maxTurns exceeded',
+      new Agent({ name: 'SA', instructions: 'x', tools: [noopTool],
+        model: { async getResponse() { return toolCall('noop', '', `i${Math.random()}`); } } as any },
+      ), validExtractor],
+    ['nested model throws',
+      new Agent({ name: 'SB', instructions: 'x',
+        model: { async getResponse() { throw new Error('NESTED_BOOM_DETAIL'); } } as any }),
+      validExtractor],
+    ['extractor throws',
+      new Agent({ name: 'SC', instructions: 'x',
+        model: { async getResponse() { return textAnswer('fine'); } } as any }),
+      () => { throw new Error('EXTRACTOR_BOOM_DETAIL'); }],
+    ['extractor returns an unusable shape',
+      new Agent({ name: 'SD', instructions: 'x',
+        model: { async getResponse() { return textAnswer('fine'); } } as any }),
+      () => 'not json at all'],
+  ];
+
+  for (const [label, specialist, extractor] of cases) {
+    const { threw, guardrailSaw, seenByManager } = await runFailure(specialist, extractor);
+    assert.equal(threw, null, `${label}: failed the Manager run instead of becoming a tool result`);
+    assert.equal(guardrailSaw.length, 1, `${label}: the output guardrail did not run`);
+    assert.equal(seenByManager?.output?.text, REPLACEMENT,
+      `${label}: the Manager did not see the replacement line`);
+    assert.doesNotMatch(JSON.stringify(seenByManager), /BOOM_DETAIL|MaxTurnsExceeded/,
+      `${label}: SDK or specialist error detail leaked to the Manager`);
+  }
+});
+
+/**
+ * The tool timeout genuinely ABORTS the nested run rather than just returning
+ * early, because the SDK combines its timeout controller with `details.signal`,
+ * which `asTool()` passes down as the nested run's signal. It also clones
+ * `details` by property descriptors, preserving the non-enumerable parent run
+ * config and trace span symbols — the thing the application used to hand-roll.
+ */
+test('asTool timeoutMs aborts the nested run', async () => {
+  let nestedSawAbort = false;
+  let nestedCompleted = false;
+
+  const slowModel = {
+    async getResponse(request: any) {
+      const signal: AbortSignal | undefined = request?.signal;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => { nestedCompleted = true; resolve(); }, 400);
+        signal?.addEventListener('abort', () => {
+          nestedSawAbort = true;
+          clearTimeout(timer);
+          reject(new Error('aborted'));
+        });
+      });
+      return textAnswer('too late');
+    },
+  };
+
+  const specialist = new Agent({ name: 'Slow', instructions: 'x', model: slowModel as any });
+  const specialistTool = specialist.asTool({
+    toolName: 'spec',
+    toolDescription: 'spec',
+    runOptions: { maxTurns: 2 },
+    customOutputExtractor: (result: any) => String(result.finalOutput ?? ''),
+  });
+  specialistTool.timeoutMs = 30;
+  specialistTool.timeoutBehavior = 'error_as_result';
+  specialistTool.timeoutErrorFunction = () => 'TIMED_OUT';
+
+  let managerCalls = 0;
+  const managerModel = {
+    async getResponse() {
+      managerCalls += 1;
+      return managerCalls === 1 ? toolCall('spec', 'subtask', 'c1') : textAnswer('final answer');
+    },
+  };
+  const manager = new Agent({
+    name: 'Manager', instructions: 'Route.', model: managerModel as any, tools: [specialistTool],
+  });
+
+  await new Runner({ tracingDisabled: true }).run(manager, 'go', { maxTurns: 6 });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  assert.equal(nestedSawAbort, true, 'the nested run was never aborted on timeout');
+  assert.equal(nestedCompleted, false, 'the nested run kept running past the tool timeout');
 });
