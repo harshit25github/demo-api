@@ -294,11 +294,11 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         why: 'Both attributes are per-contract. The search summary carries neither, so the contracts have to be read.',
       },
       {
-        user: 'I like that airline — same flight but a day later',
+        user: "stick with option 2's airline, but a day later",
         understanding:
-          'The date moves forward one day, and "same flight" means the airline of the option just discussed becomes a preference to carry into the new results. It cannot be promised, because the new date may not offer it.',
+          'Option 2 was named two turns ago, so resolve it to that carrier before delegating. The date moves forward one day, and the airline becomes a preference on the new results — it cannot be promised, because the new date may not offer it.',
         expectedTools: ['flight_search', 'apply_filter'],
-        why: 'The date change forces a new search; the airline is not a search field, so it becomes a filter once results exist. Claiming the same flight before checking is the failure here.',
+        why: 'The date change forces a new search, and the airline is not a search input so it becomes a filter once results exist. Passing "option 2’s airline" through unresolved is the routing failure to catch: the specialist has no conversation to resolve it against, and will either guess or ask the traveller for something the Manager already knew.',
       },
       {
         user: 'what about the first one now?',
