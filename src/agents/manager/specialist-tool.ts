@@ -1,18 +1,18 @@
 import { tool } from '@openai/agents';
 import type { FunctionTool, RunContext, Tool } from '@openai/agents';
-import { z } from 'zod';
 import { getRequestState } from '../../shared/runtime/request-context.js';
 import type { FlightAppContext } from '../flight/types.js';
 import type { ManagerToolResult } from './result-contract.js';
 import { recordOutcome, type ManagerTurnState, type SpecialistName } from './turn-state.js';
+import { GENERIC_SPECIALIST_FAILURE, specialistInputSchema } from './specialist-result.js';
 
 /** The SDK does not export `ToolCallDetails`; derive it from the public tool surface. */
 type ToolCallDetails = NonNullable<Parameters<FunctionTool['invoke']>[2]>;
 
-export const specialistInputSchema = z.object({ input: z.string().trim().min(1).max(4000) });
-
-/** One traveler-facing failure line. Never name agents, tools, or statuses. */
-export const GENERIC_SPECIALIST_FAILURE = "I couldn't finish that part of your request right now.";
+// Single source of truth lives in specialist-result.ts, which the direct
+// asTool registrations use. Re-exported here while Flight still goes through
+// this wrapper.
+export { GENERIC_SPECIALIST_FAILURE, specialistInputSchema };
 
 /**
  * The SDK's `defaultToolErrorFunction` message prefix.

@@ -1,15 +1,36 @@
+/**
+ * The Trip Planner specialist, as the Manager sees it.
+ *
+ * Registered directly with `Agent.asTool()`. The Manager never sees itinerary
+ * text: `tripPlannerResult` stores the sanitized plan once under a render
+ * reference and returns only a short summary plus that reference, which
+ * `finalizeManagerOutput` resolves into the final answer exactly once.
+ */
 import { randomUUID } from 'node:crypto';
+import type { Tool } from '@openai/agents';
 import { TripPlannerAgent } from '../../trip-planner/agent.js';
 import { tripPlannerAgentConfig } from '../../trip-planner/config.js';
 import { finalizeTripPlannerTurn, prepareTripPlannerTurn } from '../../trip-planner/context/lifecycle.js';
 import { sanitizeGatewayOutputForFinalAgent } from '../../manager-orchestrator/output-guardrail.js';
-import { ObservedModelProvider, observeModelInput } from '../../../shared/observability/model-usage.js';
-import { gatewayModelRetrySettings } from '../../manager-orchestrator/retry.js';
 import type { ManagerToolResult } from '../result-contract.js';
-import type { ManagerTurnState } from '../turn-state.js';
-import { GENERIC_SPECIALIST_FAILURE, type SpecialistDefinition } from '../specialist-tool.js';
+import { recordOutcome, type ManagerTurnState } from '../turn-state.js';
+import {
+  createSpecialistResultGuardrail,
+  readSpecialistSubtask,
+  specialistInputSchema,
+  specialistRunConfig,
+  specialistTimeoutResult,
+} from '../specialist-result.js';
 
-/** Transform Trip Planner Agent's text output into Manager tool result */
+const TRIP_PLANNER_TOOL_DESCRIPTION =
+  'Create or revise destination ideas, activities, attractions, and day plans. Give only the relevant Trip subtask and use confirmed flight facts only when the plan depends on them. Do not rank flight results or explain an existing selected booking itinerary.';
+
+/**
+ * Transform the Trip Planner Agent's text output into a Manager tool result.
+ *
+ * Scope and link filtering stay application policy: the plan is sanitized before
+ * it is stored, so the text the render reference resolves to is already clean.
+ */
 export function tripPlannerResult(state: ManagerTurnState, output: string): ManagerToolResult {
   const guarded = sanitizeGatewayOutputForFinalAgent({
     output,
@@ -54,66 +75,56 @@ export function tripPlannerResult(state: ManagerTurnState, output: string): Mana
   };
 }
 
-// ---------------------------------------------------------------------------
-// Specialist definition
-// ---------------------------------------------------------------------------
-
 /**
- * Built once at module scope. The per-run timeout deliberately does NOT live in
- * `runOptions` — a module-scope `AbortSignal.timeout` starts counting at import
- * and would abort every run after the process has been up that long. The wrapper
- * derives a fresh signal per call from `timeoutMs` below.
+ * Build this turn's Trip Planner tool.
+ *
+ * Per-turn rather than at module scope so `inputBuilder`,
+ * `customOutputExtractor` and the guardrails can close over this turn's state.
+ * Construction is just object creation; the nested `Runner` is built per call
+ * inside the SDK.
  */
-const tripNested = TripPlannerAgent.asTool({
-  toolName: 'trip_planner_agent',
-  toolDescription: 'Trip planning specialist',
-  runConfig: {
-    // `modelProvider` MUST stay set. getInheritedAgentToolRunConfig() gates both
-    // `inheritedRunConfig.model` and `inheritedRunConfig.modelSettings` on
-    // `!overridesModelProvider`, so dropping this line makes the Trip Planner
-    // silently inherit the Manager's model and reasoning effort instead of its own.
-    modelProvider: new ObservedModelProvider(),
-    callModelInputFilter: observeModelInput,
-    modelSettings: { preserveRawUsage: true, retry: gatewayModelRetrySettings },
-    traceIncludeSensitiveData: true,
-  },
-  runOptions: { maxTurns: tripPlannerAgentConfig.maxTurns },
-  customOutputExtractor: (result) => JSON.stringify(result.finalOutput ?? null),
-});
+export function createTripPlannerTool(state: ManagerTurnState): Tool<any> {
+  const tripTool = TripPlannerAgent.asTool({
+    toolName: 'trip_planner_agent',
+    toolDescription: TRIP_PLANNER_TOOL_DESCRIPTION,
+    parameters: specialistInputSchema,
+    /**
+     * Runs immediately before the nested run, so this is where the Trip turn is
+     * scoped to the subtask the Manager chose. Declaring `inputBuilder` is also
+     * what makes the SDK carry the structured input into the nested run as
+     * `RunContext.toolInput`.
+     */
+    inputBuilder: ({ params }) => {
+      prepareTripPlannerTurn({
+        context: state.appContext,
+        input: params.input,
+        requestId: state.requestId,
+        sessionId: state.appContext.sessionId,
+      });
+      return params.input;
+    },
+    runConfig: specialistRunConfig(),
+    // No `signal` here: a module-scope AbortSignal.timeout would start counting
+    // at import. The per-call budget is `timeoutMs` on the tool below.
+    runOptions: { maxTurns: tripPlannerAgentConfig.maxTurns },
+    customOutputExtractor: (result) => recordOutcome(
+      state,
+      'trip_planner_agent',
+      readSpecialistSubtask(result.agentToolInvocation?.toolArguments),
+      tripPlannerResult(state, String(result.finalOutput ?? '')),
+    ),
+  });
 
-export const tripPlannerSpecialist: SpecialistDefinition<void> = {
-  name: 'trip_planner_agent',
-  description: 'Create or revise destination ideas, activities, attractions, and day plans. Give only the relevant Trip subtask and use confirmed flight facts only when the plan depends on them. Do not rank flight results or explain an existing selected booking itinerary.',
-  nested: tripNested,
-  timeoutMs: tripPlannerAgentConfig.timeoutMs,
-  capture() {
-    // Trip Planner scopes its own turn inside `context.tripPlanner`, so there is
-    // no shared watermark to snapshot here.
-  },
-  before(state, input) {
-    prepareTripPlannerTurn({
-      context: state.appContext,
-      input,
-      requestId: state.requestId,
-      sessionId: state.appContext.sessionId,
-    });
-  },
-  toResult(state, _input, outcome) {
-    // `=== false`, not `!outcome.ok`: the test project runs with `strictNullChecks`
-    // off, where truthiness narrowing on a boolean discriminant does not narrow.
-    if (outcome.ok === false) {
-      return {
-        status: 'failure',
-        summary: GENERIC_SPECIALIST_FAILURE,
-        recovery: { code: outcome.code, retryable: outcome.retryable },
-      };
-    }
-    let finalOutput: unknown;
-    try {
-      finalOutput = JSON.parse(outcome.output);
-    } catch {
-      finalOutput = outcome.output;
-    }
-    return tripPlannerResult(state, String(finalOutput || ''));
-  },
-};
+  // Trip planning is the long specialist. `error_as_result` keeps an overrun as
+  // one failed tool call the Manager can answer around, instead of failing the
+  // whole turn. The SDK combines its timeout with the tool call's own signal, so
+  // the nested run is genuinely aborted.
+  tripTool.timeoutMs = tripPlannerAgentConfig.timeoutMs;
+  tripTool.timeoutBehavior = 'error_as_result';
+  tripTool.timeoutErrorFunction = (_runContext, _error, details) =>
+    specialistTimeoutResult(state, 'trip_planner_agent', details);
+
+  tripTool.outputGuardrails = [createSpecialistResultGuardrail(state, 'trip_planner_agent')];
+
+  return tripTool as Tool<any>;
+}
