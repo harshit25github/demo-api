@@ -132,14 +132,21 @@ for (const [index, turn] of scenario.turns.entries()) {
         } catch { return []; }
       });
 
-    const feedback = (result.result?.newItems || [])
+    const outputItems = (result.result?.newItems || [])
       .filter((item: any) => item?.type === 'tool_call_output_item')
-      .flatMap((item: any) => {
-        try {
-          const value = JSON.parse(String(item.output || ''));
-          return typeof value.status === 'string' ? [value] : [];
-        } catch { return []; }
-      });
+      .map((item: any) => String(item.output ?? ''));
+    const feedback = outputItems.flatMap((text: string) => {
+      try {
+        const value = JSON.parse(text);
+        return typeof value.status === 'string' ? [value] : [];
+      } catch { return []; }
+    });
+    // A specialist run that fails never reaches the extractor: the guardrail
+    // returns one plain line instead, which is not JSON and would otherwise leave
+    // the turn looking like it produced no feedback at all.
+    const specialistFailures = outputItems.filter((text: string) => {
+      try { return typeof JSON.parse(text)?.status !== 'string'; } catch { return true; }
+    });
 
     const output = String(result.output || '');
     console.log(`\n${passed ? 'PASS' : 'FAIL'} turn ${index + 1}: ${JSON.stringify(turn.user)}`);
@@ -151,6 +158,9 @@ for (const [index, turn] of scenario.turns.entries()) {
     for (const item of feedback) {
       console.log(`  feedback : status=${item.status} presentation=${item.presentation ?? 'null'} missingInfo=${
         (item.missingInformation || []).length}`);
+    }
+    for (const text of specialistFailures) {
+      console.log(`  SPECIALIST RUN FAILED: ${text.slice(0, 200)}`);
     }
     if (!passed) {
       console.log(`  why      : ${turn.why}`);
@@ -172,6 +182,7 @@ for (const [index, turn] of scenario.turns.entries()) {
       renderFlightOptions: Boolean(result.renderFlightOptions),
       subtasks,
       feedback,
+      specialistFailures,
       output,
       traceId,
       latencyMs: Date.now() - started,

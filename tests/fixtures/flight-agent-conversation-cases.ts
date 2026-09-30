@@ -337,37 +337,37 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         why: 'All inputs present; the bare date has to resolve forward from the clock.',
       },
       {
-        user: 'Singapore Airlines only',
-        understanding:
-          'An airline filter whose code must come from the current search’s own airline source options, not from general knowledge of the carrier.',
+        user: 'at most one stop',
+        understanding: 'A stops constraint on the current results.',
         expectedTools: ['apply_filter'],
-        why: 'Airline filtering works off the source options attached to the live search. Inventing a code, or re-searching to "add" the airline, are both wrong.',
+        why: 'Search inputs are unchanged, so the existing options are narrowed rather than rebuilt.',
       },
       {
-        user: 'evening departures as well',
+        user: 'and nothing over $600',
         understanding:
-          'Add an evening departure-time slot while the airline filter stays active.',
+          'Add a maximum-price filter while the stops constraint stays active.',
         expectedTools: ['apply_filter'],
-        why: 'Filters accumulate, and "as well" is explicit that the first one stays.',
+        why: 'Filters accumulate, and "and" is explicit that the first one stays. Price is a maximum-only filter.',
       },
       {
-        user: 'and at most one stop',
-        understanding: 'Add a stops constraint on top of the two already active.',
+        user: 'carry-on included as well',
+        understanding: 'Add a baggage constraint on top of the two already active.',
         expectedTools: ['apply_filter'],
         why: 'Third filter, same reasoning. Dropping either earlier constraint is a state-management bug.',
       },
       {
-        user: 'how many are left?',
-        understanding: 'The count surviving all three filters.',
+        user: "what's the price on the cheapest of those?",
+        understanding:
+          'A fare for a specific option within the set surviving all three filters.',
         expectedTools: ['getGeneratedContractsContext'],
-        why: 'The number changed with each filter, so it has to be read from the current contracts rather than recalled.',
+        why: 'A per-option fare lives on the contracts and has never been stated, so unlike a result count it cannot be recalled from the previous turn.',
       },
       {
-        user: 'drop the evening one but keep the others',
+        user: 'drop the price cap but keep the rest',
         understanding:
-          'Remove only the departure-time filter, leaving the airline and stops constraints in place.',
+          'Remove only the price filter, leaving the stops and baggage constraints in place.',
         expectedTools: ['apply_filter'],
-        why: 'A targeted removal, not a reset and not a re-search. Clearing everything here would discard two constraints the traveller just asked to keep.',
+        why: 'A targeted removal, not a reset and not a re-search. Clearing everything would discard two constraints the traveller just asked to keep, and re-searching would throw away results that are still valid.',
       },
       {
         user: 'actually clear everything',
