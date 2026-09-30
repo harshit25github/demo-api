@@ -417,3 +417,34 @@ test('no SDK error wording can reach the Manager from either specialist', async 
     assert.equal(state.outcomes[0].result.status, 'failure', `${specialist}: outcome not recorded`);
   }
 });
+
+test('rendered block markup starts on its own line', () => {
+  // The Trip prompt requires `:::cards` to be exactly three colons on its own
+  // line. The Manager routinely writes a lead-in ending in ':' before the marker,
+  // so the marker must not be concatenated straight onto it.
+  const cards = ':::cards\n[CARD]\ntitle: Dubai\n:::cards';
+
+  const withColonLeadIn = createManagerTurnState(makeContext('Plan Dubai'), 'acceptance-request');
+  withColonLeadIn.renders.set('trip_a', cards);
+  withColonLeadIn.outcomes.push({
+    name: 'trip_planner_agent', input: 'Plan Dubai',
+    result: { status: 'success', summary: 'Prepared trip content.', renderRef: 'trip_a' },
+  });
+  const rendered = finalizeManagerOutput('Here’s a 3-day Dubai plan:[[render:trip_a]]', withColonLeadIn).output;
+  assert.doesNotMatch(rendered, /::::/, 'render insertion produced four colons');
+  assert.match(rendered, /^:::cards$/m, ':::cards is not on its own line');
+  assert.equal(rendered.match(/\[CARD\]/g)?.length, 1, 'card content duplicated');
+
+  // Already separated: no extra blank lines introduced.
+  const alreadySpaced = createManagerTurnState(makeContext('Plan Dubai'), 'acceptance-request');
+  alreadySpaced.renders.set('trip_b', cards);
+  const spaced = finalizeManagerOutput('Here’s your plan.\n\n[[render:trip_b]]', alreadySpaced).output;
+  assert.equal(spaced, `Here’s your plan.\n\n${cards}`);
+
+  // A repeated marker for the same ref still renders the content once.
+  const repeated = createManagerTurnState(makeContext('Plan Dubai'), 'acceptance-request');
+  repeated.renders.set('trip_c', cards);
+  const once = finalizeManagerOutput('Plan:[[render:trip_c]] and again [[render:trip_c]]', repeated).output;
+  assert.equal(once.match(/\[CARD\]/g)?.length, 1, 'repeated marker duplicated content');
+  assert.doesNotMatch(once, /\[\[render:/);
+});
