@@ -143,6 +143,13 @@ export class UsageCollector {
     call.latencyMs = performance.now() - startedAt;
   }
 
+  /**
+   * Time from the turn starting to the first user-visible text.
+   *
+   * The Manager emits its answer as a single delta, so this is time-to-answer
+   * rather than time-to-first-token. It becomes the latter if token streaming is
+   * added later, without changing the recorded field.
+   */
   markFirstDelta(): void {
     this.firstDeltaMs ??= performance.now() - this.startedAt;
   }

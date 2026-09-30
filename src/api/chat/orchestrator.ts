@@ -167,6 +167,8 @@ export async function streamChatTurn({
       const finalText = gatewayResult.output;
       if (finalText) {
         draftText = finalText;
+        // With one delta this is time-to-answer rather than time-to-first-token.
+        usage.markFirstDelta();
         writer.send('delta', { chatId: chat.chatId, turnId, text: finalText });
       }
       const renderFlightOptions = gatewayResult.renderFlightOptions
