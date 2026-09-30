@@ -1,0 +1,46 @@
+{
+  "fixedNow": "2026-09-19T10:00:00.000Z",
+  "turns": [
+    {
+      "chat": "prediction_and_recovery",
+      "turn": 1,
+      "user": "What is the cheapest date to fly from Mumbai to Delhi in October 2026?",
+      "output": "I can help, but I need a specific travel date (or date range) in October 2026 to search fares from Mumbai to Delhi.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "price_prediction_tool"
+      ],
+      "managerResults": [
+        {
+          "status": "needs_input",
+          "summary": "A travel date is needed to search flight options.",
+          "completedTask": "Checked cheapest-date prediction for Mumbai to Delhi in October 2026.",
+          "missingInformation": [
+            "Expected travel date"
+          ],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "price_prediction_tool",
+          "ok": false,
+          "code": "NO_PREDICTIONS",
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 14033,
+      "outputTokens": 322,
+      "modelCalls": 4,
+      "latencyMs": 9782,
+      "checks": []
+    }
+  ]
+}

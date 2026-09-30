@@ -1,0 +1,52 @@
+{
+  "fixedNow": "2026-09-19T10:00:00.000Z",
+  "turns": [
+    {
+      "chat": "search_filter_options",
+      "turn": 1,
+      "traceId": "trace_e3f88c7519184f8ca7e20eb7b6900110",
+      "user": "Find flights from Delhi to Dubai on October 20, 2026 for one adult in economy.",
+      "output": "✈️ I found 3 one-way economy flights from Delhi to Dubai for October 20, 2026.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Flight search completed successfully. 3 sample flight options are available in shared state for Delhi to Dubai on October 20, 2026. Suggested follow-up questions were refreshed.",
+          "completedTask": "Searched one-way economy flights from Delhi to Dubai on 2026-10-20 for 1 adult.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 22167,
+      "outputTokens": 312,
+      "modelCalls": 5,
+      "latencyMs": 18199,
+      "checks": []
+    }
+  ]
+}

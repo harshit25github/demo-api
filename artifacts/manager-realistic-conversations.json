@@ -1,0 +1,1981 @@
+{
+  "testSuite": "Manager Agent Realistic Flight Conversations",
+  "timestamp": "2026-09-19T17:09:42.371Z",
+  "fixedNow": "2026-09-19T10:00:00.000Z",
+  "totalConversations": 5,
+  "totalTurns": 38,
+  "conversationsPassedAll": 5,
+  "totalErrors": 0,
+  "totalWarnings": 0,
+  "totalInputTokens": 774831,
+  "totalOutputTokens": 19149,
+  "traceExportStatuses": [
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204
+  ],
+  "conversations": [
+    {
+      "id": "lazy_incomplete_prompts",
+      "description": "User provides minimal info, requires inference and clarification",
+      "turns": [
+        {
+          "chat": "lazy_incomplete_prompts",
+          "turn": 1,
+          "traceId": "trace_4e448fddcfce44a29871d182975771f2",
+          "user": "Delhi to Dubai",
+          "output": "Sure — what date would you like to fly from Delhi to Dubai?",
+          "outputPreview": "Sure — what date would you like to fly from Delhi to Dubai?",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [],
+          "managerResults": [
+            {
+              "status": "needs_input",
+              "summary": "Departure and arrival locations are available. Trip type, passenger count, and cabin can be defaulted if not specified; travel date is required to start the search.",
+              "completedTask": "Identified minimum missing detail for Delhi (DEL) to Dubai (DXB) flight search",
+              "missingInformation": [
+                "Please share the travel date."
+              ],
+              "presentation": null
+            }
+          ],
+          "toolFeedback": [],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 0,
+          "noteCount": 0,
+          "inputTokens": 9576,
+          "outputTokens": 270,
+          "modelCalls": 3,
+          "latencyMs": 11305,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "lazy_incomplete_prompts",
+          "turn": 2,
+          "traceId": "trace_5fdf863b4ab741c0bb840b4783763b4c",
+          "user": "next weekend",
+          "output": "✈️ I found 3 one-way flights from Delhi to Dubai for next weekend, using Saturday, September 26, 2026, for 1 adult in economy.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I found 3 one-way flights from Delhi to Dubai for next weekend, using Saturday, September 26, 2026, for 1 adult in economy.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Used 2026-09-26 as the earliest valid date for next weekend. Search completed for 1 adult in economy, one-way DEL to DXB, with 3 flight options shown in shared state.",
+              "completedTask": "Searched one-way flights from DEL to DXB for next weekend",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 22838,
+          "outputTokens": 582,
+          "modelCalls": 5,
+          "latencyMs": 21356,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "lazy_incomplete_prompts",
+          "turn": 3,
+          "traceId": "trace_c15f5f2dcb45466f853ae7dab0c57a47",
+          "user": "only direct",
+          "output": "✈️ I narrowed it to direct flights only — there’s 1 nonstop option from Delhi to Dubai on September 26, 2026.",
+          "outputPreview": "✈️ I narrowed it to direct flights only — there’s 1 nonstop option from Delhi to Dubai on September 26, 2026.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "apply_filter"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Nonstop filter applied successfully. Results reduced from 3 to 1 displayed option.",
+              "completedTask": "Applied nonstop/direct filter to the current DEL to DXB one-way search for 2026-09-26, 1 adult, economy.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 0,
+          "inputTokens": 16301,
+          "outputTokens": 299,
+          "modelCalls": 4,
+          "latencyMs": 10704,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "lazy_incomplete_prompts",
+          "turn": 4,
+          "traceId": "trace_f9c30f42e5214ba28f365e7d2af574dc",
+          "user": "cheapest",
+          "output": "The only direct option is also the cheapest: Air Canada AC 101, 09:00–11:10, nonstop, 2h 10m, economy, for USD 199.",
+          "outputPreview": "The only direct option is also the cheapest: Air Canada AC 101, 09:00–11:10, nonstop, 2h 10m, economy, for USD 199.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Only one filtered option is available, so it is also the cheapest: option 1, Air Canada AC 101, nonstop, 09:00–11:10, 2h 10m, economy, USD 199.",
+              "completedTask": "Inspected the current filtered DEL to DXB nonstop results and selected the cheapest available option.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 0,
+          "inputTokens": 24043,
+          "outputTokens": 407,
+          "modelCalls": 5,
+          "latencyMs": 12540,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "lazy_incomplete_prompts",
+          "turn": 5,
+          "traceId": "trace_714e933e8f0a4713aec3bc80be5fb624",
+          "user": "show me option 2",
+          "output": "There isn’t an option 2 in the current direct-flight results — only 1 nonstop option is available.\n\nIf you want, I can remove the direct-only filter to show the earlier full list again.",
+          "outputPreview": "There isn’t an option 2 in the current direct-flight results — only 1 nonstop option is available.\n\nIf you want, I can remove the direct-only filter to show the earlier full list again.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "partial",
+              "summary": "Current visible filtered results contain only 1 generated option, so option 2 is unavailable in the current filtered list. The current generated context returned only option 1; I could not verify an option 2 from previous unfiltered results without changing/restoring the visible result set.",
+              "completedTask": "Inspected current generated DEL to DXB flight option context",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 0,
+          "inputTokens": 17766,
+          "outputTokens": 983,
+          "modelCalls": 4,
+          "latencyMs": 17518,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "lazy_incomplete_prompts",
+          "turn": 6,
+          "traceId": "trace_e253f65c93064ba49795ad8c994f9789",
+          "user": "one day later",
+          "output": "✈️ I updated the search to one day later: Delhi to Dubai on September 27, 2026, with direct flights only. There’s 1 nonstop option available.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I updated the search to one day later: Delhi to Dubai on September 27, 2026, with direct flights only. There’s 1 nonstop option available.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "apply_filter",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Search results were refreshed for DEL to DXB on 2026-09-27. The direct/nonstop filter was applied successfully, leaving 1 displayed option from 3 returned results.",
+              "completedTask": "Updated the flight search to DEL to DXB one-way on 2026-09-27 for 1 adult in economy and applied the direct/nonstop preference.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 1,
+          "inputTokens": 32369,
+          "outputTokens": 752,
+          "modelCalls": 6,
+          "latencyMs": 20518,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "lazy_incomplete_prompts",
+          "turn": 7,
+          "traceId": "trace_9e48581178eb4c459adbcfce3c7123fe",
+          "user": "evening flights",
+          "output": "No direct evening flights are available from Delhi to Dubai on September 27, 2026.\n\nYou can try removing the direct-only filter or broadening the time of day.",
+          "outputPreview": "No direct evening flights are available from Delhi to Dubai on September 27, 2026.\n\nYou can try removing the direct-only filter or broadening the time of day.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "apply_filter",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "The filter was applied successfully with direct/nonstop and evening departure constraints active, but it returned 0 matching flight options.",
+              "completedTask": "Applied the evening departure-time filter to the current DEL to DXB one-way search for 2026-09-27 while preserving the direct/nonstop preference, 1 adult, and/e",
+              "missingInformation": [],
+              "presentation": null
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 0,
+          "noteCount": 0,
+          "inputTokens": 24078,
+          "outputTokens": 614,
+          "modelCalls": 5,
+          "latencyMs": 14837,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        }
+      ],
+      "overallPass": true,
+      "errorCount": 0,
+      "warningCount": 0,
+      "summary": "✅ All 7 turns passed"
+    },
+    {
+      "id": "price_prediction_flexible_dates",
+      "description": "User explores cheapest dates before committing to search",
+      "turns": [
+        {
+          "chat": "price_prediction_flexible_dates",
+          "turn": 1,
+          "traceId": "trace_347da164ff9d407881dd670fdf13cfce",
+          "user": "when is cheapest to fly Mumbai to Goa in October?",
+          "output": "Which Goa airport should I check for the cheapest October flights from Mumbai?\n\n- Goa Dabolim (GOI)\n- Manohar International / Mopa (GOX)",
+          "outputPreview": "Which Goa airport should I check for the cheapest October flights from Mumbai?\n\n- Goa Dabolim (GOI)\n- Manohar International / Mopa (GOX)",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [],
+          "managerResults": [
+            {
+              "status": "needs_input",
+              "summary": "The departure and travel window are clear: BOM to Goa during October 2026. Price/date intelligence requires a confirmed Goa destination airport/code, and Goa has more than one airport option.",
+              "completedTask": "Assessed price/date intelligence request for Mumbai (BOM) to Goa in October 2026.",
+              "missingInformation": [
+                "Which Goa airport should be used: Goa Dabolim (GOI) or Manohar International/Mopa (GOX)?"
+              ],
+              "presentation": null
+            }
+          ],
+          "toolFeedback": [],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 0,
+          "noteCount": 0,
+          "inputTokens": null,
+          "outputTokens": null,
+          "modelCalls": 4,
+          "latencyMs": 33161,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "price_prediction_flexible_dates",
+          "turn": 2,
+          "traceId": "trace_8750c5bc49e0460eb4f1677348e8cbe3",
+          "user": "ok search that date",
+          "output": "I can search it—please confirm which Goa airport you want:\n\nGOI (Dabolim) or GOX (Mopa)?\n\nAlso, if you meant a specific October date, send the date; otherwise I can look across October once you pick the airport.",
+          "outputPreview": "I can search it—please confirm which Goa airport you want:\n\nGOI (Dabolim) or GOX (Mopa)?\n\nAlso, if you meant a specific October date, send the date; otherwise I can look across October once you pick t",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [],
+          "flightTools": [],
+          "managerResults": [],
+          "toolFeedback": [],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 0,
+          "noteCount": 0,
+          "inputTokens": 2447,
+          "outputTokens": 121,
+          "modelCalls": 1,
+          "latencyMs": 5013,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "price_prediction_flexible_dates",
+          "turn": 3,
+          "traceId": "trace_49d9c9784e674d028c05fabf49815ceb",
+          "user": "with checked bag",
+          "output": "Sure — I’ll include checked baggage in the search/filter.\n\nPlease confirm the Goa airport first: GOI (Dabolim) or GOX (Mopa)?",
+          "outputPreview": "Sure — I’ll include checked baggage in the search/filter.\n\nPlease confirm the Goa airport first: GOI (Dabolim) or GOX (Mopa)?",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [],
+          "flightTools": [],
+          "managerResults": [],
+          "toolFeedback": [],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 0,
+          "noteCount": 0,
+          "inputTokens": 2513,
+          "outputTokens": 59,
+          "modelCalls": 1,
+          "latencyMs": 3997,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "price_prediction_flexible_dates",
+          "turn": 4,
+          "traceId": "trace_b44dfa126b56425b87296336e8915965",
+          "user": "which is faster, option 1 or 3?",
+          "output": "I don’t have generated flight options available to compare yet. Please share the details for option 1 and option 3, or let me search flights first after you confirm the Goa airport: GOI (Dabolim) or GOX (Mopa).",
+          "outputPreview": "I don’t have generated flight options available to compare yet. Please share the details for option 1 and option 3, or let me search flights first after you confirm the Goa airport: GOI (Dabolim) or G",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [],
+          "flightTools": [],
+          "managerResults": [],
+          "toolFeedback": [],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 0,
+          "noteCount": 0,
+          "inputTokens": 2567,
+          "outputTokens": 56,
+          "modelCalls": 1,
+          "latencyMs": 2659,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "price_prediction_flexible_dates",
+          "turn": 5,
+          "traceId": "trace_ea6ff21e7d8a4bd09846194277545568",
+          "user": "make it 2 people",
+          "output": "✈️ I updated the search to 2 people with checked baggage included for Mumbai to Goa on October 1, 2026. I found 1 matching flight.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I updated the search to 2 people with checked baggage included for Mumbai to Goa on October 1, 2026. I found 1 matching flight.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "apply_filter"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Searched BOM to Goa for 2 passengers in economy on 2026-10-01, selecting the earliest valid date in October. Checked baggage filter was applied successfully; 1 of 3 sample results remains visible. Specific Goa airport was not required for the city-level search.",
+              "completedTask": "Ran updated flight search and applied checked-baggage filter",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 1,
+          "inputTokens": 24696,
+          "outputTokens": 906,
+          "modelCalls": 5,
+          "latencyMs": 16840,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "price_prediction_flexible_dates",
+          "turn": 6,
+          "traceId": "trace_fd5f93f7716546f886dd2663dfe2c324",
+          "user": "any morning flights?",
+          "output": "No morning flights are showing with checked baggage included for 2 people on October 1, 2026.\n\nYou could try removing the checked-bag filter or broadening the departure time to see more options.",
+          "outputPreview": "No morning flights are showing with checked baggage included for 2 people on October 1, 2026.\n\nYou could try removing the checked-bag filter or broadening the departure time to see more options.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "apply_filter"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Filters were applied successfully, but no matching flight results are available after applying checked baggage included and morning flights only.",
+              "completedTask": "Applied checked-baggage and morning-departure filters to the current Mumbai (BOM) to Goa search for 2 passengers on 2026-10-01.",
+              "missingInformation": [],
+              "presentation": null
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 0,
+          "noteCount": 0,
+          "inputTokens": 17019,
+          "outputTokens": 591,
+          "modelCalls": 4,
+          "latencyMs": 11417,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "price_prediction_flexible_dates",
+          "turn": 7,
+          "traceId": "trace_f2bd864a21b54218b923de3994092b45",
+          "user": "what about option 4",
+          "output": "Option 4 isn’t available — the current results only show options 1 through 3.\n\nNote: Prices shown are per person.",
+          "outputPreview": "Option 4 isn’t available — the current results only show options 1 through 3.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "flight_search",
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Option 4 is not available. The refreshed current results contain only 3 flight options, so available option indexes are 1 through 3.",
+              "completedTask": "Checked availability of current flight option 4 for the BOM to Goa one-way search on 2026-10-01 with 2 adults in economy.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": false,
+              "code": "NO_CONTRACTS",
+              "affectedFields": []
+            },
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": false,
+              "code": "INDEX_OUT_OF_RANGE",
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 32640,
+          "outputTokens": 1178,
+          "modelCalls": 6,
+          "latencyMs": 23828,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        }
+      ],
+      "overallPass": true,
+      "errorCount": 0,
+      "warningCount": 0,
+      "summary": "✅ All 7 turns passed"
+    },
+    {
+      "id": "context_heavy_changes",
+      "description": "User makes incremental changes to search, testing context preservation",
+      "turns": [
+        {
+          "chat": "context_heavy_changes",
+          "turn": 1,
+          "traceId": "trace_cc5dc6924be74a0b9394effabd419f9e",
+          "user": "Find flights NYC to London Nov 3 to Nov 12 for 2 adults",
+          "output": "✈️ I found 3 round-trip flight options from NYC to London for 2 adults, departing Nov 3 and returning Nov 12.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I found 3 round-trip flight options from NYC to London for 2 adults, departing Nov 3 and returning Nov 12.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Flight search completed with 3 sample options shown in shared state for NYC to London, round trip, 2 adults, economy.",
+              "completedTask": "Searched round-trip economy flights from NYC to London departing 2026-11-03 and returning 2026-11-12 for 2 adults.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 22681,
+          "outputTokens": 385,
+          "modelCalls": 5,
+          "latencyMs": 12734,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "context_heavy_changes",
+          "turn": 2,
+          "traceId": "trace_6916eef22f3b4e7e8daf9e62835fe01d",
+          "user": "actually make it Paris",
+          "output": "✈️ Updated — I found 3 round-trip flight options from NYC to Paris for 2 adults, departing Nov 3 and returning Nov 12.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ Updated — I found 3 round-trip flight options from NYC to Paris for 2 adults, departing Nov 3 and returning Nov 12.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Updated search: NYC to Paris, outbound 2026-11-03, return 2026-11-12, 2 adults, economy. 3 flight options were returned and are available in shared state.",
+              "completedTask": "Changed the current flight search destination to Paris and ran an updated round-trip search.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 23523,
+          "outputTokens": 529,
+          "modelCalls": 5,
+          "latencyMs": 13058,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "context_heavy_changes",
+          "turn": 3,
+          "traceId": "trace_0a5dd591ff5346a7af903db0c96dfe08",
+          "user": "nonstop only",
+          "output": "✈️ I narrowed the NYC to Paris results to nonstop flights only. There’s 1 matching option for Nov 3–Nov 12 for 2 adults.",
+          "outputPreview": "✈️ I narrowed the NYC to Paris results to nonstop flights only. There’s 1 matching option for Nov 3–Nov 12 for 2 adults.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "apply_filter"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Nonstop filter applied successfully for NYC to Paris, outbound 2026-11-03 and return 2026-11-12, 2 adults, economy. Filtered results show 1 matching option out of 3 current options.",
+              "completedTask": "Applied nonstop-only filter to the current NYC to Paris round-trip flight results.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 0,
+          "inputTokens": 16469,
+          "outputTokens": 346,
+          "modelCalls": 4,
+          "latencyMs": 9856,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "context_heavy_changes",
+          "turn": 4,
+          "traceId": "trace_509019471ecd41cc9174294f1f5931f9",
+          "user": "also show only morning departures",
+          "output": "✈️ Done — the NYC to Paris results are now filtered to nonstop flights with morning departures. There’s 1 matching option for Nov 3–Nov 12 for 2 adults.",
+          "outputPreview": "✈️ Done — the NYC to Paris results are now filtered to nonstop flights with morning departures. There’s 1 matching option for Nov 3–Nov 12 for 2 adults.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "apply_filter"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Morning departures filter was applied while preserving the existing nonstop-only filter for NYC to Paris, outbound 2026-11-03, return 2026-11-12, 2 adults, economy. Results narrowed from 3 to 1 option.",
+              "completedTask": "Applied morning departures filter to the current nonstop-only NYC to Paris round-trip results.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 0,
+          "inputTokens": 17128,
+          "outputTokens": 428,
+          "modelCalls": 4,
+          "latencyMs": 12622,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "context_heavy_changes",
+          "turn": 5,
+          "traceId": "trace_28bfa7247d2648a88d69e3623c9200f8",
+          "user": "remove the morning filter",
+          "output": "Done — I removed the morning departure filter and kept nonstop only. There’s still 1 matching NYC to Paris option for Nov 3–Nov 12 for 2 adults.",
+          "outputPreview": "Done — I removed the morning departure filter and kept nonstop only. There’s still 1 matching NYC to Paris option for Nov 3–Nov 12 for 2 adults.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "apply_filter",
+            "apply_filter",
+            "apply_filter"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Current results are filtered to nonstop only for NYC to Paris, outbound 2026-11-03 and return 2026-11-12, 2 adults, economy. The morning departure filter is no longer active. Filtered result count: 1.",
+              "completedTask": "Removed the morning departure-time filter from the current NYC to Paris round-trip results and kept the nonstop-only filter active.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 0,
+          "inputTokens": 31492,
+          "outputTokens": 910,
+          "modelCalls": 6,
+          "latencyMs": 18567,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "context_heavy_changes",
+          "turn": 6,
+          "traceId": "trace_8dbec7f1d2ee40fb8eae506c0bd9ebe1",
+          "user": "change return to Nov 15",
+          "output": "✈️ Updated the return date to Nov 15 and kept nonstop only. There’s 1 matching NYC to Paris option for Nov 3–Nov 15 for 2 adults.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ Updated the return date to Nov 15 and kept nonstop only. There’s 1 matching NYC to Paris option for Nov 3–Nov 15 for 2 adults.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "apply_filter",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Search updated for NYC to Paris, outbound 2026-11-03, return 2026-11-15, 2 adults, economy. Nonstop-only filter was applied successfully, leaving 1 displayed option from 3 sample results.",
+              "completedTask": "Updated the NYC to Paris round-trip flight search and reapplied the nonstop-only filter.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 1,
+          "inputTokens": 32992,
+          "outputTokens": 545,
+          "modelCalls": 6,
+          "latencyMs": 14138,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "context_heavy_changes",
+          "turn": 7,
+          "traceId": "trace_85d59e6112f94799b36baeccc95ab462",
+          "user": "is the shortest flight cheaper than the fastest?",
+          "output": "No — with the current nonstop-only filter, there’s only 1 visible option, so the shortest and fastest flight are the same flight at the same price: $199.",
+          "outputPreview": "No — with the current nonstop-only filter, there’s only 1 visible option, so the shortest and fastest flight are the same flight at the same price: $199.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Only 1 current option is available/visible with the nonstop-only filter. The shortest and fastest option are the same flight: Option 1, Air Canada AC 101, 2h 10m, USD 199. Therefore, the shortest flight is not cheaper than the fastest; it is the same option at the same price.",
+              "completedTask": "Compared current generated NYC to Paris flight options for shortest versus fastest duration.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 0,
+          "inputTokens": 18935,
+          "outputTokens": 369,
+          "modelCalls": 4,
+          "latencyMs": 9988,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "context_heavy_changes",
+          "turn": 8,
+          "traceId": "trace_d89178153c6b4f139cc1a5bfecb1a509",
+          "user": "2 adults in business class",
+          "output": "✈️ Updated to business class for 2 adults and kept nonstop only. There’s 1 matching NYC to Paris option for Nov 3–Nov 15.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ Updated to business class for 2 adults and kept nonstop only. There’s 1 matching NYC to Paris option for Nov 3–Nov 15.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "apply_filter",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Search updated successfully. The refreshed sample results returned 3 options before filtering, and the nonstop-only filter narrowed them to 1 displayed option. Flight cards/state have been updated.",
+              "completedTask": "Updated the NYC to Paris round-trip flight search for 2 adults in business class with outbound 2026-11-03 and return 2026-11-15, then reapplied the nonstop-only",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 1,
+          "inputTokens": 34173,
+          "outputTokens": 697,
+          "modelCalls": 6,
+          "latencyMs": 16624,
+          "validationChecks": [],
+          "passedValidation": true
+        }
+      ],
+      "overallPass": true,
+      "errorCount": 0,
+      "warningCount": 0,
+      "summary": "✅ All 8 turns passed"
+    },
+    {
+      "id": "ambiguous_followups_resolution",
+      "description": "Vague follow-ups requiring strong context understanding",
+      "turns": [
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 1,
+          "traceId": "trace_2d78eb9a765d46eaab23a56c73121e67",
+          "user": "LA to Vegas Oct 10",
+          "output": "✈️ I found 3 one-way flights from Los Angeles to Las Vegas for October 10, 2026.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I found 3 one-way flights from Los Angeles to Las Vegas for October 10, 2026.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Flight search completed and 3 sample options were generated for Los Angeles to Las Vegas on October 10, 2026. Suggested follow-ups were updated.",
+              "completedTask": "Searched one-way flights from Los Angeles to Las Vegas for 2026-10-10 with 1 adult in economy.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 22787,
+          "outputTokens": 441,
+          "modelCalls": 5,
+          "latencyMs": 13397,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 2,
+          "traceId": "trace_3d3ffac8e3ab42f7a472f1e09ced1850",
+          "user": "earlier one",
+          "output": "The earlier option is option 3: Emirates EK 309, departing 5:45 AM and arriving 1:40 PM, with 2 stops.",
+          "outputPreview": "The earlier option is option 3: Emirates EK 309, departing 5:45 AM and arriving 1:40 PM, with 2 stops.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Displayed option 3 as the earlier available option: Emirates EK 309, departing 05:45 and arriving 13:40, duration 7h 55m, 2 stops, USD 149.",
+              "completedTask": "Inspected current Los Angeles to Las Vegas results for 2026-10-10 and selected the earlier flight option.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 23886,
+          "outputTokens": 430,
+          "modelCalls": 5,
+          "latencyMs": 11787,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 3,
+          "traceId": "trace_5f0530f994ce4b1f8d94e3253f52c8d0",
+          "user": "any cheaper?",
+          "output": "No cheaper option is showing right now. Option 3 is the lowest listed at $149; the others are $179 and $199.",
+          "outputPreview": "No cheaper option is showing right now. Option 3 is the lowest listed at $149; the others are $179 and $199.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "No cheaper options are available in the current results. Option 3 remains the cheapest listed option at USD 149; the other available options are USD 179 and USD 199.",
+              "completedTask": "Inspected current Los Angeles to Las Vegas flight results for 2026-10-10 and compared prices against option 3 at USD 149.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 17092,
+          "outputTokens": 299,
+          "modelCalls": 4,
+          "latencyMs": 10752,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 4,
+          "traceId": "trace_25e3d9eb43c04374ab199c56f969bc21",
+          "user": "show that one",
+          "output": "Here’s that one: option 3, the $149 flight departing at 5:45 AM and arriving at 1:40 PM, with 2 stops.",
+          "outputPreview": "Here’s that one: option 3, the $149 flight departing at 5:45 AM and arriving at 1:40 PM, with 2 stops.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Option 3 is now the only visible option. It is the cheapest available referenced option at USD 149: Emirates EK 309, economy, SNA to SNA, departing 05:45 and arriving 13:40, 7h 55m duration, 2 stops.",
+              "completedTask": "Selected and displayed existing flight option 3 for the current Los Angeles to Las Vegas search on 2026-10-10.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 17280,
+          "outputTokens": 315,
+          "modelCalls": 4,
+          "latencyMs": 9440,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 5,
+          "traceId": "trace_6af2564392554b46a9c0de1b2327cc5a",
+          "user": "different airline",
+          "output": "Here’s a different airline: option 2 on Air China for $179.",
+          "outputPreview": "Here’s a different airline: option 2 on Air China for $179.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Displayed option 2: Air China CA 204 at USD 179. It is a different airline than Emirates EK 309 and is the next lowest-priced available option among the current results.",
+              "completedTask": "Inspected current Los Angeles to Las Vegas results for 2026-10-10 and selected the next lowest-priced non-Emirates option.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 25271,
+          "outputTokens": 391,
+          "modelCalls": 5,
+          "latencyMs": 11331,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 6,
+          "traceId": "trace_b3f30a077bb843909b792084711d622d",
+          "user": "what about tomorrow",
+          "output": "✈️ I found 3 one-way flights from Los Angeles to Las Vegas for tomorrow, September 20, 2026.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I found 3 one-way flights from Los Angeles to Las Vegas for tomorrow, September 20, 2026.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Search completed for Los Angeles to Las Vegas on 2026-09-20, one-way, 1 adult, economy. 3 flight options are available in the shared results state.",
+              "completedTask": "Updated the one-way flight search from Los Angeles to Las Vegas for 2026-09-20 using current/default passengers and cabin.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 25324,
+          "outputTokens": 427,
+          "modelCalls": 5,
+          "latencyMs": 13029,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 7,
+          "traceId": "trace_9355fa322ef84e2f9ea0fef364aa70c9",
+          "user": "best value",
+          "output": "Best value looks like option 1: Air Canada AC 101 for $199. It’s nonstop, only 2h 10m, and departs at 9:00 AM.\n\nIt costs more than the cheapest option, but saves a lot of time and avoids stops.",
+          "outputPreview": "Best value looks like option 1: Air Canada AC 101 for $199. It’s nonstop, only 2h 10m, and departs at 9:00 AM.\n\nIt costs more than the cheapest option, but saves a lot of time and avoids stops.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Best-value recommendation: Option 1, Air Canada AC 101, USD 199, nonstop, 2h 10m, departing 09:00 and arriving 11:10. It is not the cheapest, but it offers the strongest balance because it avoids stops, is the shortest option, and has convenient morning timing. Option 2 saves only USD 20 but adds a stop and longer duration; Option 3 is cheapest at USD 149 but takes 7h 55m with 2 stops and an early departure.",
+              "completedTask": "Reviewed current Los Angeles to Las Vegas flight results for 2026-09-20 and selected the best-value option for display.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 26350,
+          "outputTokens": 654,
+          "modelCalls": 5,
+          "latencyMs": 16316,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 8,
+          "traceId": "trace_0af4c8953b6b4741b7a64aa14721ce83",
+          "user": "2 people instead",
+          "output": "✈️ Updated to 2 adults for Los Angeles to Las Vegas tomorrow, September 20, 2026. I found 3 options.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ Updated to 2 adults for Los Angeles to Las Vegas tomorrow, September 20, 2026. I found 3 options.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Updated search for Los Angeles to Las Vegas, one-way on 2026-09-20, for 2 adults in economy. 3 flight options are available in the shared results state.",
+              "completedTask": "Updated the current flight search",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 26461,
+          "outputTokens": 516,
+          "modelCalls": 5,
+          "latencyMs": 14107,
+          "validationChecks": [],
+          "passedValidation": true
+        }
+      ],
+      "overallPass": true,
+      "errorCount": 0,
+      "warningCount": 0,
+      "summary": "✅ All 8 turns passed"
+    },
+    {
+      "id": "recovery_stale_missing_state",
+      "description": "Test recovery when context is stale, missing, or ambiguous",
+      "turns": [
+        {
+          "chat": "recovery_stale_missing_state",
+          "turn": 1,
+          "traceId": "trace_f31e464c0ed649e9959e2183b31a717f",
+          "user": "SFO to Tokyo Nov 7 for 1 adult",
+          "output": "✈️ I found 3 one-way economy flights from SFO to Tokyo for 1 adult on November 7, 2026.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I found 3 one-way economy flights from SFO to Tokyo for 1 adult on November 7, 2026.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Flight search completed with 3 sample options shown in shared state for SFO to Tokyo on Nov 7, 2026. Results are for 1 adult in economy.",
+              "completedTask": "Searched one-way economy flights from SFO to Tokyo for 1 adult on 2026-11-07.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 22670,
+          "outputTokens": 372,
+          "modelCalls": 5,
+          "latencyMs": 12380,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "recovery_stale_missing_state",
+          "turn": 2,
+          "traceId": "trace_d2f686e1e2354edb8439c44729f53453",
+          "user": "under $800",
+          "output": "I narrowed the SFO to Tokyo results to flights under $800. All 3 current options match that price filter.",
+          "outputPreview": "I narrowed the SFO to Tokyo results to flights under $800. All 3 current options match that price filter.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "apply_filter"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Filtered results are available in shared state. 3 of 3 current options match the under-$800 constraint.",
+              "completedTask": "Applied the under-$800 price filter to the current SFO to Tokyo results for Nov 7, 2026, 1 adult.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 16246,
+          "outputTokens": 292,
+          "modelCalls": 4,
+          "latencyMs": 8658,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "recovery_stale_missing_state",
+          "turn": 3,
+          "traceId": "trace_ff1be6397d7e4141b430b9f39289ee66",
+          "user": "option 3 have wifi?",
+          "output": "I can’t verify Wi‑Fi for option 3 from the current flight details. It shows Emirates EK 309 in economy, but Wi‑Fi availability isn’t listed for that option.",
+          "outputPreview": "I can’t verify Wi‑Fi for option 3 from the current flight details. It shows Emirates EK 309 in economy, but Wi‑Fi availability isn’t listed for that option.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "partial",
+              "summary": "Option 3 is Emirates EK 309 in economy, priced at USD 149, departing 05:45 and arriving 13:40, with 2 stops and personal-item baggage shown. Wi-Fi availability is not shown in the current option details, so it cannot be verified from the available flight record.",
+              "completedTask": "Inspected current flight option 3 for the existing SFO to Tokyo search on Nov 7, 2026.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 16885,
+          "outputTokens": 599,
+          "modelCalls": 4,
+          "latencyMs": 12738,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "recovery_stale_missing_state",
+          "turn": 4,
+          "traceId": "trace_0ba567a1dc0e4d19b4855806632f4bb5",
+          "user": "make it from LAX",
+          "output": "✈️ I updated the search to LAX to Tokyo for November 7, 2026, 1 adult, and kept the under-$800 filter. There are 3 matching options.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I updated the search to LAX to Tokyo for November 7, 2026, 1 adult, and kept the under-$800 filter. There are 3 matching options.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "apply_filter",
+            "update_flight_suggested_questions"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Search updated for LAX to Tokyo on 2026-11-07, one-way, 1 adult, economy. The under-$800 filter was applied successfully; 3 matching sample options are shown in shared state.",
+              "completedTask": "Updated the flight search origin to LAX and re-applied the under-$800 price filter.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 32810,
+          "outputTokens": 635,
+          "modelCalls": 6,
+          "latencyMs": 14910,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "recovery_stale_missing_state",
+          "turn": 5,
+          "traceId": "trace_49a968a8bf0f4a65a2e3f1cf94308e8f",
+          "user": "show option 12",
+          "output": "Option 12 isn’t available in the current results. I only see options 1 through 3 — which one would you like to view?",
+          "outputPreview": "Option 12 isn’t available in the current results. I only see options 1 through 3 — which one would you like to view?",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "needs_input",
+              "summary": "Option 12 is not available in the current results. Available flight option indexes are 1 through 3.",
+              "completedTask": "Attempted to show current flight option 12 for the LAX to Tokyo search on Nov 7, 2026 with the under-$800 filter.",
+              "missingInformation": [
+                "Which available option should be shown: 1, 2, or 3?"
+              ],
+              "presentation": null
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": false,
+              "code": "INDEX_OUT_OF_RANGE",
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 17575,
+          "outputTokens": 391,
+          "modelCalls": 4,
+          "latencyMs": 10918,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "recovery_stale_missing_state",
+          "turn": 6,
+          "traceId": "trace_1b9c9d81062549608b07cfa38ca80463",
+          "user": "cheapest date to fly there",
+          "output": "Which Tokyo airport should I use for the cheapest-date check: TYO for all Tokyo airports, HND, or NRT?",
+          "outputPreview": "Which Tokyo airport should I use for the cheapest-date check: TYO for all Tokyo airports, HND, or NRT?",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [],
+          "managerResults": [
+            {
+              "status": "needs_input",
+              "summary": "Cheapest-date lookup requires a confirmed three-letter Tokyo airport or city code before running price-date intelligence.",
+              "completedTask": "Reviewed the current one-way economy context for 1 adult from LAX to Tokyo around Nov 7, 2026 for a cheapest-date check.",
+              "missingInformation": [
+                "Please confirm the Tokyo airport/city code to use: TYO, HND, or NRT."
+              ],
+              "presentation": null
+            }
+          ],
+          "toolFeedback": [],
+          "predictionStatus": null,
+          "renderFlightOptions": false,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 12025,
+          "outputTokens": 720,
+          "modelCalls": 3,
+          "latencyMs": 12771,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "recovery_stale_missing_state",
+          "turn": 7,
+          "traceId": "trace_f612024e24424b909b97c12bf2200cd9",
+          "user": "search Nov 15 and show only Super Saver",
+          "output": "I searched LAX to Tokyo for November 15, 2026, for 1 adult, but I don’t see any options with a verified Super Saver label in the current results.\n\nNote: Prices shown are per person.",
+          "outputPreview": "I searched LAX to Tokyo for November 15, 2026, for 1 adult, but I don’t see any options with a verified Super Saver label in the current results.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "getGeneratedContractsContext"
+          ],
+          "managerResults": [
+            {
+              "status": "partial",
+              "summary": "Flight results were generated, but none of the available options include a verified Super Saver label, so no options were shown under that label.",
+              "completedTask": "Searched one-way economy flights from LAX to Tokyo on 2026-11-15 for 1 adult and inspected current options for the requested Super Saver label.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 26804,
+          "outputTokens": 541,
+          "modelCalls": 5,
+          "latencyMs": 13218,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "recovery_stale_missing_state",
+          "turn": 8,
+          "traceId": "trace_aae1a2641712493dac407fa178f30cf4",
+          "user": "one stop max",
+          "output": "I narrowed the LAX to Tokyo results for November 15 to flights with at most 1 stop. There’s 1 matching option available.",
+          "outputPreview": "I narrowed the LAX to Tokyo results for November 15 to flights with at most 1 stop. There’s 1 matching option available.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "apply_filter"
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Filter applied successfully. Filtered results now show 1 matching option. No applicable Super Saver filter was available in the current search context to preserve.",
+              "completedTask": "Applied the at-most-1-stop filter to the current LAX to Tokyo one-way economy results for Nov 15, 2026, 1 adult.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "apply_filter",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 1,
+          "noteCount": 0,
+          "inputTokens": 19119,
+          "outputTokens": 1099,
+          "modelCalls": 4,
+          "latencyMs": 15950,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "info",
+              "message": "No icons used in substantial response (consider adding for visual appeal)"
+            }
+          ],
+          "passedValidation": true
+        }
+      ],
+      "overallPass": true,
+      "errorCount": 0,
+      "warningCount": 0,
+      "summary": "✅ All 8 turns passed"
+    }
+  ]
+}

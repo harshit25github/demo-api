@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"console.log\\('AbortSignal.any:', typeof AbortSignal.any\\)\")",
+      "Bash(python3 -)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

@@ -1,0 +1,1069 @@
+{
+  "fixedNow": "2026-09-19T10:00:00.000Z",
+  "turns": [
+    {
+      "chat": "search_filter_options",
+      "turn": 1,
+      "traceId": "trace_1ab3f25ae8a941c6957efa9212739046",
+      "user": "Find flights from Delhi to Dubai on October 20, 2026 for one adult in economy.",
+      "output": "Here are flight options from Delhi to Dubai on October 20, 2026 for 1 adult in economy.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Flight results were generated and displayed: 3 sample options for Delhi to Dubai on October 20, 2026 in economy for one adult. Suggested follow-up filters were updated.",
+          "completedTask": "Searched one-way economy flights from Delhi to Dubai on 2026-10-20 for 1 adult.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 21443,
+      "outputTokens": 385,
+      "modelCalls": 5,
+      "latencyMs": 13267,
+      "checks": []
+    },
+    {
+      "chat": "search_filter_options",
+      "turn": 2,
+      "traceId": "trace_f93cb0947825482289d9e284a00a7504",
+      "user": "Show nonstop flights only.",
+      "output": "I’ve filtered the Delhi to Dubai results to nonstop flights only.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "apply_filter"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Nonstop filter applied successfully; results narrowed from 3 options to 1 option.",
+          "completedTask": "Applied nonstop-only filter to current Delhi to Dubai flight results.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 15031,
+      "outputTokens": 269,
+      "modelCalls": 4,
+      "latencyMs": 10885,
+      "checks": []
+    },
+    {
+      "chat": "search_filter_options",
+      "turn": 3,
+      "traceId": "trace_618b418dcda640acbab25df40d20e77f",
+      "user": "Which of the current options is cheapest?",
+      "output": "The cheapest current option is Option 1: Air Canada AC 101, nonstop, 09:00–11:10, 2h 10m, economy, for USD 199.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "getGeneratedContractsContext"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Cheapest current filtered option: Option 1 — Air Canada AC 101, nonstop, 09:00–11:10, duration 2h 10m, economy, USD 199.",
+          "completedTask": "Identified the cheapest option among the current filtered Delhi to Dubai flight results.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 15712,
+      "outputTokens": 334,
+      "modelCalls": 4,
+      "latencyMs": 9128,
+      "checks": []
+    },
+    {
+      "chat": "search_filter_options",
+      "turn": 4,
+      "traceId": "trace_4066859389ac4487a8d39d9f3f68e543",
+      "user": "Show me option 2.",
+      "output": "Option 2 isn’t available in the current nonstop-filtered results. There’s only 1 current option.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "getGeneratedContractsContext"
+      ],
+      "managerResults": [
+        {
+          "status": "partial",
+          "summary": "Option 2 is not available in the current filtered results. Only option 1 is available.",
+          "completedTask": "Attempted to display option 2 from the current filtered Delhi to Dubai flight results.",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": false,
+          "code": "INDEX_OUT_OF_RANGE",
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": false,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 16027,
+      "outputTokens": 235,
+      "modelCalls": 4,
+      "latencyMs": 23026,
+      "checks": []
+    },
+    {
+      "chat": "search_filter_options",
+      "turn": 5,
+      "traceId": "trace_9ab510b544c54ee1a6f7643d5938c198",
+      "user": "Change departure to October 22, 2026, and keep everything else.",
+      "output": "I updated the departure date to October 22, 2026 and kept everything else the same, including nonstop-only.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Search updated to Delhi to Dubai on October 22, 2026, one-way, one adult, economy. Nonstop-only filter was reapplied successfully; 1 nonstop option remains from 3 sample results.",
+          "completedTask": "Updated the current flight search date and reapplied the nonstop-only filter.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 1,
+      "inputTokens": 30511,
+      "outputTokens": 614,
+      "modelCalls": 6,
+      "latencyMs": 17631,
+      "checks": []
+    },
+    {
+      "chat": "roundtrip_context_changes",
+      "turn": 1,
+      "traceId": "trace_c403ba51065e475c9bf78c8ff1cf797d",
+      "user": "Find round-trip flights from New York to London, departing November 3, 2026 and returning November 12, 2026, for two adults.",
+      "output": "Here are round-trip flight options from New York to London for two adults, departing November 3, 2026 and returning November 12, 2026.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Flight search completed with 3 sample options displayed in shared state. Route, dates, passenger count, trip type, and cabin match the request.",
+          "completedTask": "Searched round-trip economy flights from New York to London for Nov 3–12, 2026, for two adults.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 21945,
+      "outputTokens": 382,
+      "modelCalls": 5,
+      "latencyMs": 12436,
+      "checks": []
+    },
+    {
+      "chat": "roundtrip_context_changes",
+      "turn": 2,
+      "traceId": "trace_5c610f99c2ce4167b1bc6033ced0cb3e",
+      "user": "Actually make the destination Paris; keep the dates and passengers.",
+      "output": "Updated the search to New York to Paris, departing November 3, 2026 and returning November 12, 2026, for two adults.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "New round-trip search completed for New York to Paris, departing 2026-11-03 and returning 2026-11-12, for 2 adults in economy. 3 flight options are now available in shared state.",
+          "completedTask": "Updated the round-trip flight search destination to Paris while keeping origin New York, outbound date November 3, 2026, return date November 12, 2026, two成人s,",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 22851,
+      "outputTokens": 521,
+      "modelCalls": 5,
+      "latencyMs": 16677,
+      "checks": []
+    },
+    {
+      "chat": "roundtrip_context_changes",
+      "turn": 3,
+      "traceId": "trace_20c3a6adeccd40f78c991eaca3cc719e",
+      "user": "Show morning departures.",
+      "output": "Showing morning departures for your New York to Paris round-trip search. 1 option matches.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "apply_filter"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Filtered current results for morning departures; 1 of 3 options remains visible.",
+          "completedTask": "Applied a morning departure filter to the current New York to Paris round-trip flight results.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 15811,
+      "outputTokens": 279,
+      "modelCalls": 4,
+      "latencyMs": 9606,
+      "checks": []
+    },
+    {
+      "chat": "roundtrip_context_changes",
+      "turn": 4,
+      "traceId": "trace_7ca34eb0728d47128257d498d74aabb9",
+      "user": "Remove the morning filter and show flights with checked baggage.",
+      "output": "Removed the morning filter and showing flights with checked baggage included. 1 option matches.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "apply_filter",
+        "apply_filter"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Filtered results now show flights with checked baggage included; 1 matching option is available.",
+          "completedTask": "Removed the morning departure filter from the current New York to Paris round-trip results and applied the checked-baggage-included filter.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 23165,
+      "outputTokens": 613,
+      "modelCalls": 5,
+      "latencyMs": 13001,
+      "checks": []
+    },
+    {
+      "chat": "roundtrip_context_changes",
+      "turn": 5,
+      "traceId": "trace_8d61e407a83348f382496a7f16fd258f",
+      "user": "Compare the shortest and cheapest current options.",
+      "output": "Only 1 current option matches, so the shortest and cheapest are the same: Option 1 — Air China CA 204, 1 stop, 2h 35m total duration, checked baggage included, USD 179.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "getGeneratedContractsContext"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Only 1 current result was available, so the shortest and cheapest option are the same: Option 1, Air China CA 204, 1 stop, 2h 35m total duration, checked baggage included, USD 179.",
+          "completedTask": "Compared the shortest and cheapest options in the current New York to Paris round-trip results with checked baggage included.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 16882,
+      "outputTokens": 297,
+      "modelCalls": 4,
+      "latencyMs": 11148,
+      "checks": []
+    },
+    {
+      "chat": "clarification_to_search",
+      "turn": 1,
+      "traceId": "trace_3a2e92dc3a1449b8913fd6bb3ae816bd",
+      "user": "Find flights to Tokyo on November 7, 2026.",
+      "output": "What city or airport will you be departing from for Tokyo on November 7, 2026?",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [],
+      "managerResults": [
+        {
+          "status": "needs_input",
+          "summary": "Arrival location and travel date are available; departure location is missing.",
+          "completedTask": "Identified flight search requirements for Tokyo on 2026-11-07 but could not run a search without a departure location.",
+          "missingInformation": [
+            "Please share your departure location."
+          ],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [],
+      "predictionStatus": null,
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 8772,
+      "outputTokens": 203,
+      "modelCalls": 3,
+      "latencyMs": 8736,
+      "checks": []
+    },
+    {
+      "chat": "clarification_to_search",
+      "turn": 2,
+      "traceId": "trace_da0af78b13714698846d41ddfa407973",
+      "user": "I am leaving from San Francisco.",
+      "output": "Here are flight options from San Francisco to Tokyo on November 7, 2026.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Flight search completed and 3 sample flight options are available in the shared application state. Suggested follow-up filters were refreshed.",
+          "completedTask": "Searched one-way economy flights from San Francisco to Tokyo for November 7, 2026 for 1 adult.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 22207,
+      "outputTokens": 347,
+      "modelCalls": 5,
+      "latencyMs": 14630,
+      "checks": []
+    },
+    {
+      "chat": "clarification_to_search",
+      "turn": 3,
+      "traceId": "trace_4fc528ea02b149fe8d67208dc83407f5",
+      "user": "Show flights under $300.",
+      "output": "Showing flights under $300 from San Francisco to Tokyo on November 7, 2026.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Filter applied successfully. 3 flight results remain under $300.",
+          "completedTask": "Applied a price filter under $300 to the current San Francisco to Tokyo flight results for November 7, 2026.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 0,
+      "inputTokens": 21923,
+      "outputTokens": 471,
+      "modelCalls": 5,
+      "latencyMs": 12817,
+      "checks": []
+    },
+    {
+      "chat": "clarification_to_search",
+      "turn": 4,
+      "traceId": "trace_7b797f7753e54a108dd60d4f490f5255",
+      "user": "Make it nonstop.",
+      "output": "Showing nonstop flights under $300 from San Francisco to Tokyo on November 7, 2026.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "apply_filter"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Filtered results are updated: 1 flight remains under $300 and nonstop.",
+          "completedTask": "Applied nonstop-only filter to the current San Francisco to Tokyo flight results for November 7, 2026 while preserving the under-$300 filter.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 15871,
+      "outputTokens": 321,
+      "modelCalls": 4,
+      "latencyMs": 10166,
+      "checks": []
+    },
+    {
+      "chat": "clarification_to_search",
+      "turn": 5,
+      "traceId": "trace_47aaee5c1dc64f37a51af5d2289a41bf",
+      "user": "What date and route are we searching now?",
+      "output": "We’re searching flights from San Francisco to Tokyo on November 7, 2026.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [],
+      "flightTools": [],
+      "managerResults": [],
+      "toolFeedback": [],
+      "predictionStatus": null,
+      "renderFlightOptions": false,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 2543,
+      "outputTokens": 22,
+      "modelCalls": 1,
+      "latencyMs": 2257,
+      "checks": []
+    },
+    {
+      "chat": "relative_dates_and_value",
+      "turn": 1,
+      "traceId": "trace_0f7745d4c66a4c2f973bfbc5237ce08f",
+      "user": "Find flights from Los Angeles to Las Vegas next weekend.",
+      "output": "Here are flight options from Los Angeles to Las Vegas for next weekend.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Flight results were generated for 1 adult from Los Angeles to Las Vegas on 2026-09-26. Three sample options are available in shared state.",
+          "completedTask": "Searched one-way economy flights from Los Angeles to Las Vegas for next weekend, using September 26, 2026 as the outbound date.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 22035,
+      "outputTokens": 421,
+      "modelCalls": 5,
+      "latencyMs": 13750,
+      "checks": []
+    },
+    {
+      "chat": "relative_dates_and_value",
+      "turn": 2,
+      "traceId": "trace_8eb96b92792245fbba24604bab94819e",
+      "user": "Make it for two adults instead.",
+      "output": "Updated the search to 2 adults for Los Angeles to Las Vegas next weekend.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "New one-way results are available for Los Angeles to Las Vegas on 2026-09-26 for 2 adults. 3 sample flight options were returned.",
+          "completedTask": "Updated the current Los Angeles to Las Vegas flight search for outbound 2026-09-26 to 2 adults in economy.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 22695,
+      "outputTokens": 365,
+      "modelCalls": 5,
+      "latencyMs": 11825,
+      "checks": []
+    },
+    {
+      "chat": "relative_dates_and_value",
+      "turn": 3,
+      "traceId": "trace_399b6cd369954603ab9212c715a27ef7",
+      "user": "Now search October 10, 2026.",
+      "output": "Updated the search to October 10, 2026 for 2 adults from Los Angeles to Las Vegas.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Search completed and 3 sample flight options are now shown in shared state.",
+          "completedTask": "Updated the active flight search to Los Angeles to Las Vegas on 2026-10-10 for 2 adults in economy, one-way.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 23099,
+      "outputTokens": 384,
+      "modelCalls": 5,
+      "latencyMs": 12299,
+      "checks": []
+    },
+    {
+      "chat": "relative_dates_and_value",
+      "turn": 4,
+      "traceId": "trace_deedb6bdf3d846888fb2339886062338",
+      "user": "Show flights with carry-on baggage.",
+      "output": "Filtered the results to show flights with carry-on baggage included.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "apply_filter"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Filtered results are now shown with carry-on baggage included. 2 of 3 current flight options match the filter.",
+          "completedTask": "Applied carry-on baggage included filter to the current Los Angeles to Las Vegas results for October 10, 2026, 2 adults.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 2,
+      "noteCount": 0,
+      "inputTokens": 16153,
+      "outputTokens": 293,
+      "modelCalls": 4,
+      "latencyMs": 11670,
+      "checks": []
+    },
+    {
+      "chat": "relative_dates_and_value",
+      "turn": 5,
+      "traceId": "trace_9ebea90eb71f40c4aef8f67b931b0743",
+      "user": "Which option is best value and why?",
+      "output": "Best value is **Option 2: Air China CA 204** at **$179 per person**.\n\nWhy:\n- It’s **$20 less per person** than Option 1.\n- It includes **carry-on and checked baggage**.\n- Tradeoff: it has **1 stop** and is about **25 minutes longer** than the nonstop option.\n\nIf you prefer convenience over savings, **Option 1** is better because it’s nonstop and shortest.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "getGeneratedContractsContext"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Reviewed 2 current filtered options. Best value: option 2, Air China CA 204, at USD 179 per person. It is USD 20 less per person than option 1 and includes carry-on plus checked baggage, making it the strongest value despite a 1-stop itinerary, 45-minute layover, and 25-minute longer total duration. Option 1, Air Canada AC 101, is the convenience pick because it is nonstop and shortest at 2h 10m, but costs USD 199 per person and does not show checked baggage included.",
+          "completedTask": "Compared the current filtered Los Angeles to Las Vegas flight options with carry-on baggage included for October 10, 2026, 2 adults, and identified the best-vیe",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "renderFlightOptions": true,
+      "resultCount": 2,
+      "noteCount": 0,
+      "inputTokens": 16970,
+      "outputTokens": 695,
+      "modelCalls": 4,
+      "latencyMs": 14985,
+      "checks": []
+    },
+    {
+      "chat": "prediction_and_recovery",
+      "turn": 1,
+      "traceId": "trace_4f538132a2c644f0a7b749a0c75c5977",
+      "user": "What is the cheapest date to fly from Mumbai to Delhi in October 2026?",
+      "output": "I can check this, but I need a specific travel date (or a flexible date range, like “any week in October” or “round trip Oct 10–20”).",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "price_prediction_tool"
+      ],
+      "managerResults": [
+        {
+          "status": "needs_input",
+          "summary": "A travel date is needed to search flight options.",
+          "completedTask": "Checked fare-date intelligence for Mumbai (BOM) to Delhi (DEL) for October 2026",
+          "missingInformation": [
+            "Expected travel date"
+          ],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "price_prediction_tool",
+          "ok": false,
+          "code": "NO_PREDICTIONS",
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 14055,
+      "outputTokens": 467,
+      "modelCalls": 4,
+      "latencyMs": 13474,
+      "checks": []
+    },
+    {
+      "chat": "prediction_and_recovery",
+      "turn": 2,
+      "traceId": "trace_7ee1b8ba80d6493da7c551d8c364f16c",
+      "user": "Find flights from Mumbai to Delhi on October 15, 2026 instead.",
+      "output": "Here are the available Mumbai to Delhi flights for October 15, 2026.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Flight search completed with 3 sample options shown for BOM to DEL on October 15, 2026. Suggested follow-up questions were updated.",
+          "completedTask": "Searched one-way economy flights from BOM to DEL on 2026-10-15 for 1 adult.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 21896,
+      "outputTokens": 274,
+      "modelCalls": 5,
+      "latencyMs": 10825,
+      "checks": []
+    },
+    {
+      "chat": "prediction_and_recovery",
+      "turn": 3,
+      "traceId": "trace_cb0d616303864efbab89561db9af05b6",
+      "user": "Show me a Super Saver fare.",
+      "output": "I don’t see a supported “Super Saver” filter available for the current results.\n\nIf you’d like, I can narrow the Mumbai to Delhi options by cheapest price, airline, stops, or departure time instead.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "getGeneratedContractsContext"
+      ],
+      "managerResults": [
+        {
+          "status": "partial",
+          "summary": "No supported active-results filter or visible result attribute for “Super Saver” fare options was available, so no filter was applied.",
+          "completedTask": "Inspected the current BOM to DEL results for October 15, 2026.",
+          "missingInformation": [
+            "Please clarify what should define a Super Saver option, such as a maximum price, airline, stops, or another supported constraint."
+          ],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 0,
+      "inputTokens": 16193,
+      "outputTokens": 613,
+      "modelCalls": 4,
+      "latencyMs": 13011,
+      "checks": []
+    },
+    {
+      "chat": "prediction_and_recovery",
+      "turn": 4,
+      "traceId": "trace_6f3e1b8aae8741929e722a0b1ace5967",
+      "user": "Show one-stop flights instead.",
+      "output": "Showing one-stop flights only for Mumbai to Delhi on October 15, 2026.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "apply_filter"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Filter applied successfully. The current results now show one-stop flights only; 1 of 3 options remains visible.",
+          "completedTask": "Applied a one-stop filter to the current BOM to DEL flight results for 2026-10-15.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 15922,
+      "outputTokens": 309,
+      "modelCalls": 4,
+      "latencyMs": 9542,
+      "checks": []
+    },
+    {
+      "chat": "prediction_and_recovery",
+      "turn": 5,
+      "traceId": "trace_8525f8e9611342428c8c69081b0e44d0",
+      "user": "Is option 1 shorter than option 3?",
+      "output": "I can’t compare them right now because only option 1 is available after the one-stop filter; option 3 isn’t in the current results. Option 1’s duration is 2h 35m.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "getGeneratedContractsContext"
+      ],
+      "managerResults": [
+        {
+          "status": "partial",
+          "summary": "Option 1 duration is 2h 35m. Option 3 is not available in the current results, so I cannot determine whether option 1 is shorter than option 3.",
+          "completedTask": "Inspected current generated flight options for duration comparison.",
+          "missingInformation": [
+            "Option 3 is not available; available option: 1."
+          ],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 16621,
+      "outputTokens": 454,
+      "modelCalls": 4,
+      "latencyMs": 10859,
+      "checks": []
+    }
+  ]
+}

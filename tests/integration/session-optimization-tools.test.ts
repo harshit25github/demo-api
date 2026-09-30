@@ -1,0 +1,75 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { sessionOptimization } from '../../src/shared/config/session-optimization.js';
+import { FlightSearchTool } from '../../src/agents/flight/tools/search-tool.js';
+import { ApplyFilterTool } from '../../src/agents/flight/tools/filter/tool.js';
+import { GetGeneratedContractsContextTool } from '../../src/agents/flight/tools/contracts-tool.js';
+import { clearFlightSearchRuntime, getFlightSearchRuntime, snapshotFlightSearchRuntime, restoreFlightSearchRuntime } from '../../src/agents/flight/context/search-runtime-store.js';
+import { fixtureSearchArguments, fixtureFilterArguments, realToolFixtures, fixtureHistory, fixtureContext } from '../../scripts/session-optimization-fixtures.js';
+import { captureModelRequest, inputCountRequest } from '../../scripts/capture-model-request.js';
+import { COMPACT_RESULT_TURN_RULE, deduplicateIndexedComparisonRule } from '../../src/agents/flight/context/compact-result-guidance.js';
+process.env.OPENAI_API_KEY ||= 'test-key';
+process.env.OPENAI_AGENTS_DISABLE_TRACING = '1';
+const parse = (value: any) => typeof value === 'string' ? JSON.parse(value) : value;
+
+test('enforced real search/filter outputs preserve runtime, API payload, read/select/show_all and restart', async () => {
+  const previous = sessionOptimization.mode, log = console.log;
+  const context: any = { requestId: 'test', sessionId: 'test', toolCallLog: [], flight: { uid: 'fixture' } };
+  try {
+    console.log = () => {};
+    sessionOptimization.mode = 'enforce';
+    const search = parse(await (FlightSearchTool as any).invoke({ context }, JSON.stringify(fixtureSearchArguments), {}));
+    assert.equal(search.projectionVersion, 1);
+    assert.equal(search.summary.optionCount, 3);
+    assert.equal(search.flights, undefined);
+    assert.equal(context.flight.searchResults.length, 3);
+    const searchKey = context.flight.searchKey;
+    assert.equal(search.searchKey, searchKey);
+    const filter = parse(await (ApplyFilterTool as any).invoke({ context }, JSON.stringify(fixtureFilterArguments), {}));
+    assert.equal(filter.projectionVersion, 1);
+    assert.equal(filter.flights, undefined);
+    assert.equal(filter.finalFilterPayload, undefined);
+    assert.equal(filter.summary.filteredCount, context.flight.searchResults.length);
+    const runtime = getFlightSearchRuntime(searchKey)!;
+    assert.ok(runtime.finalFilterPayload);
+    assert.equal((runtime.lastApplyFilterPayload as any).searchKey, searchKey);
+    assert.deepEqual(context.toolCallLog.at(-1).finalFilterPayload, runtime.finalFilterPayload);
+    const invoke = async (mode: string, indexes: number[] | null) => parse(await (GetGeneratedContractsContextTool as any).invoke({ context }, JSON.stringify({ mode, indexes }), {}));
+    const all = await invoke('read', null);
+    assert.equal(all.contracts.length, 3);
+    assert.equal(all.summary.cheapestOption.optionNumber, 3);
+    const before = structuredClone(context.flight.searchResults);
+    assert.equal((await invoke('read', [3])).contracts[0].optionNumber, 3);
+    assert.deepEqual(context.flight.searchResults, before);
+    await invoke('select', [3]);
+    assert.deepEqual(context.flight.searchResults.map((f: any) => f.display), [false, false, true]);
+    const saved = snapshotFlightSearchRuntime(searchKey);
+    clearFlightSearchRuntime(searchKey);
+    restoreFlightSearchRuntime(searchKey, saved);
+    await invoke('show_all', null);
+    assert.deepEqual(context.flight.searchResults.map((f: any) => f.display), [true, true, true]);
+    sessionOptimization.mode = 'off';
+    assert.equal((await invoke('read', [3])).contracts[0].optionNumber, 3);
+    const missing = parse(await (ApplyFilterTool as any).invoke({ context: { ...context, flight: { uid: 'fixture' } } }, JSON.stringify(fixtureFilterArguments), {}));
+    assert.equal(missing.code, 'MISSING_SEARCH');
+    assert.equal(missing.projectionVersion, undefined);
+  } finally { clearFlightSearchRuntime(context.flight.searchKey); sessionOptimization.mode = previous; console.log = log; }
+});
+
+test('counter captures actual Flight tools and instructions and maps SDK calls to Responses wire input', async () => {
+  const { FlightAgent } = await import('../../src/agents/flight/agent.js');
+  const { search } = await realToolFixtures();
+  const input = fixtureHistory(search);
+  const before = await captureModelRequest(FlightAgent, input, fixtureContext(search), 'off');
+  const after = await captureModelRequest(FlightAgent, input, fixtureContext(search), 'enforce');
+  assert.deepEqual(before.tools, after.tools);
+  assert.equal(after.instructions, `${deduplicateIndexedComparisonRule(String(before.instructions))}\n\n${COMPACT_RESULT_TURN_RULE}`);
+  assert.ok((before.tools as any[]).some((t) => t.name === 'flight_search'));
+  assert.ok((before.input as any[]).some((i) => i.type === 'function_call_output' && i.call_id));
+  assert.ok(Buffer.byteLength(JSON.stringify(after)) < Buffer.byteLength(JSON.stringify(before)));
+  const counted = inputCountRequest(after);
+  assert.equal(counted.tools, after.tools);
+  assert.equal(counted.instructions, after.instructions);
+  assert.equal(counted.text, after.text);
+  assert.equal('stream' in counted, false);
+});

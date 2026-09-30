@@ -1,0 +1,155 @@
+[
+  {
+    "journeyName": "Vague date search followed by price comparison",
+    "turns": [
+      {
+        "turn": 1,
+        "category": "flight discovery",
+        "userMessage": "flights next weekend",
+        "passCriteria": "The response should understand that the user wants a normal flight search for next weekend, resolve the usable weekend date from the current local date, preserve that date intent, avoid calling price prediction, and ask only for the missing departure and arrival locations."
+      },
+      {
+        "turn": 2,
+        "category": "flight discovery",
+        "userMessage": "from jfk to delhi",
+        "passCriteria": "The response should preserve the previously resolved next-weekend date, map JFK as the departure location and Delhi as the arrival location, use default one-way economy travel for one adult, and run flight search without asking for the date again."
+      },
+      {
+        "turn": 3,
+        "category": "flight discovery",
+        "userMessage": "make it 2 adults premium economy",
+        "passCriteria": "The response should update only passenger count and cabin class, preserve the active route and inferred travel date, run a fresh flight search, and not request information already available."
+      },
+      {
+        "turn": 4,
+        "category": "flight discovery",
+        "userMessage": "which date nearby is cheaper?",
+        "passCriteria": "The response should recognize explicit price-date intelligence, preserve the active JFK-to-Delhi route and relevant nearby date range, call price prediction, use only grounded predicted dates, and avoid inventing fares or exposing internal prediction failures."
+      },
+      {
+        "turn": 5,
+        "category": "flight discovery",
+        "userMessage": "okay search the best one",
+        "passCriteria": "The response should use the best grounded date returned by the previous prediction, preserve two adults and premium economy, run flight search without asking which date the user means, and confirm the selected date naturally."
+      },
+      {
+        "turn": 6,
+        "category": "flight discovery",
+        "userMessage": "nonstop and evening departure",
+        "passCriteria": "The response should treat this as a filter request on the latest active search, apply both nonstop and evening-departure filters together using the latest search key, and preserve all route, date, passenger, and cabin details."
+      },
+      {
+        "turn": 7,
+        "category": "flight discovery",
+        "userMessage": "which option is best value?",
+        "passCriteria": "The response should fetch the latest current flight options before reasoning, recommend the best-value option using only grounded price, duration, stops, or baggage data, and keep the answer concise."
+      }
+    ]
+  },
+  {
+    "journeyName": "Price prediction first then round-trip flight search",
+    "turns": [
+      {
+        "turn": 1,
+        "category": "flight discovery",
+        "userMessage": "cheapest fare next month",
+        "passCriteria": "The response should identify explicit price-intelligence intent but should not call price prediction because the route is missing. It should ask conversationally for only the departure and arrival locations while retaining the next-month date preference."
+      },
+      {
+        "turn": 2,
+        "category": "flight discovery",
+        "userMessage": "del to bom",
+        "passCriteria": "The response should combine DEL-to-BOM with the retained next-month preference, call price prediction using the supported prediction window and requested month preference, and return only grounded cheapest-date guidance."
+      },
+      {
+        "turn": 3,
+        "category": "flight discovery",
+        "userMessage": "round trip, around 8 days",
+        "passCriteria": "The response should update the trip to round trip with an eight-day duration, preserve DEL, BOM, and the existing month intent, and use round-trip price prediction with appropriate outbound and return date ranges."
+      },
+      {
+        "turn": 4,
+        "category": "flight discovery",
+        "userMessage": "search the cheapest combo for 3 ppl",
+        "passCriteria": "The response should use the cheapest grounded outbound and return combination from the previous prediction, update passengers to three adults, run a round-trip flight search, and avoid asking for dates already selected."
+      },
+      {
+        "turn": 5,
+        "category": "flight discovery",
+        "userMessage": "actually return after 10 days",
+        "passCriteria": "The response should update only the return date or trip duration to ten days, preserve the route, outbound date, three adults, cabin, and round-trip type, and run a fresh flight search."
+      },
+      {
+        "turn": 6,
+        "category": "flight discovery",
+        "userMessage": "morning departure, one stop max",
+        "passCriteria": "The response should apply both the morning-departure and one-stop filters in one filter call against the latest search key while preserving the route, dates, passengers, cabin, and trip type."
+      },
+      {
+        "turn": 7,
+        "category": "flight discovery",
+        "userMessage": "compare option 1 and 3",
+        "passCriteria": "The response should fetch options 1 and 3 from the latest generated contract context, compare only grounded airline, price, duration, stops, timing, and baggage fields, and clearly identify the stronger choice without recalling stale results."
+      },
+      {
+        "turn": 8,
+        "category": "flight discovery",
+        "userMessage": "clear all filters",
+        "passCriteria": "The response should reset all filters on the current search using the latest search key, preserve the underlying route, dates, passengers, cabin, and trip type, and confirm the reset without showing stale filtered claims."
+      }
+    ]
+  },
+  {
+    "journeyName": "Date-first context carry-forward with corrections",
+    "turns": [
+      {
+        "turn": 1,
+        "category": "flight discovery",
+        "userMessage": "around september, maybe flexible",
+        "passCriteria": "The response should treat flexible September timing as price-intelligence intent but should not call prediction without a route. It should retain the date preference and ask only for the missing departure and arrival locations."
+      },
+      {
+        "turn": 2,
+        "category": "flight discovery",
+        "userMessage": "nyc to lax, just me",
+        "passCriteria": "The response should preserve the September flexible-date intent, set NYC as departure, LAX as arrival, and one adult, then call price prediction rather than normal flight search because the user remains flexible about price-based dates."
+      },
+      {
+        "turn": 3,
+        "category": "flight discovery",
+        "userMessage": "no actually sept 18, just show flights",
+        "passCriteria": "The response should treat September 18 as an explicit date override, stop using the older flexible-date preference, run a normal one-way economy flight search for one adult, and clearly confirm the updated date."
+      },
+      {
+        "turn": 4,
+        "category": "flight discovery",
+        "userMessage": "change arrival to sfo",
+        "passCriteria": "The response should change only the arrival location from LAX to SFO, preserve NYC, September 18, one adult, one-way, and economy, and run a fresh flight search without asking for the date again."
+      },
+      {
+        "turn": 5,
+        "category": "flight discovery",
+        "userMessage": "is sept 17 or 19 cheaper though?",
+        "passCriteria": "The response should recognize a price comparison across nearby dates, preserve the updated NYC-to-SFO route, call price prediction for the relevant date range, compare only grounded predicted dates, and not invent exact fare amounts."
+      },
+      {
+        "turn": 6,
+        "category": "flight discovery",
+        "userMessage": "search sept 19 business",
+        "passCriteria": "The response should use September 19 as the new explicit search date, update cabin class to business, preserve NYC-to-SFO and one adult, and run a fresh flight search without calling price prediction again."
+      },
+      {
+        "turn": 7,
+        "category": "flight discovery",
+        "userMessage": "under $700 and carry-on included",
+        "passCriteria": "The response should apply both the maximum-price and carry-on-baggage filters in one call using the latest search key, preserve the current route and search details, and avoid claiming matches not returned by the filter tool."
+      },
+      {
+        "turn": 8,
+        "category": "flight discovery",
+        "userMessage": "cheapest current option?",
+        "passCriteria": "The response should fetch all latest current flight contracts before selecting the cheapest option, use only grounded contract data, and avoid relying on earlier unfiltered or stale results."
+      }
+    ]
+  }
+]

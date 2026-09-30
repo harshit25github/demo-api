@@ -1,9 +1,8 @@
 node_modules/
+dist/
 .env
 npm-debug.log*
-tests/*
-!tests/
-!tests/link-sanitizer.test.js
-!tests/gateway-trip-planner-hard-validation.test.js
-!tests/apply-filter-fuzzy-source-matching.test.js
-!tests/flight-agent-e2e-multiturn-live.js
+tests/results/
+.debug/
+data/chats.json
+data/chats.json.*

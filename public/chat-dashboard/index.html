@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Travel Agent Console</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand-row">
+          <div>
+            <p class="eyebrow">Agent workspace</p>
+            <h1>Travel Console</h1>
+          </div>
+          <button class="icon-button mobile-only" id="closeSidebar" title="Close chats" aria-label="Close chats">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <button class="new-chat-button" id="newChatButton">
+          <i data-lucide="plus"></i>
+          <span>New chat</span>
+        </button>
+        <nav class="chat-list" id="chatList" aria-label="Chat history"></nav>
+      </aside>
+
+      <main class="chat-workspace">
+        <header class="topbar">
+          <div class="topbar-title">
+            <button class="icon-button mobile-only" id="openSidebar" title="Open chats" aria-label="Open chats">
+              <i data-lucide="panel-left"></i>
+            </button>
+            <div>
+              <h2 id="chatTitle">New chat</h2>
+              <p id="agentStatus">Ready</p>
+            </div>
+          </div>
+          <button class="icon-button" id="toggleDebug" title="Toggle context" aria-label="Toggle context">
+            <i data-lucide="braces"></i>
+          </button>
+        </header>
+
+        <section class="messages" id="messages" aria-live="polite">
+          <div class="empty-state" id="emptyState">
+            <i data-lucide="messages-square"></i>
+            <p>Start a conversation.</p>
+          </div>
+        </section>
+
+        <form class="composer" id="composer">
+          <textarea id="messageInput" rows="1" maxlength="8000" placeholder="Message" aria-label="Message"></textarea>
+          <button class="send-button" id="sendButton" type="submit" title="Send" aria-label="Send message">
+            <i data-lucide="arrow-up"></i>
+          </button>
+        </form>
+      </main>
+
+      <aside class="debug-panel" id="debugPanel" aria-hidden="true">
+        <div class="debug-header">
+          <div>
+            <p class="eyebrow">Current state</p>
+            <h2>Context</h2>
+          </div>
+          <button class="icon-button" id="closeDebug" title="Close context" aria-label="Close context">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <dl class="identifiers">
+          <div><dt>Chat ID</dt><dd id="debugChatId">-</dd></div>
+          <div><dt>Conversation ID</dt><dd id="debugConversationId">-</dd></div>
+        </dl>
+        <pre id="summaryContext">{}</pre>
+      </aside>
+      <div class="scrim" id="scrim"></div>
+    </div>
+
+    <script src="/vendor/lucide.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
