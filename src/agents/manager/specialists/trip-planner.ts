@@ -16,7 +16,7 @@ import type { ManagerToolResult } from '../result-contract.js';
 import { recordOutcome, type ManagerTurnState } from '../turn-state.js';
 import {
   createSpecialistResultGuardrail,
-  readSpecialistSubtask,
+  readSubtaskFromResult,
   specialistInputSchema,
   specialistRunConfig,
   specialistTimeoutResult,
@@ -110,7 +110,7 @@ export function createTripPlannerTool(state: ManagerTurnState): Tool<any> {
     customOutputExtractor: (result) => recordOutcome(
       state,
       'trip_planner_agent',
-      readSpecialistSubtask(result.agentToolInvocation?.toolArguments),
+      readSubtaskFromResult(result),
       tripPlannerResult(state, String(result.finalOutput ?? '')),
     ),
   });

@@ -42,3 +42,32 @@ export function getRequestClock(
   }
   return context.runtime.clock as unknown as RequestClock;
 }
+
+/**
+ * The request text this run is scoped to.
+ *
+ * When an agent runs as a nested `Agent.asTool()` call with an `inputBuilder`,
+ * the SDK puts the structured tool input on the nested `RunContext` as
+ * `toolInput`. That is the subtask the caller delegated, which is narrower than
+ * the whole user turn: on a mixed "find flights and plan my trip" request, only
+ * the flight half belongs to the Flight Agent.
+ *
+ * Reading it here means nothing has to mutate shared state to scope a nested
+ * run. Running standalone there is no `toolInput`, so the caller's fallback —
+ * normally `context.currentUserMessage` — is used instead.
+ *
+ * Deliberately does not import from the SDK: this only reads a documented
+ * property off whatever run context was passed in.
+ */
+export function getScopedRequestText(
+  runContext: unknown,
+  fallback: unknown,
+): string {
+  const toolInput = isRecord(runContext)
+    ? (runContext as { toolInput?: unknown }).toolInput
+    : undefined;
+  const scoped = isRecord(toolInput) ? (toolInput as { input?: unknown }).input : undefined;
+  return typeof scoped === 'string' && scoped.trim()
+    ? scoped.trim()
+    : String(fallback || '').trim();
+}

@@ -87,6 +87,24 @@ export function readSubtaskFromDetails(details: ToolCallDetails | undefined): st
   return readSpecialistSubtask(details?.toolCall?.arguments);
 }
 
+/**
+ * The subtask, from a completed nested run.
+ *
+ * Prefers the tool call's own arguments. Falls back to the nested run's input,
+ * which is whatever `inputBuilder` returned and so is the subtask itself: the
+ * arguments are only present when a runner supplied `details.toolCall`, and a
+ * caller invoking the tool directly does not. Both sources are per call, so
+ * neither depends on tool calls being serialized.
+ */
+export function readSubtaskFromResult(result: {
+  agentToolInvocation?: { toolArguments?: string };
+  input?: unknown;
+}): string {
+  const fromArguments = readSpecialistSubtask(result.agentToolInvocation?.toolArguments);
+  if (fromArguments) return fromArguments;
+  return typeof result.input === 'string' ? result.input.trim() : '';
+}
+
 /** Does this tool output look like a result the Manager can consume? */
 function isManagerToolResult(value: unknown): value is ManagerToolResult {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;

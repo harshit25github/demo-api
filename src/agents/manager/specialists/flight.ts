@@ -1,19 +1,22 @@
 /**
  * The Flight specialist, as the Manager sees it.
  *
- * Two halves:
- *  1. Result mapping (`flightResult` and its helpers) — turns the Flight Agent's
- *     self-reported outcome into a `ManagerToolResult`.
- *  2. The `SpecialistDefinition` at the bottom — the module-level `asTool()` handle
- *     plus the watermarks and failure handling `createSpecialistTool` drives.
+ * Registered directly with `Agent.asTool()`. `FlightManagerAgent` declares an
+ * `outputType`, so the SDK has already validated `finalOutput` against
+ * `flightManagerOutputSchema` by the time it arrives here — no JSON round trip
+ * and no re-parsing.
  *
  * The central idea in this file is VERIFICATION. The Flight Agent reports its own
  * status, but a model saying "success" is a claim, not evidence. Everything here
- * cross-checks that claim against what actually landed in shared state during this
- * invocation — the `toolCallLog` entries after `logStart`, a changed `searchKey`,
- * a fresh price prediction. A claimed success with no evidence is downgraded to a
+ * cross-checks that claim against what actually landed in shared state this turn
+ * — `toolCallLog` entries past the turn watermark, a changed `searchKey`, a fresh
+ * price prediction. A claimed success with no evidence is downgraded to a
  * failure; a claimed failure with real evidence is upgraded to partial.
+ *
+ * Raw `searchResults` never cross into the Manager's context. The application
+ * draws cards from shared state; the Manager only learns whether to ask for them.
  */
+import type { Tool } from '@openai/agents';
 import { FlightManagerAgent } from '../../flight/agent.js';
 import { flightAgentConfig } from '../../flight/config.js';
 import { flightManagerOutputSchema } from '../../flight/manager-output.js';
@@ -21,15 +24,17 @@ import { latestSuccessfulFlightCoreTool } from '../../flight/context/recovery-ou
 import { getFlightSearchRuntime } from '../../flight/context/search-runtime-store.js';
 import { sanitizePricePredictionFailureResponse } from '../../flight/tools/price-prediction/failure-response.js';
 import type { FlightAppContext } from '../../flight/types.js';
-import { ObservedModelProvider, observeModelInput } from '../../../shared/observability/model-usage.js';
-import { gatewayModelRetrySettings } from '../../manager-orchestrator/retry.js';
 import type { ManagerToolResult } from '../result-contract.js';
-import type { ManagerTurnState } from '../turn-state.js';
+import { recordOutcome, type ManagerTurnState } from '../turn-state.js';
 import {
-  GENERIC_SPECIALIST_FAILURE,
-  type NestedOutcome,
-  type SpecialistDefinition,
-} from '../specialist-tool.js';
+  createSpecialistResultGuardrail,
+  readSubtaskFromResult,
+  specialistInputSchema,
+  specialistRunConfig,
+} from '../specialist-result.js';
+
+const FLIGHT_TOOL_DESCRIPTION =
+  'Find or start booking flights; change search route, dates, passengers, or cabin; apply or clear listing filters; compare current flight options; find cheaper travel dates with price prediction. Use even on a booking/listing page when the action changes search results. Do not use for seats or selected-booking benefits.';
 
 /**
  * Count flight records regardless of how the search wrote them.
@@ -73,12 +78,11 @@ export function extractFlightFacts(context: FlightAppContext): Record<string, st
 }
 
 /**
- * Decide how the application should display results, based on what THIS invocation
- * actually did.
+ * Decide how the application should display results, based on what actually
+ * happened THIS TURN.
  *
- * `logStart` is the watermark captured before the nested run, so the slice sees only
- * this call's tool entries. Without it a second `flight_agent` call in the same turn
- * would inherit the first call's evidence.
+ * `logStart` is the turn watermark, so the slice sees only this turn's tool
+ * entries and never evidence carried over from a previous turn.
  *
  * The search/filter split matters: a fresh `flight_search` produces new prices, so
  * the reply must carry the per-person note. A filter or a re-read of existing
@@ -107,9 +111,8 @@ export function determineFlightPresentation(
 /**
  * Application-owned narration of a core tool that succeeded.
  *
- * Used whenever the Flight Agent's own prose cannot be trusted or does not exist —
- * an unparseable result, or a nested run that crashed after the real work landed.
- * Grounded entirely in shared state, so it can never over-claim.
+ * Used when the Flight Agent's own prose cannot be trusted. Grounded entirely in
+ * shared state, so it can never over-claim.
  */
 export function summarizeFlightCoreTool(context: FlightAppContext, toolName: string): string {
   const count = extractFlightFacts(context).resultCount as number;
@@ -130,25 +133,26 @@ export function summarizeFlightCoreTool(context: FlightAppContext, toolName: str
 /**
  * Transform the Flight Agent's structured output into a Manager tool result.
  *
- * Runs on the success path only; a failed nested run goes to `flightFailureResult`.
+ * `output` is what the SDK validated against `flightManagerOutputSchema`. It is
+ * re-checked here because this function is also called directly by tests and by
+ * the standalone paths, and because a mapper that throws would lose the evidence
+ * narration below.
  */
 export function flightResult(
   state: ManagerTurnState,
   output: unknown,
   input: string,
-  logStart: number,
-  priorPricePrediction: unknown,
-  priorSearchKey: string | null,
 ): ManagerToolResult {
-  // The model wrote this output, so it is untrusted until the schema accepts it.
+  const { toolCallLogLength: logStart, flightPricePrediction: priorPricePrediction,
+    flightSearchKey: priorSearchKey } = state.turnStart;
   const parsed = flightManagerOutputSchema.safeParse(output);
 
   // The evidence anchor: did flight_search / apply_filter / getGeneratedContractsContext
-  // actually succeed during THIS invocation?
+  // actually succeed during this turn?
   const core = latestSuccessfulFlightCoreTool(state.appContext, logStart);
 
   // Identity comparison, not a status check. A successful prediction from an earlier
-  // turn is still sitting on the context, so only a DIFFERENT object proves this call
+  // turn is still sitting on the context, so only a DIFFERENT object proves this turn
   // produced one.
   const prediction = state.appContext.flight.lastPricePrediction;
   const predictionSucceeded = prediction !== priorPricePrediction &&
@@ -178,7 +182,7 @@ export function flightResult(
 
   // Price-prediction guardrail: stops the Flight Agent narrating a prediction-tool
   // failure to the traveler. It needs the two "before" watermarks to tell a failure
-  // that happened THIS turn from a stale one, and to notice that a search succeeded
+  // that happened this turn from a stale one, and to notice that a search succeeded
   // alongside it. Only the decision is used here; the Manager writes its own summary.
   const predictionGuardrail = sanitizePricePredictionFailureResponse({
     output: specialist.resultSummary,
@@ -212,7 +216,7 @@ export function flightResult(
     };
   }
 
-  // Did anything real happen this invocation?
+  // Did anything real happen this turn?
   const verified = Boolean(core || predictionSucceeded);
 
   const lastFlightWork = state.appContext.toolCallLog.slice(logStart)
@@ -276,128 +280,35 @@ export function flightResult(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Specialist definition
-// ---------------------------------------------------------------------------
-
 /**
- * Built once at module scope, the way the SDK's "agents as tools" guide shows.
+ * Build this turn's Flight tool.
  *
- * `customOutputExtractor` stays PURE — it only serializes `finalOutput`. Mapping
- * used to live here, which forced the whole `asTool()` call to be rebuilt inside
- * `execute` so it could close over the watermarks. Moving mapping to `toResult`
- * lets this be a module-level constant, and puts success and failure on one path.
- */
-const flightNested = FlightManagerAgent.asTool({
-  toolName: 'flight_agent',
-  toolDescription: 'Flight search and filtering specialist',
-  runConfig: {
-    // `modelProvider` MUST stay set. getInheritedAgentToolRunConfig() gates both
-    // `inheritedRunConfig.model` and `inheritedRunConfig.modelSettings` on
-    // `!overridesModelProvider`, so dropping this line makes the Flight Agent
-    // silently inherit the Manager's model and reasoning effort instead of its own.
-    modelProvider: new ObservedModelProvider(),
-    callModelInputFilter: observeModelInput,
-    modelSettings: { preserveRawUsage: true, retry: gatewayModelRetrySettings },
-    traceIncludeSensitiveData: true,
-  },
-  // No `signal` here on purpose: a module-scope AbortSignal.timeout would start
-  // counting at import. Per-call timeouts belong in `definition.timeoutMs`.
-  runOptions: { maxTurns: flightAgentConfig.maxTurns },
-  customOutputExtractor: (result) => JSON.stringify(result.finalOutput ?? null),
-});
-
-/** Snapshots taken before the nested run, none of which can be recovered afterwards. */
-interface FlightPending {
-  /** Index into the shared `toolCallLog`, so evidence can be scoped to this call. */
-  logStart: number;
-  /** Detects that a search ran: used by the price guardrail and the retry gate. */
-  priorSearchKey: string | null;
-  /** Compared by identity, so a stale prediction is not read as a fresh one. */
-  priorPricePrediction: unknown;
-}
-
-/**
- * The nested run failed. Report whatever landed before it did.
+ * Per-turn rather than at module scope so the hooks can close over this turn's
+ * state and watermarks.
  *
- * `MaxTurnsExceededError` in particular does not mean nothing happened — the agent
- * may have completed a search and then run out of turns polishing its answer. Before
- * this refactor the whole branch was unreachable: `invoke()` resolves with the SDK's
- * error string instead of throwing, so the old `instanceof` checks never matched and
- * every nested failure was reported as a bare `SyntaxError`.
+ * `apply_filter` parses filter intent out of the user's own words, so it must see
+ * the flight subtask rather than the whole turn. Declaring `inputBuilder` makes
+ * the SDK carry that subtask into the nested run as `RunContext.toolInput`, which
+ * the filter tool reads via `getScopedRequestText` — no shared-state swap.
  */
-function flightFailureResult(
-  state: ManagerTurnState,
-  pending: FlightPending,
-  outcome: Extract<NestedOutcome, { ok: false }>,
-): ManagerToolResult {
-  const core = latestSuccessfulFlightCoreTool(state.appContext, pending.logStart);
-  if (core) {
-    return {
-      status: 'partial',
-      completedTask: 'Completed part of the flight request',
-      summary: summarizeFlightCoreTool(state.appContext, core.tool),
-      userRelevantData: extractFlightFacts(state.appContext),
-      presentation: determineFlightPresentation(state.appContext, pending.logStart),
-      recovery: {
-        code: outcome.code === 'MAX_TURNS'
-          ? 'MAX_TURNS_AFTER_CORE_SUCCESS'
-          : 'NESTED_FAILURE_AFTER_CORE_SUCCESS',
-        retryable: false,
-      },
-    };
-  }
+export function createFlightTool(state: ManagerTurnState): Tool<any> {
+  const flightTool = FlightManagerAgent.asTool({
+    toolName: 'flight_agent',
+    toolDescription: FLIGHT_TOOL_DESCRIPTION,
+    parameters: specialistInputSchema,
+    inputBuilder: ({ params }) => params.input,
+    runConfig: specialistRunConfig(),
+    // No `signal` here: a module-scope AbortSignal.timeout would start counting
+    // at import. Flight relies on its per-model timeout in flightAgentConfig.
+    runOptions: { maxTurns: flightAgentConfig.maxTurns },
+    customOutputExtractor: (result) => {
+      const input = readSubtaskFromResult(result);
+      return recordOutcome(state, 'flight_agent', input,
+        flightResult(state, result.finalOutput, input));
+    },
+  });
 
-  // Retrying is only safe if the failed run left no trace. A new tool entry or a
-  // rotated searchKey means a retry could duplicate work or contradict what is
-  // already in shared state.
-  const stateChanged = state.appContext.toolCallLog.length > pending.logStart ||
-    state.appContext.flight.searchKey !== pending.priorSearchKey;
+  flightTool.outputGuardrails = [createSpecialistResultGuardrail(state, 'flight_agent')];
 
-  return {
-    status: 'failure',
-    summary: GENERIC_SPECIALIST_FAILURE,
-    recovery: { code: outcome.code, retryable: outcome.retryable && !stateChanged },
-  };
+  return flightTool as Tool<any>;
 }
-
-export const flightSpecialist: SpecialistDefinition<FlightPending> = {
-  name: 'flight_agent',
-  description: 'Find or start booking flights; change search route, dates, passengers, or cabin; apply or clear listing filters; compare current flight options; find cheaper travel dates with price prediction. Use even on a booking/listing page when the action changes search results. Do not use for seats or selected-booking benefits.',
-  nested: flightNested,
-  // `apply_filter` parses filter intent straight out of `appContext.currentUserMessage`
-  // (src/agents/flight/tools/filter/tool.ts), so it must see this subtask rather than
-  // the whole turn — otherwise a mixed request leaks trip-planning words into it.
-  scopeUserMessage: true,
-  capture(state) {
-    return {
-      logStart: state.appContext.toolCallLog.length,
-      priorSearchKey: state.appContext.flight.searchKey || null,
-      priorPricePrediction: state.appContext.flight.lastPricePrediction,
-    };
-  },
-  toResult(state, input, outcome, pending) {
-    // `=== false`, not `!outcome.ok`: the test project runs with `strictNullChecks`
-    // off, where truthiness narrowing on a boolean discriminant does not narrow.
-    if (outcome.ok === false) {
-      return flightFailureResult(state, pending, outcome);
-    }
-    let finalOutput: unknown;
-    try {
-      finalOutput = JSON.parse(outcome.output);
-    } catch {
-      // The extractor always emits JSON; this is defence in depth.
-      return flightFailureResult(state, pending, {
-        ok: false, code: 'INVALID_SPECIALIST_OUTPUT', retryable: false,
-      });
-    }
-    return flightResult(
-      state,
-      finalOutput,
-      input,
-      pending.logStart,
-      pending.priorPricePrediction,
-      pending.priorSearchKey,
-    );
-  },
-};

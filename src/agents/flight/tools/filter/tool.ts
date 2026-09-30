@@ -1,6 +1,6 @@
 import { tool } from '@openai/agents';
 import { modelFacingToolOutput } from '../model-output.js';
-import { getRequestState } from '../../../../shared/runtime/request-context.js';
+import { getRequestState, getScopedRequestText } from '../../../../shared/runtime/request-context.js';
 import {
   getFlightSearchRuntime,
   initializeFlightSearchRuntime,
@@ -59,7 +59,12 @@ export const ApplyFilterTool = tool({
   execute(input, context) {
     const appContext = getRequestState(context?.context as FlightAppContext);
     const flightContext = appContext.flight;
-    const requestedFilterText = String(appContext.currentUserMessage || '').trim();
+    // Filter intent is parsed out of the user's own words, so this must be the
+    // FLIGHT subtask, not the whole turn: on "find flights to Dubai and plan my
+    // trip", trip-planning words must not reach the filter parser. Under the
+    // Manager the SDK supplies that subtask as the nested run's `toolInput`;
+    // running standalone there is none, so the turn message is the fallback.
+    const requestedFilterText = getScopedRequestText(context, appContext.currentUserMessage);
     const filters = standaloneClearAllRequest(requestedFilterText)
       ? [resetFilter(requestedFilterText)] : input.filters;
 
