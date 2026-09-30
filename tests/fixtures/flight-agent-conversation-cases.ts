@@ -207,7 +207,7 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
     id: 'origin_change_midstream',
     focus: 'Replacing an endpoint after filters are already stacked',
     description:
-      'Two filters are active when the origin changes. Tests that Flight re-searches for the new origin, knows the filters did not survive, and re-applies both in one call rather than two.',
+      'Two filters are active when the origin changes. Tests that the endpoint change re-searches rather than filters, that constraints the traveller stated and never withdrew survive the change, and that a later removal takes out one of them without disturbing the other.',
     turns: [
       {
         user: 'Mumbai to Dubai on Dec 12',
@@ -232,23 +232,23 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
       {
         user: "actually I'm leaving from Delhi, not Mumbai",
         understanding:
-          'The origin is replaced. Destination, date, passengers and cabin carry over. The previous result set and the filters attached to it belong to the superseded search.',
-        expectedTools: ['flight_search'],
-        why: 'An endpoint is a search input. Filtering cannot change where the flight departs from, and the old results describe a route the traveller is no longer taking.',
+          'The origin is replaced; destination, date, passengers and cabin carry over. The traveller stated the baggage and duration constraints two turns ago and has not withdrawn them, so they are still requirements — but a new search discards the filters attached to the old results, so they have to be put back for the Delhi set.',
+        expectedTools: ['flight_search', 'apply_filter'],
+        why: 'An endpoint is a search input: filtering cannot change where a flight departs from, and the old results describe a route the traveller is no longer taking. Order matters, since filters need results to narrow. Dropping the two constraints silently would quietly widen a search the traveller had already narrowed.',
       },
       {
         user: 'are my baggage and duration filters still active?',
         understanding:
-          'The new search cleared them, and the applied-filter list for the current search shows that.',
+          'They were carried across to the Delhi search, and the applied-filter list for the current search shows that.',
         expectedTools: [],
-        why: 'Flight’s own context lists the filters attached to the current search and excludes the ones from the Mumbai search, so the answer is already there to read. Delegating to reach that context is fine; spending a domain tool call on it is the false positive.',
+        why: 'Flight’s own context lists the filters attached to the current search, so the answer is already there to read. Delegating to reach that context is fine; spending a domain tool call on it is the false positive.',
       },
       {
-        user: 'turn both back on',
+        user: 'drop the 8 hour limit but keep the bag',
         understanding:
-          'Re-apply the baggage and total-duration constraints to the Delhi results, as one request carrying both.',
+          'Remove only the total-duration constraint, leaving the checked-baggage filter active on the Delhi results.',
         expectedTools: ['apply_filter'],
-        why: 'The tool takes several filter entries in a single call. Splitting one request into two calls is unnecessary tool usage worth flagging.',
+        why: 'A targeted removal, not a reset and not a re-search. Clearing both would discard a constraint the traveller just asked to keep, and re-searching would throw away results that are still valid.',
       },
       {
         user: 'show me the second option',
