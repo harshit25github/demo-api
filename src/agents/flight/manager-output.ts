@@ -1,14 +1,29 @@
 import { z } from 'zod';
 
-/** Feedback authored by Flight and passed unchanged to the Manager. */
+/**
+ * Feedback authored by Flight and passed unchanged to the Manager.
+ *
+ * No per-string length cap. A `.max()` on a string reaches the provider as
+ * `maxLength`, and constrained decoding enforces it by closing the string
+ * mid-word — after which the model is generating from a broken state and
+ * corrupts the rest of the object. One observed `missingInformation` array held
+ * a question cut at 160 characters, then the literal field name "nextStep" as
+ * its next entry, then another 160-character fragment that degraded into
+ * another alphabet. Brevity is guidance for the model to apply, in
+ * FLIGHT_MANAGER_INSTRUCTIONS, not a constraint for the decoder to enforce.
+ *
+ * Array `.max()` stays: it reaches the provider as `maxItems`, and that cut
+ * lands on an element boundary, so the array simply closes and the object
+ * remains valid.
+ */
 export const flightManagerOutputSchema = z.object({
   status: z.enum(['success', 'partial', 'needs_input', 'failure']),
-  completedTask: z.string().trim().min(1).max(240),
-  summary: z.string().trim().min(1).max(800),
-  findings: z.array(z.string().trim().min(1).max(320)).max(8),
-  limitations: z.array(z.string().trim().min(1).max(320)).max(4),
-  missingInformation: z.array(z.string().trim().min(1).max(160)).max(3),
-  nextStep: z.string().trim().min(1).max(320).nullable(),
+  completedTask: z.string().trim().min(1),
+  summary: z.string().trim().min(1),
+  findings: z.array(z.string().trim().min(1)).max(8),
+  limitations: z.array(z.string().trim().min(1)).max(4),
+  missingInformation: z.array(z.string().trim().min(1)).max(3),
+  nextStep: z.string().trim().min(1).nullable(),
   presentation: z.enum(['flight_cards', 'flight_cards_with_price_note']).nullable(),
 }).strict();
 
@@ -31,4 +46,6 @@ Return these fields:
 
 For an unavailable numbered option, use the current result count to explain the limitation. Offer relaxing filters only when that follows from the available context; do not ask for an already-known date. For unsuccessful price intelligence, never invent a cheaper date or fare. If a search succeeded, report its useful results and the remaining price-comparison limitation. If dates are known, say that a price recommendation could not be verified without requesting those dates again. Request a travel date only when one is genuinely needed and absent.
 
-Keep feedback factual and relevant. Do not include private reasoning, agent/tool names, internal IDs, search keys, raw payloads, stack traces, or flight-card arrays. The application already holds card data in shared context. Do not include the exact per-person price note in feedback; the Manager writes it once when presentation calls for it.`;
+Keep feedback factual, relevant, and short. Hold summary and completedTask to one or two sentences each, and every findings, limitations, or missingInformation entry to a single line. Write each one as a complete thought rather than trailing off; a half-finished question is worse than a shorter one.
+
+Do not include private reasoning, agent/tool names, internal IDs, search keys, raw payloads, stack traces, or flight-card arrays. The application already holds card data in shared context. Do not include the exact per-person price note in feedback; the Manager writes it once when presentation calls for it.`;
