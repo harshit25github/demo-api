@@ -1,0 +1,59 @@
+{
+  "fixedNow": "2026-09-30T19:31:50.401Z",
+  "turns": [
+    {
+      "chat": "prediction_and_recovery",
+      "turn": 1,
+      "traceId": "trace_5d91d1380cb84a4789c8bcdcf8e46b8f",
+      "user": "What is the cheapest date to fly from Mumbai to Delhi in October 2026?",
+      "output": "✈️ I couldn’t determine a supported cheapest date for Mumbai → Delhi in October 2026 because fare predictions aren’t available for that month/route.\n\nIf you want, send 1–3 specific October dates and I’ll compare them for you.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "flightTools": [
+        "price_prediction_tool"
+      ],
+      "managerResults": [
+        {
+          "status": "partial",
+          "summary": "Price/date intelligence could not be generated for Mumbai (BOM) to Delhi (DEL) for Oct 1–31, 2026 because predictions are unavailable for that route/date range. No cheapest-date guidance can be provided from the prediction system. As an alternative, we can run regular flight searches for specific October dates the traveler is considering.",
+          "completedTask": "Requested price/date intelligence for BOM→DEL for October 2026 using the available price-prediction data source.",
+          "findings": [
+            "Route evaluated for price intelligence: Mumbai (BOM) → Delhi (DEL).",
+            "Outbound date range evaluated: 2026-10-01 through 2026-10-31 (one-way).",
+            "Prediction output returned no predicted prices/cheapest dates for this route and date range (prediction unavailable), so there is no supported “cheapest travel date” recommendation to share."
+          ],
+          "limitations": [
+            "Cannot identify the cheapest dates within October 2026 for BOM→DEL using the prediction data source because no predictions are available for that route/date range.",
+            "Without predictions, any statement about which October dates are cheaper would require searching specific dates (and would still only compare the searched dates, not the whole month)."
+          ],
+          "nextStep": "Ask the traveler for 1–3 candidate departure dates in October 2026 (or weekday vs weekend preference), then run normal flight searches on those dates to compare fares.",
+          "missingInformation": [
+            "Which specific October 2026 departure date(s) should we search (e.g., Oct 3, Oct 10, Oct 17), or should we check a few representative dates like weekdays vs. a",
+            "nextStep",
+            "nextStepAre invalid. Please share 1–3 specific October 2026 departure dates (or a weekday/weekend preference), and we can run standard flight searches and сравe"
+          ],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "price_prediction_tool",
+          "ok": false,
+          "code": "NO_PREDICTIONS",
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 17423,
+      "outputTokens": 970,
+      "modelCalls": 4,
+      "latencyMs": 26232,
+      "checks": []
+    }
+  ]
+}
