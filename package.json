@@ -56,7 +56,8 @@
     "test:flight:complex": "tsx tests/live/flight-agent-complex-multiturn-live.ts",
     "test:flight:e2e-multiturn": "tsx tests/live/flight-agent-e2e-multiturn-live.ts",
     "test:sdk-contract": "tsx --test tests/integration/sdk-agent-tool-contract.test.ts",
-    "test:manager:registration": "tsx --test tests/integration/manager-specialist-registration.test.ts tests/integration/manager-flight-registration.test.ts"
+    "test:manager:registration": "tsx --test tests/integration/manager-specialist-registration.test.ts tests/integration/manager-flight-registration.test.ts",
+    "test:manager:acceptance": "tsx --test tests/integration/manager-acceptance.test.ts"
   },
   "dependencies": {
     "@openai/agents": "^0.18.0",
