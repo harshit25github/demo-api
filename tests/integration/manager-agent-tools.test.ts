@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { Readable } from 'node:stream';
 import test from 'node:test';
 
 process.env.OPENAI_AGENTS_DISABLE_TRACING = '1';
@@ -530,88 +529,63 @@ const unevidencedFlightFailure = {
   async *getStreamedResponse() { throw new Error('non-streaming expected'); },
 };
 
-test('text stream resolves Manager results before emitting user text', async () => {
-  const previousMode = process.env.ORCHESTRATION_MODE;
-  process.env.ORCHESTRATION_MODE = 'manager';
-  try {
-    const runner: any = {
-      async run(agent: any, _input: string, _options: any) {
-        const flight = agent.tools.find((item: any) => item.name === 'flight_agent');
-        await flight.invoke(sdkContext(makeContext()), JSON.stringify({ input: 'Find Dubai flights' }));
-        const finalOutput = 'I can’t help with that yet, but I can search flights for you.';
-        return {
-          finalOutput,
-          lastResponseId: 'resp_manager_test',
-          rawResponses: [],
-          state: {},
-          completed: Promise.resolve(),
-          toTextStream: () => Readable.from([finalOutput]),
-        };
-      },
-    };
-    const { streamed, completed } = await withSpecialistModel(
-      FlightManagerAgent, unevidencedFlightFailure, async () => {
-        const run = runGatewayAgentTextStream({
-          input: 'What is the cancellation policy?',
-          context: makeContext(),
-          runner,
-          maxTimeoutRecoveries: 0,
-        });
-        let text = '';
-        for await (const chunk of run.stream) text += String(chunk);
-        return { streamed: text, completed: await run.completed };
-      },
-    );
-    assert.equal(streamed, 'I can’t help with that yet, but I can search flights for you.');
-    assert.doesNotMatch(streamed, /source|connected|specialist/i);
-    assert.equal(completed.output, streamed);
-    assert.equal(completed.finalAgentName, 'Manager Agent');
-    assert.deepEqual(completed.specialistsUsed, ['flight_agent']);
-    assert.equal(completed.renderFlightOptions, false);
-  } finally {
-    if (previousMode === undefined) delete process.env.ORCHESTRATION_MODE;
-    else process.env.ORCHESTRATION_MODE = previousMode;
-  }
+/** A Manager run that records one specialist outcome, then answers. */
+function fakeManagerRunner(finalOutput: string, fail?: Error) {
+  return {
+    async run(agent: any) {
+      const flight = agent.tools.find((item: any) => item.name === 'flight_agent');
+      await flight.invoke(sdkContext(makeContext()), JSON.stringify({ input: 'Find Dubai flights' }));
+      if (fail) throw fail;
+      return { finalOutput, lastResponseId: 'resp_manager_test', rawResponses: [] };
+    },
+  };
+}
+
+test('the text-stream adapter emits the composed answer as one chunk', async () => {
+  const { streamed, completed } = await withSpecialistModel(
+    FlightManagerAgent, unevidencedFlightFailure, async () => {
+      const run = runGatewayAgentTextStream({
+        input: 'What is the cancellation policy?',
+        context: makeContext(),
+        runner: fakeManagerRunner('I can’t help with that yet, but I can search flights for you.') as any,
+      });
+      const chunks: string[] = [];
+      for await (const chunk of run.stream) chunks.push(String(chunk));
+      return { streamed: chunks, completed: await run.completed };
+    },
+  );
+
+  // One chunk: composition has to finish before any text is user-visible.
+  assert.equal(streamed.length, 1);
+  assert.equal(streamed[0], 'I can’t help with that yet, but I can search flights for you.');
+  assert.doesNotMatch(streamed[0], /source|connected|specialist/i);
+  assert.equal(completed.output, streamed[0]);
+  assert.equal(completed.finalAgentName, 'Manager Agent');
+  assert.deepEqual(completed.specialistsUsed, ['flight_agent']);
+  assert.equal(completed.renderFlightOptions, false);
 });
 
-test('Manager max-turn recovery returns completed specialist work once', async () => {
-  const previousMode = process.env.ORCHESTRATION_MODE;
-  process.env.ORCHESTRATION_MODE = 'manager';
-  try {
-    const runner: any = {
-      async run(agent: any, _input: string, _options: any) {
-        const flight = agent.tools.find((item: any) => item.name === 'flight_agent');
-        await flight.invoke(sdkContext(makeContext()), JSON.stringify({ input: 'Find Dubai flights' }));
-        return {
-          state: {},
-          completed: Promise.reject(new MaxTurnsExceededError('Manager turn limit reached')),
-          toTextStream: () => Readable.from([]),
-        };
-      },
-    };
-    const { streamed, completed } = await withSpecialistModel(
-      FlightManagerAgent, unevidencedFlightFailure, async () => {
-        const run = runGatewayAgentTextStream({
-          input: 'What is the cancellation policy?',
-          context: makeContext(),
-          runner,
-          maxTimeoutRecoveries: 0,
-        });
-        let text = '';
-        for await (const chunk of run.stream) text += String(chunk);
-        return { streamed: text, completed: await run.completed };
-      },
-    );
-    assert.equal(completed.recoveredFromMaxTurns, true);
-    assert.equal(completed.output, streamed);
-    // The fallback emits specialist summaries verbatim, so they must be traveler-facing.
-    assert.match(streamed, /I couldn't finish that part of your request right now/);
-    assert.doesNotMatch(streamed, /source|connected|specialist|context/i);
-    assert.deepEqual(completed.specialistsUsed, ['flight_agent']);
-  } finally {
-    if (previousMode === undefined) delete process.env.ORCHESTRATION_MODE;
-    else process.env.ORCHESTRATION_MODE = previousMode;
-  }
+test('a terminal Manager failure propagates instead of inventing a partial answer', async () => {
+  // The max-turn partial fallback is gone: exceeding the Manager turn limit is a
+  // failed turn the caller reports, not a reconstructed answer. Recorded
+  // specialist outcomes are still on the turn state for logging.
+  const failure = new MaxTurnsExceededError('Manager turn limit reached');
+
+  await withSpecialistModel(FlightManagerAgent, unevidencedFlightFailure, async () => {
+    const run = runGatewayAgentTextStream({
+      input: 'What is the cancellation policy?',
+      context: makeContext(),
+      runner: fakeManagerRunner('unused', failure) as any,
+    });
+    await assert.rejects(() => run.completed, (error: unknown) => error === failure);
+
+    // The stream carries the same failure, and never a partial answer.
+    let streamed = '';
+    await assert.rejects(async () => {
+      for await (const chunk of run.stream) streamed += String(chunk);
+    });
+    assert.equal(streamed, '');
+  });
 });
 
 test('Trip Planner turn is prepared with the subtask and a revision watermark', async () => {

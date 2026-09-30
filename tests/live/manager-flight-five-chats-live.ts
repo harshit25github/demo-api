@@ -145,7 +145,6 @@ for (const scenario of scenarios.filter((item) => !chatId || item.id === chatId)
         now: fixedNow,
         timeZone: 'Asia/Kolkata',
         maxTurns: 12,
-        maxTimeoutRecoveries: 1,
       });
       let streamed = '';
       const streamDone = (async () => {

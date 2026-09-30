@@ -24,8 +24,7 @@ const client = createEvaluationClient(budget);
 const { setDefaultOpenAIClient, OpenAIConversationsSession } = await import('@openai/agents-openai');
 setDefaultOpenAIClient(client);
 const { Runner } = await import('@openai/agents');
-const { mainChatRunner } = await import('../src/agents/manager-orchestrator/runner.js');
-const { runGatewayAgentTextStream } = await import('../src/agents/manager-orchestrator/streaming.js');
+const { mainChatRunner, runGatewayAgent } = await import('../src/agents/manager-orchestrator/runner.js');
 const { JsonChatStore } = await import('../src/api/chat/store.js');
 const { streamChatTurn } = await import('../src/api/chat/orchestrator.js');
 const { SseWriter } = await import('../src/api/chat/sse.js');
@@ -109,9 +108,9 @@ async function runScenario(config: string, steps: ScenarioStep[], repetition: nu
     budget.expectedUserHash = textHash(step.message);
     await streamChatTurn({ store, chat, releaseTurn: release, isNewChat: chat.turns.length === 0,
       writer, response: response as unknown as ServerResponse, message: step.message, timeZone: 'Asia/Kolkata',
-      now: clock, maxTimeoutRecoveries: 0, maxTurns: 10,
+      now: clock, maxTurns: 10,
       createConversationSession: (options) => new OpenAIConversationsSession({ ...options, client }),
-      runGateway: (options) => runGatewayAgentTextStream({ ...options, input: options.input, runner: runner as any, maxTimeoutRecoveries: 0 }),
+      runGateway: (options) => runGatewayAgent({ ...options, input: options.input, runner }),
     });
     chat = store.getChat(chat.chatId)!;
     const turn = chat.turns.at(-1)!;

@@ -57,7 +57,6 @@ const run = runGatewayAgentTextStream({
   now,
   timeZone: 'Asia/Kolkata',
   maxTurns: 12,
-  maxTimeoutRecoveries: 0,
 });
 let streamed = '';
 const streamDone = (async () => {

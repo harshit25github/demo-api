@@ -124,10 +124,3 @@ export function finalizeManagerOutput(managerText: string, state: ManagerTurnSta
 
   return { output: output.trim(), specialistsUsed, renderFlightOptions };
 }
-
-/** Build partial fallback from specialist summaries */
-export function buildManagerPartialFallback(state: ManagerTurnState): string | null {
-  if (!state.outcomes.length) return null;
-  const summaries = state.outcomes.map(({ result }) => result.summary).filter(Boolean).join('\n\n');
-  return finalizeManagerOutput(summaries, state).output || null;
-}

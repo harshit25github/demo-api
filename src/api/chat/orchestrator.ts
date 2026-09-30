@@ -3,8 +3,7 @@ import { UsageCollector, withUsageCollector } from '../../shared/observability/m
 import { OpenAIConversationsSession } from '@openai/agents-openai';
 import { randomUUID } from 'node:crypto';
 import type { ServerResponse } from 'node:http';
-import type { Readable } from 'node:stream';
-import { runGatewayAgentTextStream } from '../../agents/manager-orchestrator/streaming.js';
+import { runGatewayAgent } from '../../agents/manager-orchestrator/runner.js';
 import { hydrateGatewayContext, snapshotGatewayContext } from './context-hydration.js';
 import type { JsonChatStore } from './store.js';
 import type { SseWriter } from './sse.js';
@@ -22,12 +21,6 @@ interface GatewayResult {
   renderFlightOptions?: boolean;
 }
 
-interface GatewayTextStreamRun {
-  stream: Readable;
-  completed: Promise<GatewayResult>;
-  context: FlightAppContext;
-}
-
 interface StreamChatTurnOptions {
   store: JsonChatStore;
   writer: SseWriter;
@@ -38,12 +31,11 @@ interface StreamChatTurnOptions {
   message: string;
   timeZone: string;
   maxTurns?: number;
-  maxTimeoutRecoveries?: number;
   now?: Date;
   createConversationSession?: (options: {
     conversationId?: string;
   }) => OpenAIConversationsSession;
-  runGateway?: (options: Record<string, any>) => GatewayTextStreamRun;
+  runGateway?: (options: Record<string, any>) => Promise<GatewayResult>;
   runSummary?: typeof extractSummaryContext;
 }
 
@@ -61,17 +53,6 @@ function clientErrorMessage(error: unknown) {
   return 'The request could not be completed. Please try again.';
 }
 
-function readNodeStream(
-  stream: Readable,
-  onChunk: (chunk: Buffer | string) => void,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    stream.on('data', onChunk);
-    stream.once('end', resolve);
-    stream.once('error', reject);
-  });
-}
-
 export async function streamChatTurn({
   store,
   writer,
@@ -82,10 +63,9 @@ export async function streamChatTurn({
   message,
   timeZone,
   maxTurns,
-  maxTimeoutRecoveries = 1,
   now,
   createConversationSession = (options) => new OpenAIConversationsSession(options),
-  runGateway = runGatewayAgentTextStream as unknown as StreamChatTurnOptions['runGateway'],
+  runGateway = runGatewayAgent as unknown as StreamChatTurnOptions['runGateway'],
   runSummary = extractSummaryContext,
 }: StreamChatTurnOptions): Promise<void> {
   const turnId = randomUUID();
@@ -97,7 +77,7 @@ export async function streamChatTurn({
   return withUsageCollector(usage, async () => {
     const previousSummary = structuredClone(chat.summaryContext);
     const abortController = new AbortController();
-    let gatewayRun: GatewayTextStreamRun | null = null;
+    let gatewayContext: FlightAppContext | null = null;
     let draftText = '';
     let finished = false;
 
@@ -162,8 +142,16 @@ export async function streamChatTurn({
         traceId,
       });
 
+      // Kept so a failure after this point can still persist the turn's runtime
+      // state: the run prepares this same object in place.
       const appContext = hydrateGatewayContext(chat.runtimeContext, previousSummary);
-      gatewayRun = runGateway!({
+      gatewayContext = appContext;
+
+      // One nonstream Manager run. The answer is only safe to show once every
+      // specialist result is composed in — render references resolved, scope and
+      // link filtering applied — so it is emitted as a single delta rather than
+      // token by token.
+      const gatewayResult = await runGateway!({
         input: message,
         requestId,
         traceId,
@@ -172,35 +160,15 @@ export async function streamChatTurn({
         session: conversationSession,
         signal: abortController.signal,
         maxTurns,
-        maxTimeoutRecoveries,
         now: turnNow,
         timeZone,
-        onRetry(details: Record<string, any>) {
-          writer.send('status', {
-            chatId: chat.chatId,
-            turnId,
-            status: 'retrying',
-            attempt: details.attempt,
-          });
-        },
       });
 
-      const streamOutcome = readNodeStream(gatewayRun.stream, (chunk) => {
-        const text = String(chunk || '');
-        if (!text) return;
-        usage.markFirstDelta();
-        draftText += text;
-        writer.send('delta', { chatId: chat.chatId, turnId, text });
-      });
-      const [streamResult, completionResult] = await Promise.allSettled([
-        streamOutcome,
-        gatewayRun.completed,
-      ]);
-      if (completionResult.status === 'rejected') throw completionResult.reason;
-      if (streamResult.status === 'rejected') throw streamResult.reason;
-
-      const gatewayResult = completionResult.value;
-      const finalText = gatewayResult.output || draftText;
+      const finalText = gatewayResult.output;
+      if (finalText) {
+        draftText = finalText;
+        writer.send('delta', { chatId: chat.chatId, turnId, text: finalText });
+      }
       const renderFlightOptions = gatewayResult.renderFlightOptions
         ?? /flight/i.test(gatewayResult.finalAgentName || '');
       writer.send('summary.started', { chatId: chat.chatId, turnId });
@@ -268,8 +236,8 @@ export async function streamChatTurn({
       const aborted = abortController.signal.aborted;
       const completedAt = new Date().toISOString();
       await store.updateChat(chat.chatId, (record) => {
-        if (gatewayRun?.context) {
-          record.runtimeContext = snapshotGatewayContext(gatewayRun.context);
+        if (gatewayContext) {
+          record.runtimeContext = snapshotGatewayContext(gatewayContext);
         }
         if (draftText) {
           record.messages.push({

@@ -5,7 +5,7 @@ import type { ManagerTurnState } from './turn-state.js';
 
 export { createManagerTurnState } from './turn-state.js';
 export type { ManagerTurnState, ManagerTurnWatermarks, SpecialistName } from './turn-state.js';
-export { finalizeManagerOutput, buildManagerPartialFallback } from './output.js';
+export { finalizeManagerOutput } from './output.js';
 export { createFlightTool, flightResult } from './specialists/flight.js';
 export { createTripPlannerTool, tripPlannerResult } from './specialists/trip-planner.js';
 export {

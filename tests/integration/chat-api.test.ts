@@ -136,7 +136,7 @@ test('summary context hydrates only missing Flight fields and preserves active s
   assert.equal(active.flight.pax, 1);
 });
 
-test('SSE turn creates conversation, streams draft, summarizes once, then persists authoritative result', async () => {
+test('SSE turn creates conversation, emits one delta, summarizes once, then persists the result', async () => {
   const fixture = await temporaryStore();
   try {
     const chat = await fixture.store.createChat({ title: 'Flights next weekend' });
@@ -155,29 +155,20 @@ test('SSE turn creates conversation, streams draft, summarizes once, then persis
       sessionOptions = options;
       return { getSessionId: async () => 'conv_test_123' };
     };
-    const runGateway = ({ context, session }) => {
+    const runGateway = async ({ context, session }) => {
       assert.equal(session.getSessionId instanceof Function, true);
       context.flight.searchKey = 'search_sse_visibility';
       context.flight.searchResults = [
         { id: 'contract-1', display: false },
         { id: 'contract-2', display: true },
       ];
-      const stream = new PassThrough();
-      queueMicrotask(() => {
-        stream.write('Draft answer');
-        stream.end();
-      });
       return {
-        stream,
+        output: 'Authoritative final answer',
+        finalAgentName: 'Manager Agent',
+        specialistsUsed: ['flight_agent', 'trip_planner_agent'],
+        renderFlightOptions: true,
         context,
-        completed: Promise.resolve({
-          output: 'Authoritative final answer',
-          finalAgentName: 'Manager Agent',
-          specialistsUsed: ['flight_agent', 'trip_planner_agent'],
-          renderFlightOptions: true,
-          context,
-          lastResponseId: 'resp_test_123',
-        }),
+        lastResponseId: 'resp_test_123',
       };
     };
     const runSummary = async ({ previousSummary, userMessage, agentResponse }) => {
@@ -215,7 +206,13 @@ test('SSE turn creates conversation, streams draft, summarizes once, then persis
       ],
     );
     assert.deepEqual(sessionOptions, { conversationId: undefined });
-    assert.equal(events.find((item) => item.event === 'delta').data.text, 'Draft answer');
+    // One delta, carrying the composed answer: nothing is emitted before every
+    // specialist result is folded in.
+    assert.equal(events.filter((item) => item.event === 'delta').length, 1);
+    assert.equal(
+      events.find((item) => item.event === 'delta').data.text,
+      'Authoritative final answer',
+    );
     assert.equal(
       events.find((item) => item.event === 'done').data.finalText,
       'Authoritative final answer',
@@ -291,12 +288,7 @@ test('terminal Gateway stream failure emits SSE error and keeps the turn process
       name: 'ModelTimeoutError',
       code: 'ETIMEDOUT',
     });
-    const runGateway = ({ context }) => {
-      const stream = new PassThrough();
-      const completed = Promise.reject(timeoutError);
-      queueMicrotask(() => stream.destroy(timeoutError));
-      return { stream, completed, context };
-    };
+    const runGateway = async () => { throw timeoutError; };
 
     await streamChatTurn({
       store: fixture.store,
@@ -444,20 +436,12 @@ test('Summary Extractor failure keeps the previous summary and still sends done'
       message: 'Make it lighter',
       timeZone: 'Asia/Kolkata',
       createConversationSession: () => ({ getSessionId: async () => 'conv_existing' }),
-      runGateway: ({ context }) => {
-        const stream = new PassThrough();
-        queueMicrotask(() => stream.end('Lighter itinerary'));
-        return {
-          stream,
-          context,
-          completed: Promise.resolve({
-            output: 'Lighter itinerary',
-            finalAgentName: 'Trip Planner Agent',
-            context,
-            lastResponseId: 'resp_summary_failure',
-          }),
-        };
-      },
+      runGateway: async ({ context }) => ({
+        output: 'Lighter itinerary',
+        finalAgentName: 'Trip Planner Agent',
+        context,
+        lastResponseId: 'resp_summary_failure',
+      }),
       runSummary: async () => {
         throw new Error('Extractor unavailable');
       },

@@ -23,39 +23,6 @@ export function isModelTimeoutError(error: unknown): error is TimeoutError {
   );
 }
 
-export function buildTerminalModelTimeoutDetails(
-  error: unknown,
-  {
-    requestId,
-    sessionId,
-    sdkEventCount = 0,
-    lastSdkEventType = null,
-  }: {
-    requestId?: string;
-    sessionId?: string;
-    sdkEventCount?: number;
-    lastSdkEventType?: string | null;
-  } = {},
-) {
-  if (!isModelTimeoutError(error)) {
-    return null;
-  }
-
-  return {
-    requestId,
-    sessionId,
-    errorName: error.name,
-    errorCode: error.code || null,
-    timeoutMs: error.timeoutMs || null,
-    sdkEventCount,
-    lastSdkEventType,
-    diagnosis:
-      sdkEventCount > 0
-        ? 'events_observed_before_terminal_timeout'
-        : 'retry_exhausted_or_policy_rejected',
-  };
-}
-
 function normalizeRetryDecision(decision: RetryDecision | undefined) {
   if (typeof decision === 'boolean') {
     return { retry: decision };
