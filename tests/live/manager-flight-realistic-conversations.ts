@@ -193,6 +193,12 @@ type TurnReport = {
   finalAgent: string | null;
   specialistsUsed: string[];
   flightTools: string[];
+  /**
+   * The subtask the Manager wrote for each specialist. Specialists never see the
+   * conversation, so a subtask that still contains an unresolved reference
+   * ("earlier one", "that one") is a Manager failure, not a specialist one.
+   */
+  subtasks: Array<{ tool: string; input: string }>;
   managerResults: Array<{
     status: string;
     summary: string;
@@ -439,6 +445,20 @@ for (const scenario of scenarios.filter(s => !chatId || s.id === chatId)) {
         .map((entry: any) => String(entry?.tool || ''))
         .filter(Boolean);
 
+      const subtasks = (result.result?.newItems || [])
+        .filter((item: any) => item?.type === 'tool_call_item')
+        .flatMap((item: any) => {
+          const raw = item.rawItem || {};
+          try {
+            const parsed = JSON.parse(String(raw.arguments || '{}'));
+            return typeof parsed.input === 'string'
+              ? [{ tool: String(raw.name || ''), input: parsed.input }]
+              : [];
+          } catch {
+            return [];
+          }
+        });
+
       const managerResults = (result.result?.newItems || [])
         .filter((item: any) => item?.type === 'tool_call_output_item')
         .flatMap((item: any) => {
@@ -483,6 +503,7 @@ for (const scenario of scenarios.filter(s => !chatId || s.id === chatId)) {
         finalAgent: result.finalAgentName,
         specialistsUsed: result.specialistsUsed || [],
         flightTools,
+        subtasks,
         managerResults,
         toolFeedback,
         predictionStatus,
@@ -527,6 +548,7 @@ for (const scenario of scenarios.filter(s => !chatId || s.id === chatId)) {
         finalAgent: null,
         specialistsUsed: [],
         flightTools: [],
+        subtasks: [],
         managerResults: [],
         toolFeedback: [],
         predictionStatus: null,
