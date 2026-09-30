@@ -51,6 +51,17 @@ export interface FlightConversationTurn {
   user: string;
   understanding: string;
   expectedTools: readonly FlightConversationTool[];
+  /**
+   * Tools that may also appear without failing the turn, for a preparatory read
+   * that is sound reasoning rather than a defect — establishing the current fare
+   * before asking whether another date beats it, for example.
+   *
+   * Occurrences are stripped from the actual sequence before it is compared, so
+   * everything in `expectedTools` stays mandatory and ordered. Never set this on
+   * a turn whose `expectedTools` is empty: those turns exist to catch a tool call
+   * that should not have happened at all.
+   */
+  alsoAllowed?: readonly FlightConversationTool[];
   why: string;
 }
 
@@ -114,8 +125,9 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
       {
         user: 'any cheaper dates near that one?',
         understanding:
-          'Explicit fare-and-date intelligence for the current route, built around the committed date and inside the prediction window.',
+          'Explicit fare-and-date intelligence for the current route, built around the committed date and inside the prediction window. The date is already known, so a lookup that returns nothing is an answer — nothing cheaper was confirmed — not a reason to ask which dates to check.',
         expectedTools: ['price_prediction_tool'],
+        alsoAllowed: ['getGeneratedContractsContext'],
         why: 'The prices of the options already found say nothing about other days. Comparing dates is what the prediction tool is for, and inventing a cheaper date from contract prices is the failure to catch.',
       },
     ],
