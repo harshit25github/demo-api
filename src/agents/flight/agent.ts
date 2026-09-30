@@ -9,7 +9,7 @@ import {
 } from '../../shared/runtime/request-context.js';
 import { getFlightSearchRuntime } from './context/search-runtime-store.js';
 import { FLIGHT_PROMPT } from './prompt.js';
-import { flightManagerOutputSchema } from './manager-output.js';
+import { flightManagerOutputSchema, FLIGHT_MANAGER_INSTRUCTIONS } from './manager-output.js';
 import { flightTools } from './tools/index.js';
 
 assertOpenAIConfig();
@@ -228,13 +228,6 @@ ${buildPreviousSuggestedQuestionsSummary(context)}
 - Tool recovery metadata is authoritative feedback: repair only listed fields, retry only with a changed safe payload, and ask only when the correction remains materially ambiguous.
 - Suggested questions are optional. Call their tool at most once after core work; never retry it or let it block a successful result.
 
-### Manager tool mode — final output only
-You are an internal specialist called by the Manager. Complete the scoped Flight task using all the search, filter, context, verification, and recovery rules above. Your final output is structured feedback to the Manager, not a reply to the user. This section overrides earlier instructions about the wording of a final user answer, asking the user directly, or ending with the per-person price note.
-
-Return only the required structured fields: status, completedTask, resultSummary, and missingInformation. Set completedTask to the concrete Flight work actually done, not a planned action. Keep resultSummary to concise verified facts or a short safe failure explanation; do not draft polished conversational prose or enumerate flight cards. Set status to success only when the assigned task was fulfilled, partial when useful work remains but another part is unresolved, needs_input when a blocking user detail is required, and failure when no useful result could be produced. For needs_input, put only the smallest useful question or missing fields in missingInformation; otherwise use an empty array.
-
-Translate earlier "ask the user" directions into needs_input feedback for the Manager. When a requested numbered option is unavailable in the current filtered results, report that limitation and the available count; do not request a date or other search detail already present in context. Apply the earlier prediction wording rules to resultSummary, but never expose internal tool failures, IDs, search keys, payloads, or reasoning. Flight cards and context updates remain in shared application state. Do not include card arrays or the exact per-person price note in this output; the Manager receives verified presentation guidance separately.
-
 `;
 }
 
@@ -252,5 +245,8 @@ export const FlightAgent = new Agent(flightAgentDefinition);
 /** Same Flight intelligence and tools, with a typed internal result for Manager runs. */
 export const FlightManagerAgent = new Agent({
   ...flightAgentDefinition,
+  instructions: (runContext: RunContext<unknown>) =>
+    `${buildFlightAgentInstructions(runContext)}\n\n${FLIGHT_MANAGER_INSTRUCTIONS}`,
   outputType: flightManagerOutputSchema,
 });
+

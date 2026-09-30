@@ -1,6 +1,11 @@
 import { PassThrough } from 'node:stream';
-import { Runner } from '@openai/agents';
-import { isModelTimeoutError } from '../../src/agents/manager-orchestrator/retry.js';
+import { ModelTimeoutError, Runner } from '@openai/agents';
+
+// Historical streaming example; the production Manager does not resume turns.
+function isModelTimeoutError(error: unknown): boolean {
+  return error instanceof ModelTimeoutError ||
+    (error instanceof Error && error.name === 'ModelTimeoutError');
+}
 
 type RunnerOptions = {
   model: unknown;

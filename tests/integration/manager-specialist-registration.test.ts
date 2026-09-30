@@ -146,7 +146,7 @@ test('a failed Trip Planner run reaches the Manager as one generic line', async 
   // specialist ran and produced nothing renderable.
   assert.deepEqual(state.outcomes.map((item) => item.name), ['trip_planner_agent']);
   assert.equal(state.outcomes[0].result.status, 'failure');
-  assert.equal(state.outcomes[0].result.recovery?.code, 'SPECIALIST_FAILED');
+  assert.equal(state.outcomes[0].result.summary, GENERIC_SPECIALIST_FAILURE);
   assert.equal(state.outcomes[0].input, 'Plan 3 days in Dubai');
   assert.equal(state.renders.size, 0);
   assert.equal(composed.renderFlightOptions, false);
@@ -211,7 +211,8 @@ test('a Trip Planner overrun becomes one failed tool call, not a failed turn', a
     assert.match(String(toolResult?.output?.text), /couldn.{0,3}t finish that part/);
 
     assert.equal(state.outcomes.length, 1);
-    assert.equal(state.outcomes[0].result.recovery?.code, 'SPECIALIST_TIMEOUT');
+    assert.equal(state.outcomes[0].result.status, 'failure');
+    assert.equal(state.outcomes[0].result.summary, GENERIC_SPECIALIST_FAILURE);
   } finally {
     (TripPlannerAgent as any).model = originalModel;
   }

@@ -471,6 +471,7 @@ for (const scenario of scenarios.filter(s => !chatId || s.id === chatId)) {
         ? result.context.flight.searchResults.length
         : 0;
       const noteCount = (output.match(/Note: Prices shown are per person\./g) || []).length;
+      const sdkUsage = result.result?.runContext?.usage;
 
       const turnReport: TurnReport = {
         chat: scenario.id,
@@ -488,9 +489,9 @@ for (const scenario of scenarios.filter(s => !chatId || s.id === chatId)) {
         renderFlightOptions: Boolean(result.renderFlightOptions),
         resultCount,
         noteCount,
-        inputTokens: result.usage?.inputTokens ?? null,
-        outputTokens: result.usage?.outputTokens ?? null,
-        modelCalls: result.usage?.calls?.length || 0,
+        inputTokens: sdkUsage?.inputTokens ?? null,
+        outputTokens: sdkUsage?.outputTokens ?? null,
+        modelCalls: sdkUsage?.requests ?? 0,
         latencyMs: Date.now() - started,
         validationChecks: [],
         passedValidation: true,

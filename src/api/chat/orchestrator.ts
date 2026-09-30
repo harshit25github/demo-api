@@ -1,5 +1,4 @@
 import { generateTraceId } from '@openai/agents';
-import { UsageCollector, withUsageCollector } from '../../shared/observability/model-usage.js';
 import { OpenAIConversationsSession } from '@openai/agents-openai';
 import { randomUUID } from 'node:crypto';
 import type { ServerResponse } from 'node:http';
@@ -73,209 +72,201 @@ export async function streamChatTurn({
   const traceId = generateTraceId();
   const turnNow = now ?? new Date();
   const startedAt = turnNow.toISOString();
-  const usage = new UsageCollector({ requestId, traceId, sessionId: chat.chatId });
-  return withUsageCollector(usage, async () => {
-    const previousSummary = structuredClone(chat.summaryContext);
-    const abortController = new AbortController();
-    let gatewayContext: FlightAppContext | null = null;
-    let draftText = '';
-    let finished = false;
+  const previousSummary = structuredClone(chat.summaryContext);
+  const abortController = new AbortController();
+  let gatewayContext: FlightAppContext | null = null;
+  let draftText = '';
+  let finished = false;
 
-    const onClose = () => {
-      if (!finished) abortController.abort();
-    };
-    response.once('close', onClose);
+  const onClose = () => {
+    if (!finished) abortController.abort();
+  };
+  response.once('close', onClose);
 
+  try {
+    if (isNewChat) {
+      writer.send('chat.created', { chatId: chat.chatId });
+    }
+
+    const conversationSession = createConversationSession({
+      conversationId: chat.conversationId || undefined,
+    });
+    const conversationId = await conversationSession.getSessionId();
+    if (conversationId !== chat.conversationId) {
+      const updatedChat = await store.updateChat(chat.chatId, (record) => {
+        record.conversationId = conversationId;
+      });
+      if (updatedChat) chat = updatedChat;
+    }
+
+    writer.send('conversation.ready', {
+      chatId: chat.chatId,
+      conversationId,
+    });
+
+    const turnNumber = chat.turns.length + 1;
+    const userMessageId = randomUUID();
+    const chatWithTurn = await store.updateChat(chat.chatId, (record) => {
+      record.messages.push({
+        id: userMessageId,
+        turn: turnNumber,
+        role: 'user',
+        content: message,
+        agent: null,
+        status: 'completed',
+        createdAt: startedAt,
+        summaryContext: structuredClone(previousSummary),
+      });
+      record.turns.push({
+        id: turnId,
+        status: 'running',
+        requestId,
+        traceId,
+        lastResponseId: null,
+        finalAgent: null,
+        summaryStatus: 'pending',
+        startedAt,
+        completedAt: null,
+        error: null,
+      });
+    });
+    if (chatWithTurn) chat = chatWithTurn;
+
+    writer.send('turn.started', {
+      chatId: chat.chatId,
+      turnId,
+      requestId,
+      traceId,
+    });
+
+    // Kept so a failure after this point can still persist the turn's runtime
+    // state: the run prepares this same object in place.
+    const appContext = hydrateGatewayContext(chat.runtimeContext, previousSummary);
+    gatewayContext = appContext;
+
+    // One nonstream Manager run. The answer is only safe to show once every
+    // specialist result is composed in — render references resolved, scope and
+    // link filtering applied — so it is emitted as a single delta rather than
+    // token by token.
+    const gatewayResult = await runGateway!({
+      input: message,
+      requestId,
+      traceId,
+      sessionId: chat.chatId,
+      context: appContext,
+      session: conversationSession,
+      signal: abortController.signal,
+      maxTurns,
+      now: turnNow,
+      timeZone,
+    });
+
+    const finalText = gatewayResult.output;
+    if (finalText) {
+      draftText = finalText;
+      writer.send('delta', { chatId: chat.chatId, turnId, text: finalText });
+    }
+    const renderFlightOptions = Boolean(gatewayResult.renderFlightOptions);
+    writer.send('summary.started', { chatId: chat.chatId, turnId });
+
+    let summaryContext = previousSummary;
+    let summaryStatus = 'completed';
     try {
-      if (isNewChat) {
-        writer.send('chat.created', { chatId: chat.chatId });
-      }
-
-      const conversationSession = createConversationSession({
-        conversationId: chat.conversationId || undefined,
-      });
-      const conversationId = await conversationSession.getSessionId();
-      if (conversationId !== chat.conversationId) {
-        const updatedChat = await store.updateChat(chat.chatId, (record) => {
-          record.conversationId = conversationId;
-        });
-        if (updatedChat) chat = updatedChat;
-      }
-
-      writer.send('conversation.ready', {
-        chatId: chat.chatId,
-        conversationId,
-      });
-
-      const turnNumber = chat.turns.length + 1;
-      const userMessageId = randomUUID();
-      const chatWithTurn = await store.updateChat(chat.chatId, (record) => {
-        record.messages.push({
-          id: userMessageId,
-          turn: turnNumber,
-          role: 'user',
-          content: message,
-          agent: null,
-          status: 'completed',
-          createdAt: startedAt,
-          summaryContext: structuredClone(previousSummary),
-        });
-        record.turns.push({
-          id: turnId,
-          status: 'running',
-          requestId,
-          traceId,
-          lastResponseId: null,
-          finalAgent: null,
-          summaryStatus: 'pending',
-          startedAt,
-          completedAt: null,
-          error: null,
-        });
-      });
-      if (chatWithTurn) chat = chatWithTurn;
-
-      writer.send('turn.started', {
-        chatId: chat.chatId,
-        turnId,
-        requestId,
-        traceId,
-      });
-
-      // Kept so a failure after this point can still persist the turn's runtime
-      // state: the run prepares this same object in place.
-      const appContext = hydrateGatewayContext(chat.runtimeContext, previousSummary);
-      gatewayContext = appContext;
-
-      // One nonstream Manager run. The answer is only safe to show once every
-      // specialist result is composed in — render references resolved, scope and
-      // link filtering applied — so it is emitted as a single delta rather than
-      // token by token.
-      const gatewayResult = await runGateway!({
-        input: message,
-        requestId,
-        traceId,
-        sessionId: chat.chatId,
-        context: appContext,
-        session: conversationSession,
-        signal: abortController.signal,
-        maxTurns,
+      summaryContext = await runSummary({
+        previousSummary,
+        userMessage: message,
+        agentResponse: finalText,
         now: turnNow,
         timeZone,
+        usageCorrelation: { requestId, traceId, sessionId: chat.chatId },
       });
+    } catch {
+      summaryStatus = 'failed';
+    }
 
-      const finalText = gatewayResult.output;
-      if (finalText) {
-        draftText = finalText;
-        // With one delta this is time-to-answer rather than time-to-first-token.
-        usage.markFirstDelta();
-        writer.send('delta', { chatId: chat.chatId, turnId, text: finalText });
-      }
-      const renderFlightOptions = gatewayResult.renderFlightOptions
-        ?? /flight/i.test(gatewayResult.finalAgentName || '');
-      writer.send('summary.started', { chatId: chat.chatId, turnId });
-
-      let summaryContext = previousSummary;
-      let summaryStatus = 'completed';
-      try {
-        summaryContext = await runSummary({
-          previousSummary,
-          userMessage: message,
-          agentResponse: finalText,
-          now: turnNow,
-          timeZone,
-          usageCorrelation: { requestId, traceId, sessionId: chat.chatId },
-        });
-      } catch {
-        summaryStatus = 'failed';
-      }
-
-      const assistantMessageId = randomUUID();
-      const completedAt = new Date().toISOString();
-      const completedChat = await store.updateChat(chat.chatId, (record) => {
-        record.summaryContext = structuredClone(summaryContext);
-        record.runtimeContext = snapshotGatewayContext(gatewayResult.context);
-        record.messages.push({
-          id: assistantMessageId,
-          turn: turnNumber,
-          role: 'assistant',
-          content: finalText,
-          agent: gatewayResult.finalAgentName,
-          specialistsUsed: gatewayResult.specialistsUsed,
-          renderFlightOptions,
-          status: 'completed',
-          createdAt: completedAt,
-          summaryContext: structuredClone(summaryContext),
-        });
-        const turn = record.turns.find((item) => item.id === turnId);
-        if (!turn) throw new Error('Active chat turn was not found.');
-        Object.assign(turn, {
-          usage: usage.snapshot(),
-          status: 'completed',
-          lastResponseId: gatewayResult.lastResponseId,
-          finalAgent: gatewayResult.finalAgentName,
-          specialistsUsed: gatewayResult.specialistsUsed,
-          renderFlightOptions,
-          summaryStatus,
-          completedAt,
-        });
+    const assistantMessageId = randomUUID();
+    const completedAt = new Date().toISOString();
+    const completedChat = await store.updateChat(chat.chatId, (record) => {
+      record.summaryContext = structuredClone(summaryContext);
+      record.runtimeContext = snapshotGatewayContext(gatewayResult.context);
+      record.messages.push({
+        id: assistantMessageId,
+        turn: turnNumber,
+        role: 'assistant',
+        content: finalText,
+        agent: gatewayResult.finalAgentName,
+        specialistsUsed: gatewayResult.specialistsUsed,
+        renderFlightOptions,
+        status: 'completed',
+        createdAt: completedAt,
+        summaryContext: structuredClone(summaryContext),
       });
-      if (completedChat) chat = completedChat;
-
-      writer.send('done', {
-        chatId: chat.chatId,
-        turnId,
-        conversationId,
+      const turn = record.turns.find((item) => item.id === turnId);
+      if (!turn) throw new Error('Active chat turn was not found.');
+      Object.assign(turn, {
+        status: 'completed',
+        lastResponseId: gatewayResult.lastResponseId,
         finalAgent: gatewayResult.finalAgentName,
         specialistsUsed: gatewayResult.specialistsUsed,
         renderFlightOptions,
-        finalText,
-        summaryContext,
         summaryStatus,
-        flightContext: gatewayResult.context.flight,
+        completedAt,
       });
-    } catch (error) {
-      const aborted = abortController.signal.aborted;
-      const completedAt = new Date().toISOString();
-      await store.updateChat(chat.chatId, (record) => {
-        if (gatewayContext) {
-          record.runtimeContext = snapshotGatewayContext(gatewayContext);
-        }
-        if (draftText) {
-          record.messages.push({
-            id: randomUUID(),
-            turn: record.turns.length,
-            role: 'assistant',
-            content: draftText,
-            agent: null,
-            status: aborted ? 'aborted' : 'failed',
-            createdAt: completedAt,
-            summaryContext: structuredClone(previousSummary),
-          });
-        }
-        const turn = record.turns.find((item) => item.id === turnId);
-        if (turn) {
-          turn.usage = usage.snapshot();
-          turn.status = aborted ? 'aborted' : 'failed';
-          turn.summaryStatus = 'skipped';
-          turn.completedAt = completedAt;
-          turn.error = errorDetails(error);
-        }
-      });
-      writer.send('error', {
-        chatId: chat.chatId,
-        turnId,
-        code:
-          aborted
-            ? 'CLIENT_ABORTED'
-            : (error as ErrorLike)?.code || 'CHAT_RUN_FAILED',
-        message: clientErrorMessage(error),
-      });
-    } finally {
-      finished = true;
-      response.off('close', onClose);
-      releaseTurn();
-      writer.close();
-    }
-  });
+    });
+    if (completedChat) chat = completedChat;
+
+    writer.send('done', {
+      chatId: chat.chatId,
+      turnId,
+      conversationId,
+      finalAgent: gatewayResult.finalAgentName,
+      specialistsUsed: gatewayResult.specialistsUsed,
+      renderFlightOptions,
+      finalText,
+      summaryContext,
+      summaryStatus,
+      flightContext: gatewayResult.context.flight,
+    });
+  } catch (error) {
+    const aborted = abortController.signal.aborted;
+    const completedAt = new Date().toISOString();
+    await store.updateChat(chat.chatId, (record) => {
+      if (gatewayContext) {
+        record.runtimeContext = snapshotGatewayContext(gatewayContext);
+      }
+      if (draftText) {
+        record.messages.push({
+          id: randomUUID(),
+          turn: record.turns.length,
+          role: 'assistant',
+          content: draftText,
+          agent: null,
+          status: aborted ? 'aborted' : 'failed',
+          createdAt: completedAt,
+          summaryContext: structuredClone(previousSummary),
+        });
+      }
+      const turn = record.turns.find((item) => item.id === turnId);
+      if (turn) {
+        turn.status = aborted ? 'aborted' : 'failed';
+        turn.summaryStatus = 'skipped';
+        turn.completedAt = completedAt;
+        turn.error = errorDetails(error);
+      }
+    });
+    writer.send('error', {
+      chatId: chat.chatId,
+      turnId,
+      code:
+        aborted
+          ? 'CLIENT_ABORTED'
+          : (error as ErrorLike)?.code || 'CHAT_RUN_FAILED',
+      message: clientErrorMessage(error),
+    });
+  } finally {
+    finished = true;
+    response.off('close', onClose);
+    releaseTurn();
+    writer.close();
+  }
 }

@@ -1,21 +1,32 @@
 # Manager agent implementation
 
-The chat entry point runs a Manager Agent by default. Set `ORCHESTRATION_MODE=handoff` before starting the server to use the previous Gateway handoff path. The switch is read during process startup for Runner trace names, so restart the process after changing it.
+The chat API runs one OpenAI Agents SDK Manager turn for each user message. The Manager owns the conversation and final answer. Its only specialist tools are Flight and Trip Planner, registered directly with `Agent.asTool()`. Policy, seat, selected-booking, payment, and page-workflow requests are out of scope until a grounded specialist exists.
 
-The Manager owns the top-level `OpenAIConversationsSession` and final answer. Each turn creates a fresh Manager and four named tools. Flight and Trip tools call their existing specialists through `agent.asTool()` with the same request context, explicit nested turn limits, model input observation, and the existing retry settings. Nested runs have no separate conversation session. The shared application context and compact tool result carry relevant state back to the Manager. The Manager's model has `parallelToolCalls: false`; shared mutable Flight and Trip state currently makes concurrent calls unsafe.
+## Request flow
 
-The two CheapOair specialists are still routing smoke tests with no policy or page source. Their Manager tools return `CAPABILITY_NOT_IMPLEMENTED` without spending a nested model call. Connecting real sources is separate work; the Manager must report those portions as unavailable meanwhile.
+```text
+POST /api/chat/stream
+  -> hydrate persisted Flight/Trip application state
+  -> open the SDK OpenAIConversationsSession
+  -> Runner.run(Manager, message, { context, session, signal, maxTurns })
+  -> optional Flight and/or Trip Planner agent tools
+  -> Manager finalOutput
+  -> resolve Trip render references and apply final link filtering
+  -> one final SSE delta
+  -> Summary Extractor; persist chat, summary, and application state
+  -> SSE done
+```
 
-## Result boundary
+`OpenAIConversationsSession` owns model history. The JSON chat store owns UI messages, turn metadata, summary context, and Flight/Trip state needed on the next request. A request-local clock is shared with the nested agents. The chat API creates and persists a turn-level `traceId` and includes it in `turn.started`; SDK `withTrace` binds the Manager run to that ID.
 
-The specialist-to-Manager result contains `status`, a short `summary`, and only when useful: `userRelevantData`, `missingInformation`, `recovery`, or `renderRef`. Tool-call history, raw search results, and the full Trip itinerary stay out of this model input. Trip Planner output is scope and link checked, stored for the current turn, and inserted into the final response once through `[[render:REF]]`. If the Manager omits a render reference, the server composes the remaining compact results with the saved artifact. Flight cards continue to render from the persisted Flight context and an explicit `renderFlightOptions` flag.
+The production Manager call is nonstream. The SSE endpoint emits the composed answer as one `delta` after all specialist work finishes, then sends `summary.started` and `done`. `runGatewayAgentTextStream` remains a final-chunk compatibility adapter for callers of the earlier export; it is not the chat API's execution path.
 
-The chat API buffers the Manager's raw final text until render references and link checks are complete, then sends the final text in its SSE `delta` event. This delays the first text delta for long specialist runs. The existing `status`, `summary.started`, and `done` events remain. Per-turn usage and tracing remain in observability, rather than the Manager tool result.
+## Ownership and failure behavior
 
-## Recovery and validation
+The SDK owns the agent loop, nested runs, structured Flight output, shared run context, tool timeouts, cancellation, tool output guardrails, and tracing. Flight authors structured feedback for the Manager, including findings, limitations, missing details, a next step, and presentation. The Manager writes the traveler response. The application records feedback unchanged and handles Flight card data, exact Trip render content, Trip scope checks, final link filtering, and persistence. See [Manager tools](manager-tool.md) for the tool boundary.
 
-Nested tool exceptions become structured failures. A completed Flight core tool is retained as a partial result if later nested work fails. A top-level max-turn error returns completed specialist work when possible. The existing model retry policy applies to the Manager and nested SDK runners; retry of a whole Manager turn is restricted to the existing no-output timeout path and resumes its SDK state.
+A specialist execution failure becomes one generic tool result before the Manager sees it. Trip Planner has a per-call timeout; an abort or terminal Manager error is reported through the API error event. Completed specialist work is not replayed or converted into a synthetic final answer. New turns use SDK tracing as the primary diagnostic path; standalone specialist and Summary observability code is separate from this Manager path.
 
-Deterministic tests cover the real nested `asTool()` boundary with a mock model, shared context, scoped input, compact large-output extraction, unavailable tools, render pass-through, stream finalization, max-turn partial recovery, and chat/SSE metadata persistence. A live model evaluation is still needed to measure routing accuracy, latency, and token cost for single and mixed requests before removing the handoff rollback.
+Run `npm run typecheck`, `npm run build`, and `npm test` for deterministic verification. The integration tests use mocked models through the real SDK Runner; live routing and answer quality require a separate model smoke test.
 
-SDK references: [agents as tools](https://openai.github.io/openai-agents-js/guides/tools/#4-agents-as-tools), [composition patterns](https://openai.github.io/openai-agents-js/guides/agents/#composition-patterns), and [multi-agent guide](https://openai.github.io/openai-agents-js/guides/multi-agent/).
+SDK references: [agents as tools](https://openai.github.io/openai-agents-js/guides/tools/#4-agents-as-tools), [running agents](https://openai.github.io/openai-agents-js/guides/running-agents/), and [multi-agent patterns](https://openai.github.io/openai-agents-js/guides/multi-agent/).

@@ -9,8 +9,8 @@
  *                       structured subtask into the nested run as
  *                       `RunContext.toolInput`.
  *   - `customOutputExtractor`
- *                     : maps the nested run's output to a compact
- *                       `ManagerToolResult` and records the turn outcome.
+ *                     : records Flight's structured output unchanged; Trip
+ *                       stores its render content and returns a reference.
  *   - `outputGuardrails`
  *                     : the single failure choke point. Every way a specialist
  *                       call can fail — the nested run throwing, exceeding its
@@ -25,8 +25,6 @@
 import { defineToolOutputGuardrail, ToolGuardrailFunctionOutputFactory } from '@openai/agents';
 import type { FunctionTool, ToolOutputGuardrailDefinition } from '@openai/agents';
 import { z } from 'zod';
-import { ObservedModelProvider, observeModelInput } from '../../shared/observability/model-usage.js';
-import { gatewayModelRetrySettings } from '../manager-orchestrator/retry.js';
 import type { ManagerToolResult, ManagerToolStatus } from './result-contract.js';
 import { recordOutcome, type ManagerTurnState, type SpecialistName } from './turn-state.js';
 
@@ -45,25 +43,6 @@ const MANAGER_TOOL_STATUSES: ReadonlySet<string> = new Set<ManagerToolStatus>([
   'needs_input',
   'failure',
 ]);
-
-/**
- * Shared run configuration for every specialist's nested run.
- *
- * `modelProvider` must stay set. `getInheritedAgentToolRunConfig()` forwards the
- * Manager's `model` and `modelSettings` only when the tool does not override
- * `modelProvider`, so without it any setting a specialist leaves undeclared is
- * taken from the Manager instead. Both specialists declare their own model,
- * reasoning effort and verbosity, so this guards the rest — and
- * `ObservedModelProvider` is also how per-model usage is observed.
- */
-export function specialistRunConfig() {
-  return {
-    modelProvider: new ObservedModelProvider(),
-    callModelInputFilter: observeModelInput,
-    modelSettings: { preserveRawUsage: true, retry: gatewayModelRetrySettings },
-    traceIncludeSensitiveData: true,
-  };
-}
 
 /**
  * The subtask the Manager passed, read back from the SDK's own invocation record.
@@ -113,13 +92,12 @@ function isManagerToolResult(value: unknown): value is ManagerToolResult {
 }
 
 /**
- * Allow only a mapped `ManagerToolResult` through to the Manager; replace
+ * Allow structured specialist feedback through to the Manager; replace
  * anything else with one generic line.
  *
  * Rejecting also records the failure, because on a failed call the extractor
  * never ran and would otherwise leave no outcome for the deterministic output
- * pipeline to see. The recorded `code` stays coarse on purpose: it is for logs
- * and composition, never for the traveler.
+ * pipeline to see.
  */
 export function createSpecialistResultGuardrail(
   state: ManagerTurnState,
@@ -141,7 +119,6 @@ export function createSpecialistResultGuardrail(
       recordOutcome(state, name, readSpecialistSubtask(toolCall?.arguments), {
         status: 'failure',
         summary: GENERIC_SPECIALIST_FAILURE,
-        recovery: { code: 'SPECIALIST_FAILED', retryable: false },
       });
       return ToolGuardrailFunctionOutputFactory.rejectContent(GENERIC_SPECIALIST_FAILURE, {
         specialist: name,
@@ -165,6 +142,5 @@ export function specialistTimeoutResult(
   return recordOutcome(state, name, readSubtaskFromDetails(details), {
     status: 'failure',
     summary: GENERIC_SPECIALIST_FAILURE,
-    recovery: { code: 'SPECIALIST_TIMEOUT', retryable: false },
   });
 }

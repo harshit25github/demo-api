@@ -106,7 +106,7 @@ type TurnReport = {
   finalAgent: string | null;
   specialistsUsed: string[];
   flightTools: string[];
-  managerResults: Array<{ status: string; summary: string; completedTask: string | null; missingInformation: string[]; presentation: string | null }>;
+  managerResults: Array<{ status: string; summary: string; completedTask: string | null; findings: string[]; limitations: string[]; nextStep: string | null; missingInformation: string[]; presentation: string | null }>;
   toolFeedback: Array<{ tool: string; ok: boolean | null; code: string | null; affectedFields: string[] }>;
   predictionStatus: string | null;
   renderFlightOptions: boolean;
@@ -121,7 +121,7 @@ type TurnReport = {
 };
 
 const report: TurnReport[] = [];
-const fixedNow = new Date('2026-09-19T10:00:00.000Z');
+const fixedNow = new Date();
 let attempted = 0;
 
 for (const scenario of scenarios.filter((item) => !chatId || item.id === chatId)) {
@@ -168,6 +168,9 @@ for (const scenario of scenarios.filter((item) => !chatId || item.id === chatId)
                   status: value.status,
                   summary: value.summary,
                   completedTask: typeof value.completedTask === 'string' ? value.completedTask : null,
+                  findings: Array.isArray(value.findings) ? value.findings : [],
+                  limitations: Array.isArray(value.limitations) ? value.limitations : [],
+                  nextStep: typeof value.nextStep === 'string' ? value.nextStep : null,
                   missingInformation: Array.isArray(value.missingInformation) ? value.missingInformation : [],
                   presentation: typeof value.presentation === 'string' ? value.presentation : null,
                 }] : [];
@@ -201,6 +204,7 @@ for (const scenario of scenarios.filter((item) => !chatId || item.id === chatId)
       if (!flightTools.includes('flight_search') && noteCount > 0) {
         checks.push('per-person note added without current-turn search');
       }
+      const sdkUsage = result.result?.runContext?.usage;
       const item: TurnReport = {
         chat: scenario.id, turn: index + 1, traceId, user, output,
         finalAgent: result.finalAgentName,
@@ -208,9 +212,9 @@ for (const scenario of scenarios.filter((item) => !chatId || item.id === chatId)
         flightTools, managerResults, toolFeedback, predictionStatus,
         renderFlightOptions: Boolean(result.renderFlightOptions),
         resultCount, noteCount,
-        inputTokens: result.usage?.inputTokens ?? null,
-        outputTokens: result.usage?.outputTokens ?? null,
-        modelCalls: result.usage?.calls?.length || 0,
+        inputTokens: sdkUsage?.inputTokens ?? null,
+        outputTokens: sdkUsage?.outputTokens ?? null,
+        modelCalls: sdkUsage?.requests ?? 0,
         latencyMs: Date.now() - started,
         checks,
       };
@@ -234,8 +238,8 @@ for (const scenario of scenarios.filter((item) => !chatId || item.id === chatId)
 }
 
 const outputPath = path.resolve(chatId
-  ? `artifacts/manager-flight-${chatId}-traced-diagnostic.json`
-  : 'artifacts/manager-flight-five-chats-traced-live.json');
+  ? `artifacts/manager-flight-${chatId}-${fixedNow.toISOString().replace(/[:.]/g, '-')}.json`
+  : `artifacts/manager-flight-five-chats-${fixedNow.toISOString().replace(/[:.]/g, '-')}.json`);
 await fs.mkdir(path.dirname(outputPath), { recursive: true });
 await fs.writeFile(outputPath, JSON.stringify({ fixedNow: fixedNow.toISOString(), turns: report }, null, 2));
 await getGlobalTraceProvider().forceFlush();

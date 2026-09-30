@@ -4,16 +4,15 @@ import { createTripPlannerTool } from './specialists/trip-planner.js';
 import type { ManagerTurnState } from './turn-state.js';
 
 export { createManagerTurnState } from './turn-state.js';
-export type { ManagerTurnState, ManagerTurnWatermarks, SpecialistName } from './turn-state.js';
+export type { ManagerTurnState, SpecialistName } from './turn-state.js';
 export { finalizeManagerOutput } from './output.js';
-export { createFlightTool, flightResult } from './specialists/flight.js';
+export { createFlightTool } from './specialists/flight.js';
 export { createTripPlannerTool, tripPlannerResult } from './specialists/trip-planner.js';
 export {
   createSpecialistResultGuardrail,
   readSpecialistSubtask,
   readSubtaskFromResult,
   specialistInputSchema,
-  specialistRunConfig,
   specialistTimeoutResult,
   GENERIC_SPECIALIST_FAILURE,
 } from './specialist-result.js';

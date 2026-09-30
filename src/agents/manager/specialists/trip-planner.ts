@@ -18,7 +18,6 @@ import {
   createSpecialistResultGuardrail,
   readSubtaskFromResult,
   specialistInputSchema,
-  specialistRunConfig,
   specialistTimeoutResult,
 } from '../specialist-result.js';
 
@@ -50,7 +49,6 @@ export function tripPlannerResult(state: ManagerTurnState, output: string): Mana
     return {
       status: 'failure',
       summary: 'Trip planning did not produce a usable answer.',
-      recovery: { code: 'EMPTY_TRIP_OUTPUT', retryable: false },
     };
   }
 
@@ -103,7 +101,6 @@ export function createTripPlannerTool(state: ManagerTurnState): Tool<any> {
       });
       return params.input;
     },
-    runConfig: specialistRunConfig(),
     // No `signal` here: a module-scope AbortSignal.timeout would start counting
     // at import. The per-call budget is `timeoutMs` on the tool below.
     runOptions: { maxTurns: tripPlannerAgentConfig.maxTurns },

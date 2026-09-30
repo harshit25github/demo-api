@@ -1,14 +1,5 @@
 import { generateTraceId, Runner, setDefaultOpenAIKey, withTrace } from '@openai/agents';
 import type { Session } from '@openai/agents';
-import {
-  ObservedModelProvider,
-  observeModelInput,
-  currentUsageCollector,
-  UsageCollector,
-  withUsageCollector,
-} from '../../shared/observability/model-usage.js';
-import { sessionOptimization } from '../../shared/config/session-optimization.js';
-import { resolveCompactionPolicy } from '../../shared/config/compaction-policy.js';
 import { randomUUID } from 'node:crypto';
 import { assertOpenAIConfig, flightAgentConfig } from '../flight/config.js';
 import {
@@ -18,8 +9,6 @@ import {
 import { createRequestContext } from '../../shared/runtime/request-context.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
 import { createManagerAgent } from './agent.js';
-import { gatewayAgentConfig } from './config.js';
-import { createHistoryInputFilter } from './history-policy.js';
 import {
   createManagerTools,
   createManagerTurnState,
@@ -57,16 +46,8 @@ export interface ManagerRunOptions {
   runner?: Pick<Runner, 'run'>;
 }
 
-// Compaction policy for Manager mode
-const managerModeModels = [gatewayAgentConfig.model];
-export const mainChatCompaction = resolveCompactionPolicy(sessionOptimization, managerModeModels);
-
 /**
  * The one Runner the Manager turn uses.
- *
- * No model retry policy: a Manager model failure is terminal for the turn and the
- * chat API reports it as such. Specialists keep their own retry settings, since a
- * transient failure inside one specialist is still recoverable by the Manager.
  *
  * `maxFunctionToolConcurrency: 1` keeps specialists serial. They share one
  * application context, and Trip Planner in particular scopes its whole turn
@@ -75,21 +56,10 @@ export const mainChatCompaction = resolveCompactionPolicy(sessionOptimization, m
  * calls; this enforces it locally even if it does.
  */
 export const mainChatRunner = new Runner({
-  modelProvider: new ObservedModelProvider(),
-  callModelInputFilter: observeModelInput,
-  model: gatewayAgentConfig.model,
-  modelSettings: {
-    ...gatewayAgentConfig.modelSettings,
-    preserveRawUsage: true,
-    ...mainChatCompaction.settings,
-  },
   toolExecution: { maxFunctionToolConcurrency: 1 },
   workflowName: 'travel-manager',
   traceIncludeSensitiveData: true,
 });
-if (sessionOptimization.compactionEnabled && !mainChatCompaction.enabled) {
-  log('warn', 'session_compaction.disabled', { reason: mainChatCompaction.reason });
-}
 
 /**
  * Compose the final answer from the Manager's text plus this turn's outcomes.
@@ -162,11 +132,7 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   const requestId = options.requestId ?? randomUUID();
   const traceId = options.traceId ?? generateTraceId();
   const sessionId = options.sessionId ?? 'default';
-  const usage = currentUsageCollector() ?? new UsageCollector({ requestId, traceId, sessionId });
-  return withUsageCollector(usage, async () => ({
-    ...await runManagerTurn({ ...options, requestId, traceId, sessionId }),
-    usage: usage.snapshot(),
-  }));
+  return runManagerTurn({ ...options, requestId, traceId, sessionId });
 }
 
 async function runManagerTurn({
@@ -207,7 +173,6 @@ async function runManagerTurn({
       maxTurns,
       session,
       signal,
-      callModelInputFilter: createHistoryInputFilter(),
     }),
     { traceId, metadata: { requestId } },
   );

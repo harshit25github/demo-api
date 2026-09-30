@@ -69,8 +69,12 @@ function flightStructuredAnswer(fields: Record<string, unknown> = {}) {
   return modelAnswer(JSON.stringify({
     status: 'success',
     completedTask: 'Searched flights',
-    resultSummary: 'Found options.',
+    summary: 'Found options.',
+    findings: [],
+    limitations: [],
     missingInformation: [],
+    nextStep: null,
+    presentation: null,
     ...fields,
   }));
 }
@@ -177,7 +181,7 @@ test('a dependent Flight then Trip request runs in order and composes once', asy
         ]);
       }
       const ref = [...state.renders.keys()][0];
-      return modelAnswer(`Found two Dubai flights for 20 October.\n\n[[render:${ref}]]`);
+      return modelAnswer(`Found two Dubai flights for 20 October. Note: Prices shown are per person.\n\n[[render:${ref}]]`);
     },
     flight: (appContext) => {
       appContext.flight.searchResults = [{ id: 'f1' }, { id: 'f2' }];
@@ -187,7 +191,9 @@ test('a dependent Flight then Trip request runs in order and composes once', asy
       appContext.toolCallLog.push({ tool: 'flight_search', ok: true });
       return flightStructuredAnswer({
         completedTask: 'Searched Dubai flights for 20 October',
-        resultSummary: 'Found two Dubai options for 20 October.',
+        summary: 'Found two Dubai options for 20 October.',
+        findings: ['Outbound date: 2026-10-20'],
+        presentation: 'flight_cards_with_price_note',
       });
     },
     trip: () => modelAnswer(plan),
@@ -198,11 +204,11 @@ test('a dependent Flight then Trip request runs in order and composes once', asy
   assert.equal(state.outcomes[1].input, 'Plan Dubai activities for a 20 October arrival');
 
   // The Trip subtask ran against the flight facts already in shared state.
-  assert.equal(state.outcomes[0].result.userRelevantData?.outboundDate, '2026-10-20');
+  assert.deepEqual(state.outcomes[0].result.findings, ['Outbound date: 2026-10-20']);
 
   // Both results stayed compact; the plan body never entered the Manager context.
   for (const output of toolResults) {
-    assert.ok(output.length < 300, `tool result too large: ${output.length}`);
+    assert.ok(output.length < 500, `tool result too large: ${output.length}`);
     assert.doesNotMatch(output, /museums and beaches/);
   }
 
@@ -236,7 +242,7 @@ test('a mixed in-scope and out-of-scope request answers only the in-scope parts'
       appContext.flight.totalResultsFound = 2;
       appContext.flight.showFlight = true;
       appContext.toolCallLog.push({ tool: 'flight_search', ok: true });
-      return flightStructuredAnswer({ resultSummary: 'Found two Dubai options.' });
+      return flightStructuredAnswer({ summary: 'Found two Dubai options.', presentation: 'flight_cards_with_price_note' });
     },
     // The Trip Planner drifts out of scope; the scope filter must catch it.
     trip: () => modelAnswer('Day 1: Dubai Creek.\nBook a hotel downtown and take a taxi from the airport.'),
@@ -308,7 +314,7 @@ test('filter clearing uses the scoped subtask, not the whole mixed turn', async 
   );
 });
 
-test('a second turn keeps persisted context but scopes evidence to itself', async () => {
+test('a second turn keeps persisted context without showing old cards', async () => {
   // Turn one searches and leaves results plus a tool-log entry behind.
   const first = await runManagerTurn({
     input: 'Find flights to Dubai',
@@ -321,7 +327,7 @@ test('a second turn keeps persisted context but scopes evidence to itself', asyn
       appContext.flight.showFlight = true;
       appContext.flight.outboundDate = '2026-10-20';
       appContext.toolCallLog.push({ tool: 'flight_search', ok: true });
-      return flightStructuredAnswer({ resultSummary: 'Found two Dubai options.' });
+      return flightStructuredAnswer({ summary: 'Found two Dubai options.', presentation: 'flight_cards_with_price_note' });
     },
   });
   assert.equal(first.composed.renderFlightOptions, true);
@@ -338,9 +344,7 @@ test('a second turn keeps persisted context but scopes evidence to itself', asyn
   assert.equal((second.appContext as any).flight.outboundDate, '2026-10-20');
   assert.equal((second.appContext as any).flight.searchResults.length, 2);
 
-  // The new turn's watermark is past the earlier entry, so last turn's search is
-  // not re-counted as this turn's evidence: no specialist ran, so no cards.
-  assert.ok(second.state.turnStart.toolCallLogLength >= 1);
+  // No Flight feedback requested cards in the second turn.
   assert.deepEqual(second.state.outcomes, []);
   assert.equal(second.composed.renderFlightOptions, false);
   assert.doesNotMatch(second.composed.output, /Prices shown are per person/);

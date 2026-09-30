@@ -59,8 +59,12 @@ function flightStructuredAnswer(fields: Record<string, unknown> = {}) {
   return modelAnswer(JSON.stringify({
     status: 'success',
     completedTask: 'Searched flights',
-    resultSummary: 'Found options.',
+    summary: 'Found options.',
+    findings: [],
+    limitations: [],
     missingInformation: [],
+    nextStep: null,
+    presentation: null,
     ...fields,
   }));
 }
@@ -134,19 +138,22 @@ async function runFlightTurn(
   }
 }
 
-test('Flight runs as a direct agent tool: cards and the price note follow real evidence', async () => {
+test('Flight feedback passes through the SDK; the Manager writes the response', async () => {
   const { toolOutput, composed } = await runFlightTurn((appContext) => {
     seedFlightResults(appContext, 'flight_search', 2);
     return flightStructuredAnswer({
       completedTask: 'Searched flights to Dubai',
-      resultSummary: 'Found two Dubai options. Note: Prices shown are per person.',
+      summary: 'Found two Dubai options.',
+      findings: ['Two matching Dubai flights.'],
+      presentation: 'flight_cards_with_price_note',
     });
-  });
+  }, { managerText: 'Here are your two Dubai options. Note: Prices shown are per person.' });
 
   const parsed = JSON.parse(toolOutput);
   assert.equal(parsed.status, 'success');
   assert.equal(parsed.presentation, 'flight_cards_with_price_note');
-  assert.equal(parsed.userRelevantData.resultCount, 2);
+  assert.deepEqual(parsed.findings, ['Two matching Dubai flights.']);
+  assert.equal('userRelevantData' in parsed, false);
   // Card payloads never reach the Manager, and the note is not duplicated there.
   assert.doesNotMatch(toolOutput, /card-0|card-1/);
   assert.doesNotMatch(toolOutput, /Prices shown are per person/);
@@ -171,19 +178,18 @@ test('a failed Flight run reaches the Manager as one generic line and draws no c
   assert.equal(composed.renderFlightOptions, false);
 });
 
-test('a claimed Flight success with no evidence is downgraded, not shown as cards', async () => {
-  // Claims success, but nothing landed in shared state.
+test('Flight Agent status reaches the Manager; cards require current results', async () => {
   const { state, toolOutput, composed } = await runFlightTurn(
-    () => flightStructuredAnswer({ resultSummary: 'Found three great flights.' }),
+    () => flightStructuredAnswer({ summary: 'Found three great flights.' }),
   );
 
   const parsed = JSON.parse(toolOutput);
-  assert.equal(parsed.status, 'failure');
-  assert.equal(parsed.recovery.code, 'UNVERIFIED_FLIGHT_RESULT');
-  assert.doesNotMatch(parsed.summary, /three great flights/);
-  assert.equal(parsed.presentation, undefined);
+  assert.equal(parsed.status, 'success');
+  assert.equal('recovery' in parsed, false);
+  assert.match(parsed.summary, /three great flights/);
+  assert.equal(parsed.presentation, null);
   assert.equal(composed.renderFlightOptions, false);
-  assert.equal(state.outcomes[0].result.status, 'failure');
+  assert.equal(state.outcomes[0].result.status, 'success');
 });
 
 test('a filter-only Flight turn shows cards without the search price note', async () => {
@@ -191,7 +197,8 @@ test('a filter-only Flight turn shows cards without the search price note', asyn
     seedFlightResults(appContext, 'apply_filter', 1);
     return flightStructuredAnswer({
       completedTask: 'Applied the nonstop filter',
-      resultSummary: 'One nonstop option remains.',
+      summary: 'One nonstop option remains.',
+      presentation: 'flight_cards',
     });
   }, { subtask: 'Show nonstop flights only', managerText: 'One nonstop option remains.' });
 
@@ -199,6 +206,95 @@ test('a filter-only Flight turn shows cards without the search price note', asyn
   assert.equal(parsed.presentation, 'flight_cards');
   assert.equal(composed.renderFlightOptions, true);
   assert.doesNotMatch(composed.output, /Prices shown are per person/);
+});
+
+test('rich Flight feedback reaches the Manager unchanged across task outcomes', async (t) => {
+  const cases = [
+    {
+      name: 'unavailable option',
+      feedback: {
+        status: 'partial',
+        completedTask: 'Checked the requested option in the filtered results',
+        summary: 'Option 2 is unavailable in the current results.',
+        findings: ['One option is available for NYC to London on 5 November.'],
+        limitations: ['The requested option cannot be compared with the current selection.'],
+        missingInformation: [],
+        nextStep: 'Offer to remove the current filters and show the earlier options.',
+        presentation: null,
+      },
+      answer: 'Only one option remains. Would you like me to remove the filters?',
+    },
+    {
+      name: 'new date needed',
+      feedback: {
+        status: 'needs_input',
+        completedTask: 'Identified the requested departure-date change',
+        summary: 'The new departure date is needed before changing the search.',
+        findings: ['The existing departure date is 5 November.'],
+        limitations: [],
+        missingInformation: ['New departure date'],
+        nextStep: 'Ask which date should replace the existing departure date.',
+        presentation: null,
+      },
+      answer: 'What date would you like to fly instead?',
+    },
+    {
+      name: 'price comparison unavailable',
+      feedback: {
+        status: 'failure',
+        completedTask: 'Checked cheaper dates for the current trip',
+        summary: 'A cheaper travel date could not be verified.',
+        findings: ['The current trip is NYC to London on 5 November.'],
+        limitations: ['There is no verified cheaper-date recommendation to offer.'],
+        missingInformation: [],
+        nextStep: null,
+        presentation: null,
+      },
+      answer: 'I could not verify a cheaper date for your trip.',
+    },
+    {
+      name: 'search with no matches',
+      feedback: {
+        status: 'success',
+        completedTask: 'Searched the requested route and date',
+        summary: 'No matching flights were found.',
+        findings: ['Zero matching flights for NYC to London on 5 November.'],
+        limitations: [],
+        missingInformation: [],
+        nextStep: 'Offer to search a nearby date.',
+        presentation: null,
+      },
+      answer: 'No flights matched. Would you like to try a nearby date?',
+    },
+  ];
+
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const { state, toolOutput, composed } = await runFlightTurn((appContext) => {
+        // Stored dates, tool success, and prediction failure must not rebuild feedback.
+        appContext.flight.outboundDate = '2026-11-05';
+        appContext.flight.lastPricePrediction = { status: 'NO_PREDICTIONS' };
+        seedFlightResults(appContext, 'flight_search', scenario.name === 'search with no matches' ? 0 : 1);
+        return modelAnswer(JSON.stringify(scenario.feedback));
+      }, { subtask: scenario.name, managerText: scenario.answer });
+
+      assert.deepEqual(JSON.parse(toolOutput), scenario.feedback);
+      assert.deepEqual(state.outcomes[0].result, scenario.feedback);
+      assert.equal(composed.output, scenario.answer);
+      assert.equal(composed.renderFlightOptions, false);
+    });
+  }
+});
+
+test('finalization does not manufacture a user reply or price note from Flight feedback', async () => {
+  const { state, composed } = await runFlightTurn((appContext) => {
+    seedFlightResults(appContext, 'flight_search');
+    return flightStructuredAnswer({ presentation: 'flight_cards_with_price_note' });
+  }, { managerText: 'Here are your options.' });
+
+  assert.equal(composed.output, 'Here are your options.');
+  assert.equal(finalizeManagerOutput('', state).output, '');
+  assert.equal(composed.renderFlightOptions, true);
 });
 
 test('the Flight filter reads the scoped subtask, not the whole user turn', async () => {
