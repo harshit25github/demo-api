@@ -149,9 +149,16 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
       {
         user: 'add a Paris stop before the London to New York leg',
         understanding:
-          'The trip becomes multi-city with an extra segment. Passengers and cabin carry over; the dates still in play are reused and the new leg needs one of its own.',
+          'The trip becomes multi-city: New York to London, then London to Paris, then Paris to New York. Passengers, cabin and both existing dates carry over, but the new middle leg has no date and nothing in context supplies one. Ask for that one detail.',
+        expectedTools: [],
+        why: 'Every other input is already known, so this is the single genuinely missing piece. Any day between the two existing dates would fit, which is exactly why choosing one invents input the traveller never gave.',
+      },
+      {
+        user: "let's do London to Paris on the 9th",
+        understanding:
+          'The missing leg date arrives. Combine it with the itinerary already assembled and run the multi-city search.',
         expectedTools: ['flight_search'],
-        why: 'Trip type and the segment list are search inputs. No filter can add a leg, and treating this as a filter is the mistake worth catching.',
+        why: 'The trip is now fully specified. Trip type and the segment list are search inputs, so only a search can produce multi-city results; no filter can add a leg, and treating this as a filter is the mistake worth catching.',
       },
       {
         user: 'how many options do we have now?',
@@ -178,7 +185,7 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         understanding:
           'A question about which filters belong to the search that is current right now. The new search reset them, and the applied-filter list for the current search is in context.',
         expectedTools: [],
-        why: 'Applied filters for the current search are injected into the prompt, and filters from a superseded search are excluded from it. This is answerable without a tool; calling one is a false positive.',
+        why: 'Flight’s own context lists the filters attached to the current search and excludes any from a superseded one, so the answer is already there to read. Delegating to reach that context is fine; spending a domain tool call on it is the false positive.',
       },
       {
         user: 'put nonstop back on then',
@@ -234,7 +241,7 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         understanding:
           'The new search cleared them, and the applied-filter list for the current search shows that.',
         expectedTools: [],
-        why: 'Filters belonging to the current search are already in context, and ones from an older search are excluded. No tool is needed to read that.',
+        why: 'Flight’s own context lists the filters attached to the current search and excludes the ones from the Mumbai search, so the answer is already there to read. Delegating to reach that context is fine; spending a domain tool call on it is the false positive.',
       },
       {
         user: 'turn both back on',
