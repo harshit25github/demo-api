@@ -61,11 +61,12 @@
     "test:gateway:flight-flow": "tsx tests/live/gateway-flight-handoff-tool-flow-live.ts",
     "test:flight:multiturn": "tsx tests/live/flight-agent-multiturn-live.ts",
     "test:flight:complex": "tsx tests/live/flight-agent-complex-multiturn-live.ts",
-    "test:flight:e2e-multiturn": "tsx tests/live/flight-agent-e2e-multiturn-live.ts"
+    "test:flight:e2e-multiturn": "tsx tests/live/flight-agent-e2e-multiturn-live.ts",
+    "test:sdk-contract": "tsx --test tests/integration/sdk-agent-tool-contract.test.ts"
   },
   "dependencies": {
-    "@openai/agents": "^0.17.0",
-    "@openai/agents-openai": "^0.17.0",
+    "@openai/agents": "^0.18.0",
+    "@openai/agents-openai": "^0.18.0",
     "@toon-format/toon": "^4.1.1",
     "dotenv": "^17.4.2",
     "lucide": "^1.33.0",
