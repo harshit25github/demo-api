@@ -1,4 +1,4 @@
-import { Agent,run } from '@openai/agents';
+import { Agent } from '@openai/agents';
 import type { ModelSettings } from '@openai/agents';
 import { z } from 'zod';
 import { POST_BOOKING_PROMPT } from './prompt.js';

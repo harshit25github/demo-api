@@ -99,7 +99,9 @@ export const tripPlannerSpecialist: SpecialistDefinition<void> = {
     });
   },
   toResult(state, _input, outcome) {
-    if (!outcome.ok) {
+    // `=== false`, not `!outcome.ok`: the test project runs with `strictNullChecks`
+    // off, where truthiness narrowing on a boolean discriminant does not narrow.
+    if (outcome.ok === false) {
       return {
         status: 'failure',
         summary: GENERIC_SPECIALIST_FAILURE,

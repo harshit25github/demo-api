@@ -91,7 +91,9 @@ function makeAgentTool(
       };
     },
     toResult(_turn, input, outcome, pending) {
-      if (!outcome.ok) {
+      // `=== false`, not `!outcome.ok`: this project runs with `strictNullChecks`
+      // off, where truthiness narrowing on a boolean discriminant does not narrow.
+      if (outcome.ok === false) {
         return {
           status: 'failure',
           summary: GENERIC_SPECIALIST_FAILURE,

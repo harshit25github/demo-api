@@ -377,7 +377,9 @@ export const flightSpecialist: SpecialistDefinition<FlightPending> = {
     };
   },
   toResult(state, input, outcome, pending) {
-    if (!outcome.ok) {
+    // `=== false`, not `!outcome.ok`: the test project runs with `strictNullChecks`
+    // off, where truthiness narrowing on a boolean discriminant does not narrow.
+    if (outcome.ok === false) {
       return flightFailureResult(state, pending, outcome);
     }
     let finalOutput: unknown;
