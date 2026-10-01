@@ -14,6 +14,14 @@
  *                      false positive
  *   - `why`            the reason that tool and not a plausible neighbour
  *
+ * One rule about where a contract read can be asserted. `apply_filter` returns the
+ * filtered flights in its own result, so the turn straight after a filter can
+ * usually be answered from that without reading the contracts again — a count, an
+ * option's details, whether an index exists. Asserting
+ * `getGeneratedContractsContext` there asserts redundant work and the turn passes
+ * or fails on how much the filter result happened to carry. Three turns were
+ * removed for this. Put contract reads where no filter ran immediately before.
+ *
  * Comparing a run against `expectedTools`:
  *   - drop `NON_CORE_TOOLS` first — the suggested-questions tool fires
  *     opportunistically after core work and must never decide a pass or fail
@@ -641,31 +649,17 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         why: 'Removing a filter is a filter operation. A new search would also restore the options but discards and rebuilds state for no reason.',
       },
       {
-        user: 'now show option 4',
+        user: 'no layovers longer than 2 hours',
         understanding:
-          'The same index against the restored set, where it is likely to exist.',
-        expectedTools: ['getGeneratedContractsContext'],
-        why: 'The visible set changed again, so the index has to be resolved against the current contracts rather than either earlier answer.',
-      },
-      {
-        user: 'only ones with a Muscat layover',
-        understanding:
-          'A layover-airport filter whose code must come from the current search’s layover source options. If Muscat is not among them, say so instead of inventing a code.',
+          'A maximum layover-duration filter in minutes, on the results now restored.',
         expectedTools: ['apply_filter'],
-        why: 'Layover filtering is restricted to the source options attached to the live search. Fabricating an airport code, or re-searching to "add" the layover, are both wrong.',
+        why: 'Layover duration is a maximum-only filter on the current set, so it narrows rather than re-searches. Named by duration rather than by airport on purpose: an airport filter resolves against the source options the live search returned, so whether a given city is among them decides the turn, and the agent is then right either to apply it or to say it is not there.',
       },
       {
-        user: 'how many now?',
-        understanding: 'The count surviving the layover filter.',
-        expectedTools: ['getGeneratedContractsContext'],
-        why: 'Volatile, and changed by the filter just applied.',
-      },
-      {
-        user: 'clear that and show me the cheapest overall',
-        understanding:
-          'One request with two parts: reset the filters, then rank the restored set. The ranking has to run against the state after the reset.',
-        expectedTools: ['apply_filter', 'getGeneratedContractsContext'],
-        why: 'Order matters. Reading the contracts before clearing would rank the filtered subset and call it the cheapest overall, which is the sequencing bug this turn exists to catch.',
+        user: 'clear that',
+        understanding: 'Reset the active filter and restore the full result set.',
+        expectedTools: ['apply_filter'],
+        why: 'Removing a filter is filter work on the results that exist, never a reason to run the search again.',
       },
     ],
   },
