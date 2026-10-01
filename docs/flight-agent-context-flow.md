@@ -314,7 +314,7 @@ Prompt ko nahi milta:
 | `apply_filter` | `flight.uid`, `flight.searchKey`, source options, results | Visible results, count, showFlight, directFlightOnly |
 | `price_prediction_tool` | `flightDate`, route payload | `flight.lastPricePrediction`, `flightDate.routing` |
 | `getGeneratedContractsContext` | `flight.searchResults`, mapped search state | No Flight context mutation |
-| `update_flight_suggested_questions` | Latest `flight.searchKey` | `flight.suggestedQuestions` |
+| `update_flight_suggested_questions` | Latest `flight.searchKey`, suggestions shown at turn start | `flight.suggestedQuestions`; required last on every turn, see [flight-suggested-questions.md](flight-suggested-questions.md) |
 
 ### Search tool writes
 

@@ -1,8 +1,22 @@
+/**
+ * Live check of the "You might ask" suggestions across one standalone Flight
+ * conversation.
+ *
+ * The first turns cannot search yet, because the departure location and date
+ * are missing, so they must store no suggestions. Once a search exists, every
+ * turn must refresh exactly three. Throughout, every turn must end with the
+ * suggestions update, and the suggestions must stay in the traveler's voice,
+ * never ask for route or date fields, never repeat what the traveler just did,
+ * and change between turns.
+ *
+ *   npm run test:flight:suggested-questions-variation
+ */
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 process.env.FLIGHT_AGENT_LOG_LEVEL ||= 'error';
-process.env.FLIGHT_AGENT_MAX_TURNS ||= '4';
+// Room for the core tools, the required suggestions update, and the final answer.
+process.env.FLIGHT_AGENT_MAX_TURNS ||= '5';
 
 const { clearFlightAgentSession, runFlightAgent } = await import('../../src/agents/flight/runner.js');
 const { flightAgentConfig } = await import('../../src/agents/flight/config.js');
@@ -17,8 +31,13 @@ const turns = [
   "I'm looking for a flight to Delhi",
   'Actually, make it Bangalore',
   'Add 2 adults',
-  'Make it round trip',
+  'From Mumbai on November 12',
+  'Show nonstop flights only',
+  'Which option is cheapest?',
+  'Make it a round trip, returning November 19',
 ];
+/** Turns before this one cannot search: the departure location and date are still missing. */
+const FIRST_SEARCH_TURN_INDEX = 3;
 
 function normalizeSuggestion(value) {
   return String(value || '')
@@ -40,21 +59,28 @@ function suggestionSetOverlap(left = [], right = []) {
   return right.filter((suggestion) => previous.has(normalizeSuggestion(suggestion))).length;
 }
 
-function validateSuggestions({ suggestions, previousSuggestions, response, turnNumber, user }) {
+function validateSuggestions({ suggestions, previousSuggestions, response, turnNumber, user, searchActive }) {
   const issues = [];
+  const expectedCount = searchActive ? 3 : 0;
 
-  if (suggestions.length !== 3) {
-    issues.push(`Expected exactly 3 suggested questions, got ${suggestions.length}.`);
+  if (suggestions.length !== expectedCount) {
+    issues.push(
+      `Expected ${expectedCount} suggested questions ${searchActive ? 'with' : 'without'} an active search, got ${suggestions.length}.`,
+    );
   }
 
   for (const suggestion of suggestions) {
     if (typeof suggestion !== 'string' || !suggestion.trim()) {
       issues.push(`Invalid suggestion: ${JSON.stringify(suggestion)}.`);
+      continue;
+    }
+    if (suggestion.length > 80) {
+      issues.push(`Suggestion is too long for a chip: ${suggestion}.`);
     }
     if (response.includes(suggestion)) {
       issues.push(`Assistant response exposed suggested question: ${suggestion}.`);
     }
-    if (/^(would you|do you want|should i|can i|shall i)\b/i.test(suggestion)) {
+    if (/^(would you like|do you want|should i|shall i|want me to)\b/i.test(suggestion)) {
       issues.push(`Assistant-style suggestion: ${suggestion}.`);
     }
     if (
@@ -68,17 +94,18 @@ function validateSuggestions({ suggestions, previousSuggestions, response, turnN
     if (/\b(suggest|pick|recommend|choose)\s+(?:a\s+)?(?:travel\s+)?date/i.test(suggestion)) {
       issues.push(`Suggestion asks agent to choose a date: ${suggestion}.`);
     }
-    if (/\bapply|show flights|compare current|which flight|fare differences|cheapest|best\b/i.test(suggestion)) {
-      issues.push(`Advanced suggestion appeared before searchKey exists: ${suggestion}.`);
+    if (normalizeSuggestion(suggestion) === normalizeSuggestion(user)) {
+      issues.push(`Suggestion repeats what the traveler just asked: ${suggestion}.`);
     }
   }
 
-  if (previousSuggestions.length > 0 && suggestionsAreSame(previousSuggestions, suggestions)) {
-    issues.push('Suggested questions repeated exactly from the previous turn.');
-  }
-
-  if (previousSuggestions.length > 0 && suggestionSetOverlap(previousSuggestions, suggestions) === 3) {
-    issues.push('All three suggestion intents repeated from the previous turn.');
+  if (suggestions.length > 0 && previousSuggestions.length > 0) {
+    if (suggestionsAreSame(previousSuggestions, suggestions)) {
+      issues.push('Suggested questions repeated exactly from the previous turn.');
+    }
+    if (suggestionSetOverlap(previousSuggestions, suggestions) === 3) {
+      issues.push('All three suggestion intents repeated from the previous turn.');
+    }
   }
 
   if (turnNumber >= 2 && suggestions.some((suggestion) => /\bdelhi\b/i.test(suggestion))) {
@@ -91,6 +118,17 @@ function validateSuggestions({ suggestions, previousSuggestions, response, turnN
 
   if (/round trip/i.test(user) && suggestions.some((suggestion) => /make (it|this) (a )?round trip/i.test(suggestion))) {
     issues.push('Suggestion repeated the trip-type action that was just provided.');
+  }
+
+  if (
+    /nonstop/i.test(user) &&
+    suggestions.some(
+      (suggestion) =>
+        /\b(non-?stop|direct)\b/i.test(suggestion) &&
+        !/\b(remove|clear|drop|allow|include|any|instead)\b/i.test(suggestion),
+    )
+  ) {
+    issues.push('Suggestion re-applies the nonstop filter that is already active.');
   }
 
   return issues;
@@ -110,6 +148,7 @@ function buildTextReport(report) {
     lines.push(`## Turn ${turn.turn}: ${turn.user}`);
     lines.push(`Response: ${turn.agentResponse}`);
     lines.push(`Tools: ${turn.actualTools.join(' -> ') || '(none)'}`);
+    lines.push(`Search active: ${turn.searchActive ? 'yes' : 'no'}`);
     lines.push(`Suggestions: ${JSON.stringify(turn.suggestedQuestions)}`);
     lines.push(`Previous overlap: ${turn.previousOverlap}`);
     lines.push(`Result: ${turn.pass ? 'PASS' : `FAIL - ${turn.issues.join(' | ')}`}`);
@@ -141,13 +180,14 @@ for (let index = 0; index < turns.length; index += 1) {
   const calls = context.toolCallLog.slice(beforeCallCount);
   const actualTools = calls.map((call) => call.tool);
   const suggestedQuestions = context.flight?.suggestedQuestions || [];
+  const searchActive = Boolean(context.flight?.searchKey);
   const issues = [];
 
-  if (!actualTools.includes(SUGGESTED_TOOL)) {
-    issues.push('update_flight_suggested_questions was not called.');
+  if (actualTools.at(-1) !== SUGGESTED_TOOL) {
+    issues.push(`The turn did not end with ${SUGGESTED_TOOL}: ${actualTools.join(' -> ') || '(no tools)'}.`);
   }
 
-  if (actualTools.some((toolName) => toolName !== SUGGESTED_TOOL)) {
+  if (index < FIRST_SEARCH_TURN_INDEX && actualTools.some((toolName) => toolName !== SUGGESTED_TOOL)) {
     issues.push(`Unexpected task tool before mandatory search fields: ${actualTools.join(' -> ')}.`);
   }
 
@@ -158,6 +198,7 @@ for (let index = 0; index < turns.length; index += 1) {
       response: result.output || '',
       turnNumber: index + 1,
       user: turns[index],
+      searchActive,
     }),
   );
 
@@ -166,6 +207,7 @@ for (let index = 0; index < turns.length; index += 1) {
     user: turns[index],
     agentResponse: result.output || '',
     actualTools,
+    searchActive,
     suggestedQuestions,
     previousSuggestedQuestions: previousSuggestions,
     previousOverlap: suggestionSetOverlap(previousSuggestions, suggestedQuestions),
