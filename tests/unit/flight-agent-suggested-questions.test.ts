@@ -387,6 +387,19 @@ test('finalize leaves suggestions alone on a Manager turn Flight never ran', () 
   assert.deepEqual(context.flight.suggestedQuestions, []);
 });
 
+test('a turn Flight never sees keeps the pre-search suggestions that preparation cleared', () => {
+  const preSearch = ['Weekend getaways from Delhi', 'Beach trips from Delhi', 'International trips from Delhi'];
+  const context: any = { requestId: 'manager-only-pre-search', flight: { suggestedQuestions: [] }, toolCallLog: [] };
+  beginFlightSuggestionTurn(context, { flightRan: false, previousSuggestions: preSearch });
+
+  const outcome = finalizeFlightSuggestedQuestions(context);
+
+  assert.equal(outcome.flightRan, false);
+  assert.equal(outcome.count, 3);
+  assert.deepEqual(context.flight.suggestedQuestions, preSearch);
+  assert.deepEqual(previousFlightSuggestions(context), preSearch);
+});
+
 test('finalize treats a search after the update as unwritten', async () => {
   const context: any = { requestId: 'finalize-search-after', flight: { uid: 'after-user' }, toolCallLog: [] };
   beginFlightSuggestionTurn(context, { flightRan: true });
@@ -541,7 +554,8 @@ test('prompt grounds suggestions in known trip details before a search, and neve
     /A failed, empty, or unsuccessful result never justifies an empty array/,
     /If the tool returns INVALID_SUGGESTED_QUESTIONS or EMPTY_CTA_NOT_ALLOWED, fix only the listed issues and call it once more; never re-run a search, filter, contract read, or prediction because of it/,
     /^- Departure and arrival known, no date: price windows such as "Cheapest this week", "Cheapest next month", "Cheapest in the next 3 months"/m,
-    /^- Only the departure known: discovery from it, .* Never suggest or claim a cheapest destination; no tool compares unknown destinations/m,
+    /^- Only the departure known: discovery from it, .* Never a flight search such as "Search flights from Delhi next weekend", nor a fare suggestion, until an arrival location is known, and never a cheapest destination; no tool compares unknown destinations/m,
+    /Before one: a search, price-window, or timing request only once both the departure and arrival locations are known; otherwise discovery or destination planning grounded in the known details/,
     /^- Only the arrival known: destination planning only, .* No fare, cheapest-date, or flight-search suggestion until a departure location is known/m,
     /Never name a departure or arrival location the traveler has not given; timing choices such as "next weekend" are the only details a suggestion may add/,
     /^- Departure and dates known, arrival missing: /m,

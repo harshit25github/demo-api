@@ -436,11 +436,25 @@ export interface FlightSuggestionTurnOutcome {
 export function finalizeFlightSuggestedQuestions(context: unknown): FlightSuggestionTurnOutcome {
   const appContext = ensureFlightRuntimeContext(context);
   const turn = existingTurn(appContext);
-  const before = appContext.flight.suggestedQuestions.length;
 
   if (!turn || !turn.flightRan) {
-    return { flightRan: false, written: false, cleared: false, count: before, calls: 0, rejected: 0 };
+    // Flight never saw this turn, so nothing refreshed the suggestions and nothing
+    // made them wrong. Turn preparation clears the live list when no search exists
+    // yet, which would drop valid pre-search suggestions; put back what was shown.
+    if (turn && appContext.flight.suggestedQuestions.length === 0 && turn.previousSuggestions.length > 0) {
+      appContext.flight.suggestedQuestions = [...turn.previousSuggestions];
+    }
+    return {
+      flightRan: false,
+      written: false,
+      cleared: false,
+      count: appContext.flight.suggestedQuestions.length,
+      calls: 0,
+      rejected: 0,
+    };
   }
+
+  const before = appContext.flight.suggestedQuestions.length;
 
   const progress = readProgress(appContext, turn);
   if (!progress.written) {
