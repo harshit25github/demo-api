@@ -403,7 +403,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Replace the three-or-empty rule with the state matrix, let the tool store 3 records whatever the search state, and change the live check to require 3 whenever travel context exists.',
     step: 'Step 6',
-    status: 'Fixed in 3915f3b and 047f9cd',
+    status: 'Fixed in 3915f3b, 047f9cd and c02b4d9',
     verify:
       'Live: trip_details_one_at_a_time and missing_information_progression store 3 CTAs on every turn with partial context.',
   },
@@ -638,7 +638,7 @@ const FIX_SEQUENCE: string[][] = [
     'Port the updated production CTA design: the pre-search state matrix, CTA records with intent keys, ctaState with a phase fingerprint and consumed intents, EMPTY_CTA_NOT_ALLOWED and REPEATED_CTA_INTENT, prediction hydration, narrowed content rules, and a CTA path for turns the Manager answers itself',
     'G19, G20, G21, G22, G23, G24, G25',
     'Production changed the design on 2026-10-01 at 18:04, after Steps 1-5 landed. Settle the open questions on the new text first, because they decide the tool contract.',
-    'Done in 3915f3b, 5625dd8, 047f9cd and a340ee2; G21 and G22 only partly, by design',
+    'Done in 3915f3b, 5625dd8, 047f9cd, a340ee2 and c02b4d9; G21 and G22 only partly, by design',
   ],
 ];
 

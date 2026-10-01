@@ -21,7 +21,7 @@ The suggestions follow production's state matrix, adapted to the tools this agen
 | What is known | Suggestions to offer |
 |---|---|
 | Departure and arrival, no date | Price windows ("Cheapest next month") or concrete timing ("Search flights next weekend") |
-| Only the departure | Discovery from it ("Weekend getaways from Delhi"); never a cheapest destination |
+| Only the departure | Discovery from it ("Weekend getaways from Delhi"); no search, fare or cheapest-destination suggestion |
 | Only the arrival | Destination planning only ("Best time to visit Goa"); no fare, date or search suggestion |
 | Departure and dates, no arrival | Discovery grounded in both ("Beach trips from Delhi this weekend") |
 | Arrival and dates, no departure | Planning for those dates ("Plan my Goa weekend") |
