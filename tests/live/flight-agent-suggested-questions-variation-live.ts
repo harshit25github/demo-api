@@ -3,11 +3,12 @@
  * conversation.
  *
  * The first turns cannot search yet, because the departure location and date
- * are missing, so they must store no suggestions. Once a search exists, every
- * turn must refresh exactly three. Throughout, every turn must end with the
+ * are missing, but each already names part of the trip, so each must still
+ * leave three suggestions grounded in what is known. Once a search exists, every
+ * turn refreshes three for the results. Throughout, every turn must end with the
  * suggestions update, and the suggestions must stay in the traveler's voice,
- * never ask for route or date fields, never repeat what the traveler just did,
- * and change between turns.
+ * never ask the traveler to fill in a trip detail, never repeat what the
+ * traveler just did, and change between turns.
  *
  *   npm run test:flight:suggested-questions-variation
  */
@@ -61,11 +62,12 @@ function suggestionSetOverlap(left = [], right = []) {
 
 function validateSuggestions({ suggestions, previousSuggestions, response, turnNumber, user, searchActive }) {
   const issues = [];
-  const expectedCount = searchActive ? 3 : 0;
 
-  if (suggestions.length !== expectedCount) {
+  // Every turn of this conversation names part of the trip, so every turn has
+  // something to ground three suggestions in, with or without a search.
+  if (suggestions.length !== 3) {
     issues.push(
-      `Expected ${expectedCount} suggested questions ${searchActive ? 'with' : 'without'} an active search, got ${suggestions.length}.`,
+      `Expected 3 suggested questions ${searchActive ? 'for the active search' : 'grounded in the known trip details'}, got ${suggestions.length}.`,
     );
   }
 
@@ -160,7 +162,7 @@ function buildTextReport(report) {
 
 await clearFlightAgentSession(scenarioId);
 
-const context: any = {
+let context: any = {
   UID: scenarioId,
   uid: scenarioId,
   toolCallLog: [],
@@ -177,6 +179,9 @@ for (let index = 0; index < turns.length; index += 1) {
     requestId: `${scenarioId}-turn-${index + 1}`,
     context,
   });
+  // The runner merges the incoming context into its own session context and
+  // returns that object; reading the original would never see the flight state.
+  context = result.context;
   const calls = context.toolCallLog.slice(beforeCallCount);
   const actualTools = calls.map((call) => call.tool);
   const suggestedQuestions = context.flight?.suggestedQuestions || [];

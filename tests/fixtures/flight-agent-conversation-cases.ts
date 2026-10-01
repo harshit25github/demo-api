@@ -668,28 +668,28 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
 
   {
     id: 'trip_details_one_at_a_time',
-    focus: 'Holding suggestions back until a search exists, then fitting them to it',
+    focus: 'Suggestions that follow the trip as its details arrive, before and after the search',
     description:
-      'A bare request for a flight, then the departure location, arrival location and dates in three separate messages. Tests that no turn guesses a missing detail or re-asks a supplied one, that the turns before the search store no suggestions, and that the first search produces three that fit the new round trip.',
+      'A bare request for a flight, then the departure location, arrival location and dates in three separate messages. Tests that no turn guesses a missing detail or re-asks a supplied one, and that the suggestions track what is known: none while nothing is, then three grounded in each partial state, then three that fit the new round-trip search.',
     turns: [
       {
         user: 'I want to book a flight',
         understanding:
           'Flight intent with no route or timing at all. Ask for the departure location, arrival location and travel date together.',
         expectedTools: [],
-        why: 'Nothing can be searched yet, and with no search there is nothing to suggest, so the suggestions update stores none.',
+        why: 'Nothing can be searched yet, and nothing about the trip is known, so the suggestions update stores none.',
       },
       {
         user: 'from Delhi',
         understanding:
-          'The departure location is Delhi. The arrival location and travel date are still missing; ask only for those.',
+          'The departure location is Delhi. The arrival location and travel date are still missing; ask only for those. Suggest discovery grounded in Delhi, such as weekend or beach getaways from it.',
         expectedTools: [],
         why: 'Two blocking details remain. Searching would invent them, and asking again for the departure location just given is the failure to catch.',
       },
       {
         user: 'going to Mumbai',
         understanding:
-          'The arrival location is Mumbai. Only the travel date is missing; ask for it alone.',
+          'The arrival location is Mumbai. Only the travel date is missing; ask for it alone. Suggest price windows or concrete timing for Delhi to Mumbai.',
         expectedTools: [],
         why: 'One blocker remains. Guessing a date would return options for a day the traveller never named.',
       },
@@ -698,7 +698,7 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         understanding:
           'A round trip from Delhi to Mumbai, out on November 20 and back on November 27, with one adult in economy by default. Search without re-asking anything.',
         expectedTools: ['flight_search'],
-        why: 'The last blocker arrives, and every other detail came from the two messages before it. The first three suggestions of the conversation should fit this new round-trip search.',
+        why: 'The last blocker arrives, and every other detail came from the two messages before it. The suggestions should switch to the new round-trip results.',
       },
     ],
   },

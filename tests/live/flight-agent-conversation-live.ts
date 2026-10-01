@@ -12,8 +12,8 @@
  * Scoring follows the rules the fixture documents: drop the suggested-questions
  * update, collapse consecutive repeats of the same tool, and treat the remainder
  * as an ordered sequence. The update is scored on its own: a turn that runs
- * Flight must end with it, leaving 3 suggestions when a search is active and none
- * otherwise. `specialistsUsed` is reported but never scored — the fixture's
+ * Flight must end with it, leaving 3 suggestions whenever trip details are known,
+ * before or after a search. `specialistsUsed` is reported but never scored — the fixture's
  * expectations are about Flight's tool selection, and whether the Manager
  * delegated a context-only question is a separate signal worth reading rather
  * than failing on.
@@ -44,12 +44,14 @@ const [
   { hydrateGatewayContext, snapshotGatewayContext },
   { runGatewayAgent },
   { flightAgentConversationCases, NON_CORE_TOOLS, FLIGHT_CONVERSATION_CLOCK },
+  { hasFlightTravelContext },
 ] = await Promise.all([
   import('@openai/agents'),
   import('@openai/agents-openai'),
   import('../../src/api/chat/context-hydration.js'),
   import('../../src/agents/manager-orchestrator/runner.js'),
   import('../fixtures/flight-agent-conversation-cases.js'),
+  import('../../src/agents/flight/tools/suggested-questions-tool.js'),
 ]);
 
 function argument(name: string): string | undefined {
@@ -83,21 +85,26 @@ const SUGGESTIONS_TOOL = 'update_flight_suggested_questions';
 
 /**
  * The suggested-questions mandate, checked apart from the core tools: a turn
- * that runs Flight ends with the update and leaves 3 suggestions when a search
- * is active, none otherwise. Returns the problem, or null when the turn complies.
+ * that runs Flight ends with the update and leaves 3 suggestions whenever trip
+ * details are known, before or after a search. Details the Manager carried only
+ * in the subtask never reach the context, so without stored details either an
+ * empty list or 3 is accepted. Returns the problem, or null when the turn complies.
  */
 function checkSuggestions(
   rawTools: readonly string[],
   specialistsUsed: readonly string[],
-  flight: { searchKey?: unknown; suggestedQuestions?: unknown } | undefined,
+  context: { flight?: { suggestedQuestions?: unknown } } | undefined,
 ): string | null {
   if (!specialistsUsed.includes('flight_agent')) return null;
   if (rawTools.at(-1) !== SUGGESTIONS_TOOL) {
     return `turn did not end with ${SUGGESTIONS_TOOL}`;
   }
-  const count = Array.isArray(flight?.suggestedQuestions) ? flight.suggestedQuestions.length : 0;
-  const expected = flight?.searchKey ? 3 : 0;
-  return count === expected ? null : `expected ${expected} suggestions, found ${count}`;
+  const suggestions = context?.flight?.suggestedQuestions;
+  const count = Array.isArray(suggestions) ? suggestions.length : 0;
+  if (hasFlightTravelContext(context)) {
+    return count === 3 ? null : `expected 3 suggestions while trip details are known, found ${count}`;
+  }
+  return count === 0 || count === 3 ? null : `expected 0 or 3 suggestions, found ${count}`;
 }
 
 /**
@@ -146,7 +153,7 @@ for (const [index, turn] of scenario.turns.entries()) {
     const coreToolsMatched = JSON.stringify(actual) === JSON.stringify(expected);
     const specialistsUsed: string[] = result.specialistsUsed || [];
     const suggestedQuestions: string[] = result.context.flight?.suggestedQuestions || [];
-    const suggestionsProblem = checkSuggestions(rawTools, specialistsUsed, result.context.flight);
+    const suggestionsProblem = checkSuggestions(rawTools, specialistsUsed, result.context);
     const passed = coreToolsMatched && !suggestionsProblem;
     if (!passed) failures += 1;
 
