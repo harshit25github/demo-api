@@ -25,6 +25,8 @@ const SUGGESTED_TOOL = 'update_flight_suggested_questions';
 const RESULT_CHANGING_TOOLS = ['flight_search', 'apply_filter'];
 /** The ten scripted Flight conversations, the set fix verification re-runs. */
 const SCRIPTED_GROUP = 'flight-conversation-*';
+/** Scripted runs recorded before 73d5033, kept for the before-and-after comparison. */
+const BEFORE_MANDATE_DIR = 'artifacts/before-suggestions-mandate';
 
 /** See the Read Me sheet for what each value means. */
 type Origin = 'Production regression' | 'Local-only' | 'Shared weakness';
@@ -64,7 +66,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Replace the optional framing in all three live locations (prompt.ts:71, prompt.ts:137, agent.ts:229) with a required-final-step rule. Keep "never retry it or let its failure discard a result".',
     step: 'Step 3',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify:
       'Evidence: the "Ran neither" row reaches 100% on a fresh run of the scripted conversations.',
   },
@@ -84,7 +86,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Port a compact chain list adapted to the five registered tools. Do not copy the six chains that name resolve_flight_date: the tool is not registered (tools/index.ts:59-65) and flight-agent-price-prediction.test.ts:596 asserts FLIGHT_PROMPT never mentions it. Local ranking reads without selecting (prompt.ts:112), so production’s read-then-select chain becomes read only. The standalone chain matters most. The Chain Map sheet gives the adapted list.',
     step: 'Step 3',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify:
       'Evidence: the getGeneratedContractsContext, price_prediction_tool and (no tool) rows reach 100%.',
   },
@@ -101,7 +103,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'One checklist line in the "Final response and stopping" section.',
     step: 'Step 3',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify: 'A prompt unit test asserts the checklist line.',
   },
   {
@@ -119,7 +121,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Keep "never let it discard a successful result"; delete the optional-work and turn-budget trade-off.',
     step: 'Step 3',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify:
       'A prompt unit test asserts the trade-off is gone; the max-turns recovery test (flight-agent-recovery-loop.test.ts:425) still preserves core results.',
   },
@@ -139,7 +141,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'State the ordering in FLIGHT_MANAGER_INSTRUCTIONS and drop the de-escalation sentence. Do NOT add a schema field - the consumer reads shared context, not Manager feedback.',
     step: 'Step 3',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify: 'Evidence: every Manager-path Flight turn calls the tool.',
   },
   {
@@ -158,7 +160,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Mirror the Trip Planner sibling: "Call only after context capture and all planning tools, as the final tool call." (trip-planner/tools/context-tools.ts:205-206)',
     step: 'Step 2',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify: 'A unit test asserts the description calls it the final tool call.',
   },
   {
@@ -175,7 +177,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'DECISION NEEDED. A plain .min(3) is wrong while the empty array is how "no active search, clear stale suggestions" is expressed (:46-57). Option (a): keep 0..3 plus a clearOnly discriminator. Option (b), PREFERRED: .min(3).max(3) like Trip Planner (context-tools.ts:116-123), with clearing moved into the Step 1 finalize. Also consider a per-string .max(80).',
     step: 'Step 2',
-    status: 'Open',
+    status: 'Fixed in 73d5033 - kept 0..3 and made the first rejection retryable (see Open Decisions)',
     verify:
       'Unit tests: the schema rejects 1-2 items before execute, and the no-search path still clears.',
   },
@@ -195,7 +197,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'Gate on per-run turn state: at most two attempts, closed once written, reopened when flight_search or apply_filter runs after the write. Unlike Trip Planner (context-tools.ts:209-216), Flight has no mandatory first step, so "core work complete" cannot be computed - do not gate on it, and do not disable core tools after the write.',
     step: 'Step 2',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify:
       'Unit tests: a rejected draft can be retried once, and a search after the write reopens the tool.',
   },
@@ -211,11 +213,11 @@ const GAPS: GapRow[] = [
     missing:
       'A turn-end finalize on every path plus a per-turn written flag. Trip Planner has both: finalizeTripPlannerTurn clears when !turnState.suggestionsUpdated (trip-planner/context/lifecycle.ts:423-425), and trip-planner/runner.ts:434 clears on error.',
     impact:
-      'Silent staleness, invisible to tests: the deep-chats live check only asserts suggestions.length === 3 (flight-agent-intelligence-deep-chats-live.ts:798), which stale data passes.',
+      'Stale suggestions reach the client with no error. Only the deep-chats live check would notice, because it compares each set with the previous turn (flight-agent-intelligence-deep-chats-live.ts:826), and it runs only by hand.',
     severity: 'High',
     fix: 'Keep the finalize, cover the Manager error path, and add tests. First decide whether a skipped read-only turn should clear or keep its suggestions: clearing turns stale-but-same-search suggestions into none, so land Step 1 with or just before Steps 2-3.',
     step: 'Step 1',
-    status: 'Open - uncommitted draft in working tree, untested',
+    status: 'Fixed in 73d5033 - the working-tree draft was reworked and committed',
     verify:
       'Unit tests: with an active search and no tool call, no previous strings survive the turn; the finalize also runs when Flight throws on the Manager path.',
   },
@@ -234,7 +236,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Keep the clearing (it is correct invalidation) and close the hole through G1, G6, G8 and G9.',
     step: 'Step 1',
-    status: 'Open - the clearing is uncommitted working-tree code',
+    status: 'Fixed in 73d5033 - the clearing in flight_search and apply_filter is still uncommitted working-tree code',
     verify: 'Evidence: "Search/filter turns with no refresh" reaches 0.',
   },
   {
@@ -250,7 +252,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'Make the G9 finalize the enforcement point. Keep toolChoice: auto - forcing a specific tool would break the core tool loop.',
     step: 'Step 1',
-    status: 'Open - uncommitted draft in working tree, untested',
+    status: 'Fixed in 73d5033',
     verify: 'Covered by the G9 tests.',
   },
   {
@@ -267,7 +269,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Flip the expectations in the same change as Step 3, not after it.',
     step: 'Step 4',
-    status: 'Open',
+    status: 'Fixed in 73d5033, 4dae460 and 488c0e9',
     verify:
       'npm test passes with the mandate in place, and the report harness expects the tool on every turn.',
   },
@@ -286,7 +288,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'Log whether suggestions were written or cleared, and how many, from the Manager-path finalize as well as the standalone runner.',
     step: 'Step 1',
-    status: 'Open - uncommitted draft logs only on the standalone path',
+    status: 'Fixed in 73d5033 - flight_suggestions.turn is logged on both paths',
     verify: 'A Manager-path Flight turn emits the log line.',
   },
   {
@@ -302,7 +304,7 @@ const GAPS: GapRow[] = [
     severity: 'Low',
     fix: 'The docs become correct once Step 3 lands; add the chain list and note that FLIGHT_PROD_PROMPT_TEXT is reference text that never reaches the model.',
     step: 'Step 5',
-    status: 'Open',
+    status: 'Fixed in 488c0e9',
     verify: 'Doc review against the shipped prompt.',
   },
   {
@@ -321,7 +323,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'Restore a compact content block of four or five lines in the tool section, worded for both standalone and Manager mode.',
     step: 'Step 3',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify:
       'A prompt unit test asserts the rules, and the deep-chats live check passes.',
   },
@@ -340,7 +342,7 @@ const GAPS: GapRow[] = [
     severity: 'Low',
     fix: 'Optional: a small validator for exact repeats of the previous set, assistant-style openers, mandatory-field wording and length, returning a retryable failure under the G8 gate.',
     step: 'Step 2',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify: 'Unit tests for each rejected case and for the retry.',
   },
   {
@@ -359,7 +361,7 @@ const GAPS: GapRow[] = [
     severity: 'Low',
     fix: 'Reset a Flight turn state at the start of every Flight run, on both the Manager and standalone paths, and gate on it instead of the requestId.',
     step: 'Step 2',
-    status: 'Open',
+    status: 'Fixed in 73d5033 - a search or filter reopens the tool, instead of per-run state',
     verify:
       'Integration test: two Flight calls in one Manager turn both refresh suggestions.',
   },
@@ -379,7 +381,7 @@ const GAPS: GapRow[] = [
     severity: 'Low',
     fix: 'One sentence: if a search key exists after this turn’s tools, pass exactly three suggestions; otherwise pass an empty array. Say that clarification turns with a search key also get three.',
     step: 'Step 3',
-    status: 'Open',
+    status: 'Fixed in 73d5033',
     verify:
       'Scripted test: a hydrated key plus a clarification turn stores three suggestions.',
   },
@@ -395,7 +397,7 @@ const OPEN_DECISIONS: string[][] = [
   [
     'G7 schema shape',
     'A plain .min(3) breaks the empty-array clear path. Option (b) - exactly 3 at the schema level, clearing moved to the Step 1 finalize - is preferred.',
-    'Open - decide before Step 2.',
+    'Resolved in 73d5033 - kept 0..3 and made the first rejection retry-safe instead. The update now runs on every turn, so the empty array stays the no-search signal, and tool feedback corrects a misjudged search state instead of ending the turn. A second rejection withdraws the tool.',
   ],
   [
     'Dead reference prompt',
@@ -405,64 +407,70 @@ const OPEN_DECISIONS: string[][] = [
   [
     'Skip policy on read-only turns',
     'When Flight skips the tool on a turn that ran no search or filter, the previous suggestions still describe the same results. Clearing them, as the draft finalize and Trip Planner do, removes any risk of suggesting what the user just did, but leaves no suggestions on most read-only turns until Steps 2-3 raise the call rate. Keeping them leaves suggestions that can repeat the action just taken.',
-    'Open - decide before Step 1. Recommended: clear, shipped together with Steps 2-3.',
+    'Resolved in 73d5033 - clear, shipped together with the mandate, so a skip leaves no suggestions rather than stale ones.',
   ],
   [
     'Turns where Flight never runs',
     'When the Manager answers without calling flight_agent, nothing touches context.flight.suggestedQuestions, and the previous Flight suggestions go out again in done.flightContext (api/chat/orchestrator.ts:228). They still describe the active search, but not the latest exchange. The Evidence sheet counts these turns separately.',
-    'Open - product decision.',
+    'Resolved in 73d5033 - keep. The finalize clears only after a Flight run; a turn the Manager answers alone leaves the suggestions for the active search. Revisit if the client should hide them on such turns.',
   ],
   [
     'Uncommitted Step 1 draft',
     'suggested-questions-tool.ts (writtenRequestIds, finalizeFlightSuggestedQuestions), runner.ts and manager/specialists/flight.ts were edited at 15:31-15:32 on 2026-10-01, after this register was first committed. The draft is uncommitted and untested. Known holes: no finalize when the nested Flight run throws on the Manager path, and logging only in the standalone runner.',
-    'Open - keep it as the Step 1 starting point or discard it. It is not approved work.',
+    'Resolved in 73d5033 - reworked and committed: a turn snapshot of the previous suggestions, finalize at the end of the Manager turn in a finally, and an agent_start mark for Flight runs.',
   ],
   [
     'G16 scope',
     'Production never validated suggestion content in code, so a validator goes beyond parity. It matches Trip Planner, which validates and allows one retry.',
-    'Open - decide before Step 2.',
+    'Resolved in 73d5033 - in scope: the tool validates drafts and allows one corrected retry.',
   ],
 ];
 
 const FIX_SEQUENCE: string[][] = [
-  ['Step', 'Scope', 'Gaps', 'Why this order'],
+  ['Step', 'Scope', 'Gaps', 'Why this order', 'Status'],
   [
     'Step 0',
     'This Excel register + extract the shared XLSX writer into scripts/lib/xlsx-workbook.ts',
     '-',
     'Track the gaps before changing behaviour.',
+    'Done in 5f32c14, a5de88c and 9f2a010',
   ],
   [
     'Step 0b',
     'Baseline: re-run the ten scripted conversations on the current prompt, then re-run this generator',
     '-',
     'No recorded artifact reflects the working-tree prompt, so later steps need a fresh baseline to compare against. Live runs cost API calls.',
+    'Replaced by the scripted runs recorded earlier on 2026-10-01, kept in artifacts/before-suggestions-mandate/ (see Evidence)',
   ],
   [
     'Step 1',
     'Deterministic state correctness: per-turn written flag, turn-end finalize on the success and error paths of both the standalone and Manager runs, per-turn logging on the Manager path',
     'G9, G10, G11, G13',
     'Correct on its own merits: after this, a skipped call can no longer ship stale data. Decide the read-only skip policy first. Shipped alone it leaves no suggestions on most read-only turns, so land it with or just before Steps 2-3.',
+    'Done in 73d5033, together with Steps 2-4',
   ],
   [
     'Step 2',
     'Tool contract: required-terminal description, schema decision, per-run gate with one retry, per-Flight-run turn state, optional content validator',
     'G6, G7, G8, G16, G17',
     'The tool description must stop contradicting the mandate before the prompt asserts it.',
+    'Done in 73d5033',
   ],
   [
     'Step 3',
     'Prompt authority: mandate wording, stop rule, adapted chain list, checklist line, Manager-mode ordering, content rules, active-search binding',
     'G1, G2, G3, G4, G5, G15, G18',
     'Raises the call rate once the state layer is already safe.',
+    'Done in 73d5033',
   ],
   [
     'Step 4',
     'Tests: flip flight-agent-price-prediction.test.ts:609-612, invert NON_CORE_TOOLS, rewrite the flight-gap-contracts case, add the tool to the 17 expectedTools arrays, add an npm script for the variation live check',
     'G12',
     'Must land with Step 3: the unit suite asserts the optional wording, and the report harness compares tool sequences by exact equality.',
+    'Done in 73d5033, 4dae460 and 488c0e9',
   ],
-  ['Step 5', 'Reconcile the four docs', 'G14', 'Last, once behaviour is settled.'],
+  ['Step 5', 'Reconcile the four docs', 'G14', 'Last, once behaviour is settled.', 'Done in 488c0e9: docs/flight-suggested-questions.md is the current reference'],
 ];
 
 const READ_ME: string[][] = [
@@ -473,7 +481,7 @@ const READ_ME: string[][] = [
   ],
   [
     'Sheets',
-    'Gap Register: one row per gap. Evidence: call rates measured from artifacts/. Skip Scenarios: when the current agent skips the tool. Production Map: where production states the mandate, beside the local equivalent. Chain Map: production’s 15 tool chains mapped to the five registered local tools. Fix Sequence: the order to close the gaps. Open Decisions: choices to make before development.',
+    'Gap Register: one row per gap. Evidence: call rates measured from artifacts/. Skip Scenarios: when the current agent skips the tool. Production Map: where production states the mandate, beside the local equivalent. Chain Map: production’s 15 tool chains mapped to the five registered local tools. Fix Sequence: the order the gaps were closed in, with commits. Open Decisions: the choices made along the way, and the one still open.',
   ],
   [
     'How to update',
@@ -493,7 +501,7 @@ const READ_ME: string[][] = [
   ],
   [
     'Uncommitted work',
-    'G9, G10, G11 and G13 refer to code that exists only in the uncommitted working tree; see Open Decisions. Nothing in this register is approved for implementation yet.',
+    'Every gap records the commit that closed it in Status. The "Current behavior" column describes the code at analysis time, before those commits. The clearing in flight_search and apply_filter (G10) is still uncommitted working-tree code.',
   ],
 ];
 
@@ -663,9 +671,13 @@ interface TurnRecord {
   flightTools?: unknown;
   actualTools?: unknown;
   specialistsUsed?: unknown;
+  /** Written by the live conversation runner from 4dae460 on: 'ok' or the problem. */
+  suggestionsCheck?: unknown;
 }
 
 interface TurnFact {
+  /** The artifact file the turn came from. */
+  file: string;
   group: string;
   /** Sorted core tools in the turn, or "(no tool)". */
   signature: string;
@@ -676,6 +688,8 @@ interface TurnFact {
   flightRan: boolean;
   /** The turn ran Flight as a Manager tool rather than through the standalone runner. */
   managerPath: boolean;
+  /** The runner's suggestions verdict, or null for a recording made before it existed. */
+  suggestionsCheck: string | null;
 }
 
 interface Evidence {
@@ -742,6 +756,7 @@ async function collectEvidence(artifactsDir: string): Promise<Evidence> {
       const core = [...new Set(tools.filter((tool) => tool !== SUGGESTED_TOOL))].sort();
       const specialists = Array.isArray(turn.specialistsUsed) ? turn.specialistsUsed : null;
       facts.push({
+        file: name,
         group: groupFor(name),
         signature: core.length > 0 ? core.join(' + ') : '(no tool)',
         called: tools.includes(SUGGESTED_TOOL),
@@ -749,6 +764,8 @@ async function collectEvidence(artifactsDir: string): Promise<Evidence> {
         // Standalone recordings have no specialist list; Flight is the only agent there.
         flightRan: specialists ? specialists.includes('flight_agent') : true,
         managerPath: specialists !== null,
+        suggestionsCheck:
+          typeof turn.suggestionsCheck === 'string' ? turn.suggestionsCheck : null,
       });
     }
   }
@@ -792,7 +809,39 @@ function signatureTable(
   return rows;
 }
 
-function buildEvidenceSheet({ fileCount, facts }: Evidence): WorkbookSheet {
+/** Scripted Flight turns before 73d5033 against the re-recorded runs after it. */
+function comparisonTable(before: TurnFact[], after: TurnFact[]): (string | number)[][] {
+  const describe = (facts: TurnFact[]) =>
+    facts.length > 0
+      ? `${countCalled(facts)} of ${facts.length} (${rate(countCalled(facts), facts.length)})`
+      : 'none';
+  const slices: Array<[string, (fact: TurnFact) => boolean]> = [
+    ['All Flight turns', () => true],
+    ['Ran flight_search or apply_filter', (fact) => fact.changedResults],
+    ['Ran neither', (fact) => !fact.changedResults],
+    ['Contract read only', (fact) => fact.signature === 'getGeneratedContractsContext'],
+    ['Price prediction only', (fact) => fact.signature === 'price_prediction_tool'],
+    ['No core tool', (fact) => fact.signature === '(no tool)'],
+  ];
+  const checked = after.filter((fact) => fact.suggestionsCheck !== null);
+  return [
+    ['Before and after 73d5033 - scripted conversations recorded on both sides, Flight turns'],
+    ['Turns that called the tool', `Before (${BEFORE_MANDATE_DIR})`, 'After (re-recorded runs)'],
+    ...slices.map(([label, keep]) => [
+      label,
+      describe(before.filter(keep)),
+      describe(after.filter(keep)),
+    ]),
+    ['Search/filter turns with no refresh', countNoRefresh(before), countNoRefresh(after)],
+    [
+      'Turns passing the runner’s suggestions check: the update ran last, with 3 suggestions when a search existed and none otherwise',
+      'not recorded',
+      `${checked.filter((fact) => fact.suggestionsCheck === 'ok').length} of ${checked.length}`,
+    ],
+  ];
+}
+
+function buildEvidenceSheet({ fileCount, facts }: Evidence, before: Evidence): WorkbookSheet {
   const flightFacts = facts.filter((fact) => fact.flightRan);
   const changed = flightFacts.filter((fact) => fact.changedResults);
   const unchanged = flightFacts.filter((fact) => !fact.changedResults);
@@ -809,6 +858,9 @@ function buildEvidenceSheet({ fileCount, facts }: Evidence): WorkbookSheet {
       'Method: for each Flight turn, read the tool list (rawTools, else flightTools, else actualTools) and check whether it contains ' +
         SUGGESTED_TOOL +
         '. "Search/filter turns with no refresh" counts turns where flight_search or apply_filter replaced the results and the tool was not called. With the working-tree code those turns end with no suggestions; with committed HEAD they keep suggestions written for the previous results.',
+    ],
+    [
+      'After 73d5033 the ten scripted conversations (flight-conversation-*) were re-recorded; manager-flight-* and manager-realistic-* still predate it, so the totals below mix both. The comparison table at the end isolates the scripted runs.',
     ],
     [
       'At analysis (2026-10-01): the recordings come from two prompt eras (manager-flight-five-chats-* and manager-realistic-conversations from 2026-09-19, the rest from 2026-09-30 to 2026-10-01). None reflect the working-tree prompt edited at 14:28 on 2026-10-01, so capture a fresh baseline before Step 1.',
@@ -869,6 +921,22 @@ function buildEvidenceSheet({ fileCount, facts }: Evidence): WorkbookSheet {
     rate(countCalled(flightFacts), flightFacts.length),
     countNoRefresh(flightFacts),
   ]);
+
+  const beforeScripted = before.facts.filter(
+    (fact) => fact.flightRan && fact.group === SCRIPTED_GROUP,
+  );
+  // Only scripts recorded on both sides, so a script added later cannot skew it.
+  const beforeFiles = new Set(beforeScripted.map((fact) => fact.file));
+  const afterScripted = flightFacts.filter(
+    (fact) =>
+      fact.group === SCRIPTED_GROUP &&
+      fact.suggestionsCheck !== null &&
+      beforeFiles.has(fact.file),
+  );
+  if (beforeScripted.length > 0 || afterScripted.length > 0) {
+    rows.push([]);
+    rows.push(...comparisonTable(beforeScripted, afterScripted));
+  }
 
   rows.push([]);
   rows.push(['Target after the fix']);
@@ -969,15 +1037,55 @@ const SKIP_SCENARIOS: SkipScenario[] = [
   },
 ];
 
+/** How 73d5033 handles each scenario. Every scenario above needs an entry. */
+const HANDLED_AFTER_FIX: Record<string, string> = {
+  'Informational or ranking question about current options':
+    'Approved chain: getGeneratedContractsContext read, then the update. See the before-and-after table on the Evidence sheet.',
+  'Price / date intelligence':
+    'Approved chains for advice only, advice plus results, and advice about a current option, each ending with the update.',
+  'Clarification, missing-info or source-option answer with no core tool':
+    'The update alone: 3 suggestions when a search key exists, an empty array otherwise.',
+  'Filter-only turn':
+    'Approved chain: apply_filter, then the update. The suggestions guide covers relaxing the new constraint.',
+  'Search turn (for comparison)':
+    'Unchanged, and now required rather than habitual.',
+  'Under turn-budget pressure':
+    'The trade-off clause is gone; the prompt asks for lean core work so the update fits (G4).',
+  'Manager mode':
+    'FLIGHT_MANAGER_INSTRUCTIONS orders the update before the structured feedback and no longer calls it optional (G5).',
+  'Non-deterministically, on identical input':
+    'The mandate removes the choice. If a run still skips, the finalize clears rather than shipping stale suggestions.',
+  'After a rejected draft':
+    'The first rejection is retry-safe and lists the issues; only a second rejection withdraws the tool (G7, G8).',
+  'Second Flight call in one Manager turn':
+    'A search or filter in the second run reopens the tool; a read-only second run keeps the first run’s suggestions (G17).',
+  'Hydrated but unvalidated search key':
+    'The dynamic prompt says a present key counts even when not validated, and an empty array sent with a key is now retry-safe (G18).',
+  'Run error or max turns':
+    'Both runners finalize on failure: the standalone runner in its catch, the Manager runner in a finally.',
+  'Manager answers without calling Flight':
+    'Kept on purpose: the finalize clears only after a Flight run.',
+};
+
 function buildSkipScenariosSheet({ facts }: Evidence): WorkbookSheet {
+  const unmapped = SKIP_SCENARIOS.filter((item) => !(item.scenario in HANDLED_AFTER_FIX));
+  if (unmapped.length > 0) {
+    throw new Error(`HANDLED_AFTER_FIX is missing: ${unmapped.map((item) => item.scenario).join(', ')}`);
+  }
   return {
     name: 'Skip Scenarios',
     rows: [
-      ['Scenario', 'Evidence (measured rows are re-tallied on every run)', 'Why the current agent skips it'],
+      [
+        'Scenario',
+        'Evidence (measured rows are re-tallied on every run)',
+        'Why the agent skipped it before 73d5033',
+        'How it is handled now',
+      ],
       ...SKIP_SCENARIOS.map((item) => [
         item.scenario,
         item.measure ? item.measure(facts) : item.evidence || '',
         item.why,
+        HANDLED_AFTER_FIX[item.scenario],
       ]),
     ],
   };
@@ -1021,9 +1129,10 @@ const registerSheet: WorkbookSheet = {
 
 const projectRoot = process.cwd();
 const evidence = await collectEvidence(path.join(projectRoot, 'artifacts'));
+const beforeMandate = await collectEvidence(path.join(projectRoot, BEFORE_MANDATE_DIR));
 const sheets: WorkbookSheet[] = [
   registerSheet,
-  buildEvidenceSheet(evidence),
+  buildEvidenceSheet(evidence, beforeMandate),
   buildSkipScenariosSheet(evidence),
   { name: 'Production Map', rows: PRODUCTION_MAP },
   { name: 'Chain Map', rows: CHAIN_MAP },
