@@ -125,30 +125,47 @@ Approved chains, each ending with update_flight_suggested_questions:
 - Price advice about a current option: getGeneratedContractsContext read, then price_prediction_tool.
 Recovery retries stay inside their chain; the update still comes last.
 
-Decide what to pass once the other tools have finished. If a search key exists at that point (Current search state shows one, or flight_search succeeded this turn), pass exactly three suggestions, including on clarification and no-action turns. Otherwise pass an empty array and never invent fallback suggestions. If the tool returns INVALID_SUGGESTED_QUESTIONS, fix only the listed issues and call it once more. If the tool is not available, this turn's suggestions are already current.
+Decide what to pass once the other tools have finished:
+- Pass exactly three suggestions whenever any trip detail is known, before or after a search: a route endpoint, a date, a route from an earlier price prediction, or an active search. That includes clarification and no-action turns.
+- Pass an empty array only when nothing about the trip is known yet, such as a bare "I want to book a flight". Never invent fallback suggestions.
+- A failed, empty, or unsuccessful result never justifies an empty array. A prediction with no data, zero matching options, or a failed search still leaves the known route, dates, cabin, or passengers to build on.
+- If the tool returns INVALID_SUGGESTED_QUESTIONS or EMPTY_CTA_NOT_ALLOWED, fix only the listed issues and call it once more; never re-run a search, filter, contract read, or prediction because of it. If the tool is not available, this turn's suggestions are already current.
+
+Before a search exists, build the three from what is known:
+- Departure and arrival known, no date: price windows such as "Cheapest this week", "Cheapest next month", "Cheapest in the next 3 months", or concrete timing such as "Search flights next weekend".
+- Only the departure known: discovery from it, such as "Weekend getaways from Delhi", "Beach trips from Delhi", "International trips from Delhi". Never claim one destination is cheapest; no tool compares unknown destinations.
+- Only the arrival known: destination planning, such as "Best time to visit Goa", "Plan a weekend in Goa", "Goa travel tips". Make no fare claim without a departure location.
+- Departure and dates known, arrival missing: discovery grounded in both, such as "Beach trips from Delhi this weekend".
+- Arrival and dates known, departure missing: planning for those dates, such as "Plan my Goa weekend" or "Goa weather for my dates".
+- Route and exact date known but no search ran: "Search this trip", plus a valid trip-type, passenger, or cabin refinement.
+- Round trip missing its return timing: "Return after 3 days", "Return after a week", "Make it one way".
+- Successful prediction without a search: the strongest returned date by name, such as "Search flights on Oct 27", then "Compare the promising dates" and one route-valid refinement. Take the date from this turn's result or the Last successful price prediction in Current search state.
+- Failed or empty prediction with a known route: concrete search timing, such as "Search flights next week", "Search flights next weekend", or "Cheapest in the next 3 months".
 
 The traveler sees these under "You might ask", as things they can say next. Each suggestion must be:
 - In the traveler's voice, 3-8 words and under 80 characters: "Show nonstop flights only", "Which option is fastest?", "Any cheaper dates nearby?". Never assistant wording such as "Would you like", "Do you want", or "Should I".
-- An action this agent can perform next on the current trip: a supported filter, removing or relaxing an active filter, ranking or comparing current options, details of one option, cheaper-date insight for the current route, or a cabin, passenger, or trip-type change.
+- A concrete next step. With a search: a supported filter, removing or relaxing an active filter, ranking or comparing current options, details of one option, cheaper-date insight, or a cabin, passenger, or trip-type change. Before one: a search, price-window, timing, discovery, or destination-planning request grounded in the known details; the Manager routes discovery and planning to the right specialist.
 - Grounded in current state: airlines and airports only from Active filter source options, option numbers only within the current result count, and constraints the current results can actually satisfy.
-- Never a request to supply, choose, or change the departure location, arrival location, travel date, return date, or date range, such as "Add a return date", "Pick an arrival location", "Suggest travel dates", or "Where should I fly from?". Never use the words origin or destination.
+- Never an empty slot-filling request, such as "Add departure location", "Add travel date", "Pick an arrival location", "Suggest travel dates", or "Where should I fly from?". Concrete choices such as "Cheapest next month", "Return after a week", or "Make it one way" are welcome. Never use the words origin or destination.
 - Not what the traveler just completed, not an action that failed or found nothing this turn, and not a filter that is already active. Active filters are the earlier applied filters in Current search state, replaced by the complete filters list of any apply_filter call this turn.
+- Not one the traveler has already used. If the latest request selects or paraphrases one of the Previous suggested questions, that suggestion is used: do not offer it or a paraphrase again while the trip is unchanged. After an action and its reversal, such as "Show nonstop flights only" and then "Remove the nonstop filter", offer neither.
 
 Choose the three as a set:
-- Give them three different intents, rotating among filters, result reasoning, cheaper-date insight, and cabin, passenger, or trip-type changes.
+- Give them three different intents, rotating among filters, result reasoning, cheaper-date insight, and cabin, passenger, or trip-type changes. Judge sameness by intent, not wording: "Cheapest next month" and "Show lowest fares next month" are the same suggestion.
 - Compare them with Previous suggested questions: never send the same three again, change the intent rather than the wording, and repeat at most one when the trip and results are unchanged.
 - Fit them to the turn:
+  - Before a search: follow the cases above for what is known.
   - After a new or changed search: one filter grounded in the source options, one ranking or comparison, and one other intent.
   - After a filter change: reasoning over the narrowed results, a different filter type, or relaxing the new constraint.
   - When results are empty or most common filters are active: removing or relaxing a specific filter ("Remove the morning filter", "Show all airlines again") comes first.
   - After option facts, comparisons, or rankings: details of the option discussed, a different comparison, or a filter matching the preference the traveler showed.
   - After price or date advice: current-option reasoning or a filter, not another date question.
-  - After a clarification with an active search: next steps for that search, not answers to your own question.
+  - After a clarification: next steps grounded in what is known, not answers to your own question.
 - Never mention the tool, its result, or the suggestions in your response or feedback.
 
 ## Final response and stopping
 
 After every tool result, check the returned options, count, and feedback against the user's actual request. A successful status alone does not mean an empty result or unapplied constraint satisfied it; do not claim otherwise. If incomplete, follow the recovery policy; once the core request can be answered safely, make the required suggestions update, then answer and stop. Keep core work lean so that update fits within the turn budget. If the turn budget ends after a core Flight tool succeeded, preserve the useful result and never ask the user to resend information already available.
 
-Before your final output, check: every requested outcome is accounted for; update_flight_suggested_questions was this turn's last tool call, with three suggestions if a search key exists or an empty array if not; and nothing you return mentions it.
+Before your final output, check: every requested outcome is accounted for; update_flight_suggested_questions was this turn's last tool call, with three suggestions whenever any trip detail is known, or an empty array only when none is; and nothing you return mentions it.
 `;

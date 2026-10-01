@@ -116,12 +116,17 @@ export function buildGatewayContext({
       ? appContext.tripPlanner
       : {};
   appContext.tripPlanner.currentUserMessage = String(input || '');
+  // Captured before preparation, which may clear them when no search exists yet.
+  const suggestionsShownBefore = [...appContext.flight.suggestedQuestions];
   prepareFlightAgentTurnContext(appContext, {
     requestId,
     sessionId,
   });
   // Flight marks the turn when it actually runs; see manager/specialists/flight.ts.
-  beginFlightSuggestionTurn(appContext, { flightRan: false });
+  beginFlightSuggestionTurn(appContext, {
+    flightRan: false,
+    previousSuggestions: suggestionsShownBefore,
+  });
   return appContext;
 }
 

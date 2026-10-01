@@ -139,12 +139,17 @@ async function runFlightAgentInternal({
   const appContext = getFlightAgentContext(sessionId, context);
   appContext.currentUserMessage = input;
   const turnToolLogStart = appContext.toolCallLog.length;
+  // Captured before preparation, which may clear them when no search exists yet.
+  const suggestionsShownBefore = [...appContext.flight.suggestedQuestions];
 
   prepareFlightAgentTurnContext(appContext, {
     requestId,
     sessionId,
   });
-  beginFlightSuggestionTurn(appContext, { flightRan: true });
+  beginFlightSuggestionTurn(appContext, {
+    flightRan: true,
+    previousSuggestions: suggestionsShownBefore,
+  });
   const requestClock = createRequestClock({
     now,
     timeZone,

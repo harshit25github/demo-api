@@ -118,6 +118,31 @@ function buildPreviousSuggestedQuestionsSummary(context: DynamicRecord): string 
   return suggestions.map((suggestion) => compactText(suggestion)).join('\n');
 }
 
+type PredictionPick = { departureDate?: string; outboundDate?: string; returnDate?: string };
+
+/**
+ * The last successful price prediction, so a later turn can search its strongest
+ * date without predicting again, and suggestions can name that date.
+ */
+function buildLastPredictionSummary(context: DynamicRecord): string {
+  const prediction = context?.flight?.lastPricePrediction;
+  if (!prediction || prediction.status !== 'SUCCESS') {
+    return 'none';
+  }
+  const ranked: PredictionPick[] = prediction.tripType === 'roundtrip'
+    ? prediction.cheapestCombinations || []
+    : prediction.cheapestDates || [];
+  const dates = ranked
+    .slice(0, 3)
+    .map((pick) => (pick.outboundDate ? `${pick.outboundDate} returning ${pick.returnDate}` : pick.departureDate))
+    .filter(Boolean);
+  if (dates.length === 0) {
+    return 'none';
+  }
+  const route = `${prediction.route?.originCity || 'unknown'} to ${prediction.route?.destinationCity || 'unknown'}`;
+  return `${route} (${prediction.tripType || 'oneway'}), strongest dates in rank order: ${dates.join('; ')}`;
+}
+
 function formatAppliedFilter(filter: DynamicRecord = {}): string | null {
   const rawLabel = compactText(filter.rawUserFilter);
   if (rawLabel) {
@@ -190,7 +215,7 @@ export function buildFlightAgentInstructions(runContext: { context?: unknown }):
 ${buildFlightDateDynamicPromptContext(clock)}
 - UID is available in context.
 - Hydrated search key present (not validated): ${hasHydratedSearchKey ? 'yes' : 'no'}.
-- For the final suggestions update, a present search key counts even when not validated: pass three suggestions if one exists after this turn's tools (a successful flight_search creates one), otherwise an empty array.
+- For the final suggestions update, any known trip detail counts, including a search key that is not validated: pass three grounded suggestions, and an empty array only when nothing about the trip is known.
 - Hydrated flight result records present (not validated): ${hasHydratedResults ? 'yes' : 'no'}.
 
 ### Current Existing Search Parameters — Fallback Context
@@ -203,6 +228,7 @@ Parameters cover departure location, arrival location, outbound date, return dat
 
 - Existing search parameters: ${buildActiveSearchSummary(context)}
 - Current price-prediction route codes: ${buildPricePredictionRouteSummary(context)}.
+- Last successful price prediction: ${buildLastPredictionSummary(context)}.
 - Active filter source options: ${compactText(buildActiveFilterOptionsSummary(context))}
 
 ### Already applied filters that belong to the current search

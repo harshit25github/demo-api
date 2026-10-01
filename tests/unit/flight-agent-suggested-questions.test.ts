@@ -6,6 +6,7 @@ import {
   beginFlightSuggestionTurn,
   finalizeFlightSuggestedQuestions,
   findSuggestedQuestionIssues,
+  hasFlightTravelContext,
   markFlightSuggestionRun,
   previousFlightSuggestions,
   updateFlightSuggestedQuestions,
@@ -14,6 +15,7 @@ import { FlightSearchTool as FlightSearchToolDefinition } from '../../src/agents
 import { flightTools } from '../../src/agents/flight/tools/index.js';
 import { FLIGHT_PROMPT } from '../../src/agents/flight/prompt.js';
 import { FLIGHT_MANAGER_INSTRUCTIONS } from '../../src/agents/flight/manager-output.js';
+import { MANAGER_PROMPT } from '../../src/agents/manager-orchestrator/manager-prompt.js';
 
 process.env.OPENAI_API_KEY ||= 'test-key';
 
@@ -160,28 +162,24 @@ test('flight search updates nested searchKey before suggestions are stored', asy
   assert.deepEqual(context.flight.suggestedQuestions, suggestedQuestions);
 });
 
-test('helper clears stale suggestions when latest context.flight.searchKey is missing', () => {
+test('with no trip detail known, an empty array clears the stored suggestions', () => {
   const context: any = {
     searchKey: 'stale-root-search-key',
     flight: { suggestedQuestions: ['Old stale suggestion'] },
   };
-  const suggestedQuestions = [
-    'Compare current options',
-    'Apply non-stop filter',
-    'Which flight is best?',
-  ];
 
   const output = updateFlightSuggestedQuestions({
     currentFlightContext: context,
-    suggestedQuestions,
+    suggestedQuestions: [],
   });
 
+  assert.equal(hasFlightTravelContext(context), false);
   assert.equal(output.ok, true);
   assert.deepEqual(output.suggestedQuestions, []);
   assert.deepEqual(context.flight.suggestedQuestions, []);
 });
 
-test('tool re-checks nested searchKey at execution time and clears stale suggestions', async () => {
+test('the tool stores pre-search suggestions when no search exists yet', async () => {
   const context: any = {
     searchKey: 'stale-root-search-key',
     flight: {
@@ -190,13 +188,39 @@ test('tool re-checks nested searchKey at execution time and clears stale suggest
     },
     toolCallLog: [],
   };
+  const preSearch = ['Cheapest this week', 'Cheapest next month', 'Cheapest in the next 3 months'];
 
-  const output = await callTool(context, FRESH);
+  const output = await callTool(context, preSearch);
 
-  assert.deepEqual(output, { ok: true, suggestedQuestions: [] });
-  assert.deepEqual(context.flight.suggestedQuestions, []);
+  assert.deepEqual(output, { ok: true, suggestedQuestions: preSearch });
+  assert.deepEqual(context.flight.suggestedQuestions, preSearch);
   assert.equal(context.toolCallLog.at(-1).searchKey, null);
-  assert.deepEqual(context.toolCallLog.at(-1).suggestedQuestions, []);
+});
+
+test('an empty array is refused while any trip detail is known', async () => {
+  const withSearch = activeSearchContext('empty-with-search', [...FRESH]);
+  const withRoute: any = {
+    requestId: 'empty-with-route',
+    flight: { segments: [{ origin: 'DEL', destination: '', date: '' }] },
+    toolCallLog: [],
+  };
+  const withPrediction: any = {
+    requestId: 'empty-with-prediction',
+    flight: {
+      lastPricePrediction: { status: 'NO_PREDICTIONS', route: { originCity: 'JAI', destinationCity: 'PNQ' } },
+    },
+    toolCallLog: [],
+  };
+
+  for (const context of [withSearch, withRoute, withPrediction]) {
+    assert.equal(hasFlightTravelContext(context), true, JSON.stringify(context.flight));
+    const output = await callTool(context, []);
+    assert.equal(output.ok, false);
+    assert.equal(output.code, 'EMPTY_CTA_NOT_ALLOWED');
+    assert.equal(output.recovery.retrySafe, true);
+  }
+  // A refused empty list stores nothing, so it cannot wipe the current set.
+  assert.deepEqual(withSearch.flight.suggestedQuestions, FRESH);
 });
 
 test('helper rejects invalid suggested question payloads without generating fallback questions', () => {
@@ -266,12 +290,14 @@ test('validator rejects assistant voice, route and date requests, internal names
     ['Would you like nonstop flights?', /traveler/],
     ['Do you want to compare options?', /traveler/],
     ['Should I filter by airline?', /traveler/],
-    ['Add a return date', /route or date field/],
-    ['Suggest travel dates', /route or date field/],
-    ['Change my destination to Goa', /route or date field/],
-    ['Show flights from my origin', /route or date field/],
-    ['Pick an arrival location', /route or date field/],
-    ['Where should I fly from?', /route or date field/],
+    ['Add a return date', /trip detail/],
+    ['Add travel date', /trip detail/],
+    ['Add departure location', /trip detail/],
+    ['Suggest travel dates', /trip detail/],
+    ['Change my destination to Goa', /trip detail/],
+    ['Show flights from my origin', /trip detail/],
+    ['Pick an arrival location', /trip detail/],
+    ['Where should I fly from?', /trip detail/],
     ['Show me every nonstop and one-stop option departing in the morning under five hundred', /80 characters/],
   ];
   for (const [suggestion, problem] of cases) {
@@ -292,6 +318,21 @@ test('validator accepts traveler-voice actions on the current search', () => {
     ['Show only Emirates flights', 'Compare options 1 and 2', 'Switch to business class'],
     ['Remove the morning filter', 'Show all airlines again', 'Use nearby arrival airports'],
     ['Depart from Midway only', 'Make it a round trip', 'Add one more adult'],
+  ]) {
+    assert.deepEqual(findSuggestedQuestionIssues(set), [], JSON.stringify(set));
+  }
+});
+
+test('validator accepts every kind of pre-search suggestion in the production state matrix', () => {
+  for (const set of [
+    ['Cheapest this week', 'Cheapest next month', 'Cheapest in the next 3 months'],
+    ['Weekend getaways from Delhi', 'Beach trips from Delhi', 'International trips from Delhi'],
+    ['Best time to visit Goa', 'Plan a weekend in Goa', 'Goa travel tips'],
+    ['Beach trips from Delhi this weekend', 'Plan my Goa weekend', 'Goa weather for my dates'],
+    ['Search this trip', 'Make it a round trip', 'Switch to business class'],
+    ['Return after 3 days', 'Return after a week', 'Make it one way'],
+    ['Search flights on Oct 27', 'Compare the promising dates', 'Switch to premium economy'],
+    ['Search flights next week', 'Search flights next weekend', 'What to do in Goa'],
   ]) {
     assert.deepEqual(findSuggestedQuestionIssues(set), [], JSON.stringify(set));
   }
@@ -394,9 +435,52 @@ test('the dynamic prompt shows the suggestions from the start of the turn', asyn
   const dynamic = buildFlightAgentInstructions({ context }).slice(FLIGHT_PROMPT.length);
 
   assert.match(dynamic, /Previous suggested questions[^\n]*\n\nShow nonstop flights only\nWhich option is fastest\?\nAny cheaper dates nearby\?/);
-  assert.match(dynamic, /a present search key counts even when not validated: pass three suggestions/);
+  assert.match(dynamic, /any known trip detail counts, including a search key that is not validated: pass three grounded suggestions, and an empty array only when nothing about the trip is known/);
   assert.match(dynamic, /End every turn with exactly one update_flight_suggested_questions call/);
+  assert.match(dynamic, /Last successful price prediction: none\./);
   assert.doesNotMatch(dynamic, /Suggested questions are optional/);
+});
+
+test('the dynamic prompt carries the last successful prediction so its best date can be searched later', async () => {
+  const { buildFlightAgentInstructions } = await import('../../src/agents/flight/agent.js');
+  const clock = { localDate: '2026-10-05', localDateTime: '2026-10-05T10:00:00+05:30', timeZone: 'Asia/Kolkata' };
+  const oneway: any = {
+    flight: {
+      clock,
+      lastPricePrediction: {
+        status: 'SUCCESS',
+        tripType: 'oneway',
+        route: { originCity: 'JAI', destinationCity: 'PNQ' },
+        cheapestDates: [{ departureDate: '2026-12-14' }, { departureDate: '2026-12-09' }, { departureDate: '2026-12-02' }, { departureDate: '2026-12-21' }],
+        cheapestCombinations: [],
+      },
+    },
+  };
+  const roundtrip: any = {
+    flight: {
+      clock,
+      lastPricePrediction: {
+        status: 'SUCCESS',
+        tripType: 'roundtrip',
+        route: { originCity: 'DEL', destinationCity: 'GOI' },
+        cheapestDates: [],
+        cheapestCombinations: [{ outboundDate: '2026-11-06', returnDate: '2026-11-09', tripDuration: 3 }],
+      },
+    },
+  };
+  const failed: any = {
+    flight: { clock, lastPricePrediction: { status: 'NO_PREDICTIONS', route: { originCity: 'JAI', destinationCity: 'PNQ' } } },
+  };
+
+  assert.match(
+    buildFlightAgentInstructions({ context: oneway }),
+    /Last successful price prediction: JAI to PNQ \(oneway\), strongest dates in rank order: 2026-12-14; 2026-12-09; 2026-12-02\./,
+  );
+  assert.match(
+    buildFlightAgentInstructions({ context: roundtrip }),
+    /Last successful price prediction: DEL to GOI \(roundtrip\), strongest dates in rank order: 2026-11-06 returning 2026-11-09\./,
+  );
+  assert.match(buildFlightAgentInstructions({ context: failed }), /Last successful price prediction: none\./);
 });
 
 test('prompt makes the update the required final step of every turn', () => {
@@ -404,7 +488,7 @@ test('prompt makes the update the required final step of every turn', () => {
   assert.match(FLIGHT_PROMPT, /includes turns that only clarify, ask for missing details, answer from active source options, or take no action/);
   assert.match(FLIGHT_PROMPT, /stop core tool calls, make the required final update_flight_suggested_questions call, then return feedback/);
   assert.match(FLIGHT_PROMPT, /never let its failure discard or downgrade a completed result/);
-  assert.match(FLIGHT_PROMPT, /Before your final output, check:.*update_flight_suggested_questions was this turn's last tool call/s);
+  assert.match(FLIGHT_PROMPT, /Before your final output, check:.*update_flight_suggested_questions was this turn's last tool call, with three suggestions whenever any trip detail is known, or an empty array only when none is/s);
   for (const phrase of [/optional, best-effort/i, /Optional suggestion enrichment/i, /over optional work/i, /final optional tool/i]) {
     assert.doesNotMatch(FLIGHT_PROMPT, phrase);
   }
@@ -435,17 +519,48 @@ test('prompt carries the production content rules for suggestions', () => {
     /"You might ask"/,
     /In the traveler's voice, 3-8 words and under 80 characters/,
     /Never assistant wording such as "Would you like", "Do you want", or "Should I"/,
-    /Never a request to supply, choose, or change the departure location, arrival location, travel date, return date, or date range/,
-    /"Add a return date", "Pick an arrival location", "Suggest travel dates", or "Where should I fly from\?"/,
+    /Never an empty slot-filling request, such as "Add departure location", "Add travel date", "Pick an arrival location", "Suggest travel dates", or "Where should I fly from\?"/,
+    /Concrete choices such as "Cheapest next month", "Return after a week", or "Make it one way" are welcome/,
     /Never use the words origin or destination/,
     /not a filter that is already active\. Active filters are the earlier applied filters in Current search state, replaced by the complete filters list of any apply_filter call this turn/,
+    /Not one the traveler has already used\. If the latest request selects or paraphrases one of the Previous suggested questions, that suggestion is used: do not offer it or a paraphrase again while the trip is unchanged/,
+    /After an action and its reversal, such as "Show nonstop flights only" and then "Remove the nonstop filter", offer neither/,
+    /Judge sameness by intent, not wording: "Cheapest next month" and "Show lowest fares next month" are the same suggestion/,
     /never send the same three again, change the intent rather than the wording, and repeat at most one when the trip and results are unchanged/,
     /airlines and airports only from Active filter source options/,
     /Never mention the tool, its result, or the suggestions in your response or feedback/,
-    /If a search key exists at that point .* pass exactly three suggestions, including on clarification and no-action turns\. Otherwise pass an empty array and never invent fallback suggestions/,
   ]) {
     assert.match(FLIGHT_PROMPT, rule);
   }
+});
+
+test('prompt grounds suggestions in known trip details before a search, and never empties them after a failure', () => {
+  for (const rule of [
+    /Pass exactly three suggestions whenever any trip detail is known, before or after a search: a route endpoint, a date, a route from an earlier price prediction, or an active search\. That includes clarification and no-action turns/,
+    /Pass an empty array only when nothing about the trip is known yet, such as a bare "I want to book a flight"\. Never invent fallback suggestions/,
+    /A failed, empty, or unsuccessful result never justifies an empty array/,
+    /If the tool returns INVALID_SUGGESTED_QUESTIONS or EMPTY_CTA_NOT_ALLOWED, fix only the listed issues and call it once more; never re-run a search, filter, contract read, or prediction because of it/,
+    /^- Departure and arrival known, no date: price windows such as "Cheapest this week", "Cheapest next month", "Cheapest in the next 3 months"/m,
+    /^- Only the departure known: discovery from it, .* Never claim one destination is cheapest/m,
+    /^- Only the arrival known: destination planning, .* Make no fare claim without a departure location/m,
+    /^- Departure and dates known, arrival missing: /m,
+    /^- Arrival and dates known, departure missing: /m,
+    /^- Route and exact date known but no search ran: "Search this trip"/m,
+    /^- Round trip missing its return timing: "Return after 3 days", "Return after a week", "Make it one way"/m,
+    /^- Successful prediction without a search: the strongest returned date by name.*Last successful price prediction in Current search state/m,
+    /^- Failed or empty prediction with a known route: concrete search timing/m,
+    /^  - After a clarification: next steps grounded in what is known, not answers to your own question\.$/m,
+  ]) {
+    assert.match(FLIGHT_PROMPT, rule);
+  }
+});
+
+test('the Manager sends partial flight details to Flight instead of collecting them itself', () => {
+  assert.match(
+    MANAGER_PROMPT,
+    /That includes a reply that supplies only part of a flight request, such as "from Delhi" or "going to Mumbai": send Flight every detail gathered so far, even while another is still missing\./,
+  );
+  assert.match(MANAGER_PROMPT, /Flight also writes the suggested next steps shown with each reply/);
 });
 
 test('Manager instructions put the update before the structured feedback', () => {
@@ -458,5 +573,7 @@ test('Manager instructions put the update before the structured feedback', () =>
 test('the tool description names it the required final step', () => {
   assert.match(UpdateFlightSuggestedQuestionsTool.description, /^Required final step of every Flight turn\./);
   assert.match(UpdateFlightSuggestedQuestionsTool.description, /call no tool after it succeeds/);
+  assert.match(UpdateFlightSuggestedQuestionsTool.description, /whenever any trip detail is known, before or after a search/);
+  assert.match(UpdateFlightSuggestedQuestionsTool.description, /A failed or empty result is never a reason for an empty array/);
   assert.doesNotMatch(UpdateFlightSuggestedQuestionsTool.description, /best-effort/i);
 });

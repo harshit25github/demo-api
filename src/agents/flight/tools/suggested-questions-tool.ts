@@ -29,10 +29,14 @@ export const MAX_SUGGESTION_LENGTH = 80;
 /** Assistant voice. Suggestions are things the traveler says next. */
 const ASSISTANT_OPENER =
   /^(would you like|do you want|should i|shall i|want me to|let me|i can|i'll|i will)\b/i;
-/** Internal field names, and the route or date fields a suggestion must never ask for. */
+/**
+ * Internal field names, and empty slot-filling ("Add travel date"). Concrete
+ * timing choices such as "Cheapest next month" or "Return after a week" are
+ * real next steps and stay allowed.
+ */
 const BLOCKED_FIELD_WORDING =
   /\b(origin|destination|departure city|arrival city|departure date|outbound date|travel dates?|return date|date range)\b/i;
-/** Asking the traveler to supply or change a route endpoint. */
+/** Asking the traveler to fill in or change a route endpoint. */
 const ROUTE_ENDPOINT_REQUEST =
   /\b(add|provide|enter|share|give|choose|pick|select|change|update|set|switch)\b.*\b(departure|arrival) location\b|\bwhere (should|do|will|can) (i|we) fly\b/i;
 
@@ -41,7 +45,7 @@ const updateFlightSuggestedQuestionsSchema = z.object({
     .array(z.string().min(1))
     .max(3)
     .describe(
-      'Exactly 3 short suggestions in the traveler\'s voice when a search key exists after this turn\'s other tools; otherwise an empty array.',
+      'Exactly 3 short next steps in the traveler\'s voice whenever any trip detail is known, before or after a search; an empty array only when nothing about the trip is known yet.',
     ),
 });
 
@@ -92,11 +96,15 @@ function requestIdOf(appContext: object): unknown {
   return (appContext as { requestId?: unknown }).requestId ?? null;
 }
 
-function startTurn(appContext: object, flightRan: boolean): FlightSuggestionTurn {
+function startTurn(
+  appContext: object,
+  flightRan: boolean,
+  previousSuggestions?: readonly string[],
+): FlightSuggestionTurn {
   const entries = toolLog(appContext);
   const turn: FlightSuggestionTurn = {
     requestId: requestIdOf(appContext),
-    previousSuggestions: [...liveSuggestions(appContext)],
+    previousSuggestions: [...(previousSuggestions ?? liveSuggestions(appContext))],
     flightRan,
     logStartLength: entries.length,
     logStartMarker: entries.length > 0 ? entries[entries.length - 1] : null,
@@ -120,13 +128,16 @@ function currentTurn(appContext: object): FlightSuggestionTurn {
  * turn's requestId is set: the standalone runner passes `flightRan: true`, the
  * Manager passes `false` and Flight marks itself with
  * {@link markFlightSuggestionRun} when it actually runs.
+ *
+ * Pass `previousSuggestions` when turn preparation may already have cleared the
+ * live copy, so the model still sees what was on screen before this turn.
  */
 export function beginFlightSuggestionTurn(
   context: unknown,
-  { flightRan }: { flightRan: boolean },
+  { flightRan, previousSuggestions }: { flightRan: boolean; previousSuggestions?: readonly string[] },
 ): void {
   if (!context || typeof context !== 'object') return;
-  startTurn(context, flightRan);
+  startTurn(context, flightRan, previousSuggestions);
 }
 
 /** Record that Flight ran during the current turn. */
@@ -195,6 +206,26 @@ function readProgress(appContext: object, turn: FlightSuggestionTurn): Suggestio
   };
 }
 
+/**
+ * Whether the trip has any known detail to ground suggestions in: a search key
+ * (hydrated or created this turn), a route endpoint or date in the search state,
+ * or the route of an earlier price prediction.
+ *
+ * Details the Manager carries only in a subtask are invisible here, so this
+ * decides when an empty list is refused, never whether 3 suggestions are allowed.
+ */
+export function hasFlightTravelContext(context: unknown): boolean {
+  const appContext = ensureFlightRuntimeContext(context);
+  const flight = appContext.flight;
+  if (typeof flight.searchKey === 'string' && flight.searchKey.trim()) return true;
+  const segments = Array.isArray(flight.segments) ? flight.segments : [];
+  if (segments.some((segment) => Boolean(segment?.origin || segment?.destination || segment?.date))) {
+    return true;
+  }
+  const route = (flight.lastPricePrediction as { route?: Record<string, unknown> } | null)?.route;
+  return Boolean(route?.originCity || route?.destinationCity);
+}
+
 function normalizeSuggestion(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.?!]+$/, '');
 }
@@ -212,7 +243,7 @@ export function findSuggestedQuestionIssues(
   if (suggestedQuestions.length !== 3) {
     issues.push({
       path: 'suggestedQuestions',
-      problem: `A search is active, so exactly 3 suggestions are required; received ${suggestedQuestions.length}.`,
+      problem: `Send exactly 3 suggestions; received ${suggestedQuestions.length}.`,
     });
   }
 
@@ -239,7 +270,7 @@ export function findSuggestedQuestionIssues(
     if (BLOCKED_FIELD_WORDING.test(text) || ROUTE_ENDPOINT_REQUEST.test(text)) {
       issues.push({
         path,
-        problem: 'Asks to supply or change a route or date field, or uses an internal field name; suggest an action on the current search instead.',
+        problem: 'Asks the traveler to fill in a trip detail, or uses an internal field name; offer a concrete next step instead, such as "Cheapest next month" or "Return after a week".',
       });
     }
     const key = normalizeSuggestion(text);
@@ -280,12 +311,23 @@ export function updateFlightSuggestedQuestions({
 } = {}) {
   const context = ensureFlightRuntimeContext(currentFlightContext);
 
-  const latestSearchKey =
-    typeof context.flight.searchKey === 'string' && context.flight.searchKey.trim()
-      ? context.flight.searchKey
-      : null;
-
-  if (!latestSearchKey) {
+  if (Array.isArray(suggestedQuestions) && suggestedQuestions.length === 0) {
+    // An empty list is only for a turn that knows nothing about the trip. A
+    // failed prediction, zero matches or a failed search still leaves details
+    // to build next steps on, and an empty list there is a skipped update.
+    if (hasFlightTravelContext(context)) {
+      return createFlightToolFailure({
+        code: 'EMPTY_CTA_NOT_ALLOWED',
+        message: retrySafe
+          ? 'Trip details are known, so send 3 grounded next steps built from the route, dates, results or prediction. Do not re-run any other tool because of this; call this tool once more.'
+          : 'Nothing was stored, and no attempts remain this turn. Return your feedback without suggestions.',
+        retrySafe,
+        fieldIssues: [{
+          path: 'suggestedQuestions',
+          problem: 'Empty while trip details are known.',
+        }],
+      });
+    }
     context.flight.suggestedQuestions = [];
     return {
       ok: true as const,
@@ -328,7 +370,7 @@ export function updateFlightSuggestedQuestions({
 export const UpdateFlightSuggestedQuestionsTool = tool({
   name: UPDATE_FLIGHT_SUGGESTED_QUESTIONS_TOOL_NAME,
   description:
-    'Required final step of every Flight turn. Call it exactly once after all other Flight tools have finished, including on turns that only clarify, ask for missing details, or answer from context, and call no tool after it succeeds. If a search key exists at that point, including one flight_search created this turn, pass exactly 3 short suggestions in the traveler\'s voice; otherwise pass an empty array. It stores what you pass and never writes suggestions itself. If it returns INVALID_SUGGESTED_QUESTIONS, fix only the listed issues and call it once more. Its failure never changes a completed result. Never mention it or its output.',
+    'Required final step of every Flight turn. Call it exactly once after all other Flight tools have finished, including on turns that only clarify, ask for missing details, or answer from context, and call no tool after it succeeds. Pass exactly 3 short next steps in the traveler\'s voice whenever any trip detail is known, before or after a search; pass an empty array only when nothing about the trip is known yet. A failed or empty result is never a reason for an empty array. It stores what you pass and never writes suggestions itself. If it returns INVALID_SUGGESTED_QUESTIONS or EMPTY_CTA_NOT_ALLOWED, fix only the listed issues and call it once more, without re-running any other tool. Its failure never changes a completed result. Never mention it or its output.',
   parameters: updateFlightSuggestedQuestionsSchema,
   strict: true,
   errorFunction: createFlightToolSchemaErrorFunction(
