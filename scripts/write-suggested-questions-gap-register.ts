@@ -385,6 +385,143 @@ const GAPS: GapRow[] = [
     verify:
       'Scripted test: a hydrated key plus a clarification turn stores three suggestions.',
   },
+  // G19-G25 compare against the production text as updated on 2026-10-01 at 18:04,
+  // which replaced plain suggestions with CTA records. Line numbers are in that text.
+  {
+    id: 'G19',
+    layer: 'A - Prompt authority',
+    title: 'No suggestions before a search exists',
+    origin: 'Production regression',
+    production:
+      'The updated text generates 3 grounded CTAs before any search: "CTAs are allowed before flight_search and do not require a searchKey" (prompt.ts:476). Its state matrix (:526-538) covers each partial state. With departure and arrival but no date it offers "Cheapest this week", "Cheapest next month" and "Cheapest in the next 3 months"; it also covers only the departure known, only the arrival known, and a round trip without return timing. An empty list is only for "No meaningful travel context" (:538).',
+    current:
+      'Suggestions are tied to a search key: without one the update passes an empty array and the tool clears the list (suggested-questions-tool.ts:46-57). The live conversation runner enforces that rule (checkSuggestions in tests/live/flight-agent-conversation-live.ts).',
+    missing:
+      'The pre-search state matrix, and a tool that stores 3 records without a search key.',
+    impact:
+      'At analysis: every pre-search Flight turn in the re-recorded scripts ended with none, including "I want to book a flight", "I want to fly to Amsterdam", "from Hyderabad" and a prediction-only turn.',
+    severity: 'High',
+    fix: 'Replace the three-or-empty rule with the state matrix, let the tool store 3 records whatever the search state, and change the live check to require 3 whenever travel context exists.',
+    step: 'Step 6',
+    status: 'Open',
+    verify:
+      'Live: trip_details_one_at_a_time and missing_information_progression store 3 CTAs on every turn with partial context.',
+  },
+  {
+    id: 'G20',
+    layer: 'B - Tool definition',
+    title: 'A failed or empty business result still clears the suggestions',
+    origin: 'Production regression',
+    production:
+      '"A failed, empty, or non-success business tool result ... never justifies []" (prompt.ts:472), and the tool "rejects [] with EMPTY_CTA_NOT_ALLOWED whenever route, date, or search context exists" (:474). A failed prediction pivots to search-timing CTAs (:536).',
+    current:
+      'A failed first search or a failed prediction leaves no search key, so the update stores none. Zero filter matches already keep 3, because the search key survives.',
+    missing:
+      'An EMPTY_CTA_NOT_ALLOWED rejection whenever route, date or search context exists.',
+    impact: 'The traveler sees no next step exactly when an action failed.',
+    severity: 'Medium',
+    fix: 'Reject an empty array whenever route, date or search context exists, as a retry-safe failure under the existing one-retry gate.',
+    step: 'Step 6',
+    status: 'Open',
+    verify:
+      'Unit: an empty draft with a known route is rejected. Live: prediction_unavailable_fallback turn 1 stores 3.',
+  },
+  {
+    id: 'G21',
+    layer: 'B - Tool definition',
+    title: 'Suggestions are plain strings, not CTA records with intent keys',
+    origin: 'Production regression',
+    production:
+      'The tool input is { suggestedQuestions: Array<{ text, intentKey }>, consumedIntentKeys: string[] } (prompt.ts:539), with canonical keys such as price_window:next_month, filter:nonstop and results:cheapest (:521-525). The tool updates context.flight.suggestedQuestions and context.flight.ctaState (:468).',
+    current:
+      'The tool takes suggestedQuestions: string[] and stores only context.flight.suggestedQuestions.',
+    missing:
+      'Records with canonical intent keys, stored in a ctaState beside the visible texts.',
+    impact:
+      'Repeats can be caught only by wording, never by intent: "Cheapest next month" and "Show lowest fares next month" count as different.',
+    severity: 'High',
+    fix: 'Change the schema to records. Keep writing the texts to suggestedQuestions for the client, and the records to flight.ctaState.',
+    step: 'Step 6',
+    status: 'Open',
+    verify: 'Unit: records are stored with their keys, and paraphrases of a blocked key are rejected.',
+  },
+  {
+    id: 'G22',
+    layer: 'C - State / context',
+    title: 'Used and generated intents are not tracked',
+    origin: 'Production regression',
+    production:
+      'ctaState carries generatedIntentKeys, usedIntentKeys and a phaseFingerprint, shown in the dynamic prompt as "Flight CTA intent state" (prompt.ts:1006-1008). Used intents stay blocked, generated ones while the phase is unchanged (:482-486). The model reports consumedIntentKeys for any CTA the user selected (:480), and the tool rejects repeats with REPEATED_CTA_INTENT and excludeIntentKeys (:488).',
+    current:
+      'The only memory is the previous set, snapshotted per turn; the validator rejects an identical set and nothing else.',
+    missing:
+      'Persisted intent state, a phase fingerprint from the search parameters, consumed-intent reporting, and REPEATED_CTA_INTENT.',
+    impact:
+      'In relative_dates_then_shift, "Show nonstop flights only" was offered on three turns of the same search, and "Show cheapest option" came back right after the traveler asked which option was cheapest.',
+    severity: 'Medium',
+    fix: 'Persist ctaState in context.flight, which already survives snapshotGatewayContext. Compute the fingerprint from route, dates, trip type, cabin and passengers, and validate drafts against the blocked keys.',
+    step: 'Step 6',
+    status: 'Open',
+    verify:
+      'Unit: a consumed key is rejected for the rest of the scope, and a generated key is accepted again after the fingerprint changes.',
+  },
+  {
+    id: 'G23',
+    layer: 'C - State / context',
+    title: 'A successful prediction is not carried into later turns',
+    origin: 'Production regression',
+    production:
+      'The dynamic prompt shows "Successful price prediction available" with the strongest dates (prompt.ts:987). That grounds CTAs such as "Search the strongest predicted date" on later turns (:535).',
+    current:
+      'flight.lastPricePrediction is stored, but the dynamic instructions show only the route codes (buildPricePredictionRouteSummary in agent.ts).',
+    missing:
+      'A compact summary of the last successful prediction in the dynamic instructions.',
+    impact:
+      'After a prediction-only turn the agent cannot offer to search the recommended date on the next turn.',
+    severity: 'Medium',
+    fix: 'Add the strongest dates from lastPricePrediction to the dynamic instructions while its route matches the current one.',
+    step: 'Step 6',
+    status: 'Open',
+    verify:
+      'Unit: the dynamic instructions list the strongest dates after a successful prediction and drop them after a route change.',
+  },
+  {
+    id: 'G24',
+    layer: 'A - Prompt authority',
+    title: 'Content rules forbid CTAs production now allows',
+    origin: 'Production regression',
+    production:
+      'The updated text drops the old mandatory-field guard and bans only empty slot-filling such as "Add departure location" or "Add travel date" (prompt.ts:505). It allows concrete timing and discovery CTAs: "Cheapest next month", "Return after a week", "Make it one way", "Beach getaways from {departure}", "{arrival} travel tips" (:526-538).',
+    current:
+      'FLIGHT_PROMPT, written to the earlier text, forbids any request to choose or change dates and limits CTAs to actions Flight can perform. The validator rejects wording such as "travel dates", "date range" and "return date" (BLOCKED_FIELD_WORDING in suggested-questions-tool.ts).',
+    missing:
+      'The slot-filling-only ban, and the discovery and destination-planning CTA families.',
+    impact: 'The state-matrix CTAs would be refused by the prompt or the validator.',
+    severity: 'Medium',
+    fix: 'Narrow the prompt rule and the validator to empty slot-filling. Allow destination-planning CTAs, which the Manager routes to Trip Planner when tapped.',
+    step: 'Step 6',
+    status: 'Open',
+    verify:
+      'Unit: the validator accepts every example in the production state matrix and still rejects "Add travel date".',
+  },
+  {
+    id: 'G25',
+    layer: 'D - Execution flow',
+    title: 'The Manager answers pre-search turns without Flight',
+    origin: 'Local-only',
+    production:
+      'Every Flight turn, including missing-info and clarification turns, ends with the CTA update (prompt.ts:727, "update_flight_suggested_questions alone for missing-info, clarification, source-option, or no-action responses"; :496).',
+    current:
+      'The Manager often collects missing trip details itself. In trip_details_one_at_a_time, "from Delhi" and "going to Mumbai" never reached Flight, so no CTA could be generated even under the new rules.',
+    missing: 'A path by which every flight-detail turn produces CTAs.',
+    impact: 'Pre-search CTAs would appear only on turns the Manager happens to delegate.',
+    severity: 'High',
+    fix: 'DECISION NEEDED: have the Manager delegate flight-detail collection to Flight, or generate CTAs for flight-intent turns the Manager answers itself.',
+    step: 'Step 6',
+    status: 'Open',
+    verify:
+      'Live: every turn of trip_details_one_at_a_time with partial context ends with 3 CTAs, whichever agent answered it.',
+  },
 ];
 
 const OPEN_DECISIONS: string[][] = [
@@ -423,6 +560,31 @@ const OPEN_DECISIONS: string[][] = [
     'G16 scope',
     'Production never validated suggestion content in code, so a validator goes beyond parity. It matches Trip Planner, which validates and allows one retry.',
     'Resolved in 73d5033 - in scope: the tool validates drafts and allows one corrected retry.',
+  ],
+  [
+    'Who generates CTAs on turns the Manager answers itself (G25)',
+    'Pre-search CTAs need a model call that sees the partial trip. Either the Manager routes every flight-detail turn to Flight, which adds a specialist call to turns it now answers alone, or it generates the CTA records itself for flight-intent turns.',
+    'Open - decide before Step 6.',
+  ],
+  [
+    'Updated production text: blocking scope of used intents',
+    'Used intents are "blocked for the conversation" (prompt.ts:484, :1007), but the worked example says "neither may appear again in this search phase" (:486). Conversation scope would stop offering "Show non-stop flights" for every later route once it has been used.',
+    'Open - confirm the intended scope with the production owners.',
+  ],
+  [
+    'Updated production text: a rejected empty list',
+    'An empty list is allowed when "three safe, distinct actions cannot be grounded" (prompt.ts:470), but the tool rejects [] whenever travel context exists (:474). If the single retry also fails, nothing is stored, so the previous turn\'s CTAs stay on screen.',
+    'Open - decide whether a final rejection should clear the visible CTAs.',
+  ],
+  [
+    'Updated production text: phase-wide blocking of generated intents',
+    'Every generated intent stays blocked while the phase fingerprint is unchanged, and the fingerprint leaves out filters (prompt.ts:1006). A long conversation about one search uses up three intents per turn and can run out of good ones.',
+    'Open - consider blocking only the last few turns\' generated intents, or adding filters to the fingerprint.',
+  ],
+  [
+    'Updated production text: leftover search-key re-check',
+    'The routing tail still says the tool "re-checks the latest searchKey at execution time" (prompt.ts:722), though a search key no longer decides whether CTAs are generated.',
+    'Open - remove it from the production text, or define what the re-check now does.',
   ],
 ];
 
@@ -471,6 +633,13 @@ const FIX_SEQUENCE: string[][] = [
     'Done in 73d5033, 4dae460 and 488c0e9',
   ],
   ['Step 5', 'Reconcile the four docs', 'G14', 'Last, once behaviour is settled.', 'Done in 488c0e9: docs/flight-suggested-questions.md is the current reference'],
+  [
+    'Step 6',
+    'Port the updated production CTA design: the pre-search state matrix, CTA records with intent keys, ctaState with a phase fingerprint and consumed intents, EMPTY_CTA_NOT_ALLOWED and REPEATED_CTA_INTENT, prediction hydration, narrowed content rules, and a CTA path for turns the Manager answers itself',
+    'G19, G20, G21, G22, G23, G24, G25',
+    'Production changed the design on 2026-10-01 at 18:04, after Steps 1-5 landed. Settle the open questions on the new text first, because they decide the tool contract.',
+    'Open - awaiting go-ahead',
+  ],
 ];
 
 const READ_ME: string[][] = [
@@ -481,11 +650,15 @@ const READ_ME: string[][] = [
   ],
   [
     'Sheets',
-    'Gap Register: one row per gap. Evidence: call rates measured from artifacts/. Skip Scenarios: when the current agent skips the tool. Production Map: where production states the mandate, beside the local equivalent. Chain Map: production’s 15 tool chains mapped to the five registered local tools. Fix Sequence: the order the gaps were closed in, with commits. Open Decisions: the choices made along the way, and the one still open.',
+    'Gap Register: one row per gap. Evidence: call rates measured from artifacts/. Skip Scenarios: when the current agent skips the tool. Production Map: where production states the mandate, beside the local equivalent. Chain Map: production’s 15 tool chains mapped to the five registered local tools. Fix Sequence: the order the gaps were closed in, with commits. Open Decisions: the choices made along the way, and those still open.',
   ],
   [
     'How to update',
     'Edit scripts/write-suggested-questions-gap-register.ts, then run npm run gaps:suggested-questions. The generator rewrites this workbook, so edits made here are lost. When a fix lands, change that gap’s status in the generator and commit the generator and the workbook together.',
+  ],
+  [
+    'Production text versions',
+    'FLIGHT_PROD_PROMPT_TEXT was replaced on 2026-10-01 at 18:04 with a CTA-record design. G1-G18, the Production Map and the Chain Map compare against the earlier text, so their production line numbers refer to it. G19-G25 compare against the new text.',
   ],
   [
     'Line numbers',
@@ -501,7 +674,7 @@ const READ_ME: string[][] = [
   ],
   [
     'Uncommitted work',
-    'Every gap records the commit that closed it in Status. The "Current behavior" column describes the code at analysis time, before those commits. The clearing in flight_search and apply_filter (G10) is still uncommitted working-tree code.',
+    'G1-G18 record the commit that closed them in Status; G19-G25, from the updated production text, are open. The "Current behavior" column describes the code at analysis time. The clearing in flight_search and apply_filter (G10) is still uncommitted working-tree code.',
   ],
 ];
 
