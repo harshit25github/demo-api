@@ -11,6 +11,7 @@ import { getFlightSearchRuntime } from './context/search-runtime-store.js';
 import { FLIGHT_PROMPT } from './prompt.js';
 import { flightManagerOutputSchema, FLIGHT_MANAGER_INSTRUCTIONS } from './manager-output.js';
 import { flightTools } from './tools/index.js';
+import { previousFlightSuggestions } from './tools/suggested-questions-tool.js';
 
 assertOpenAIConfig();
 setDefaultOpenAIKey(flightAgentConfig.openaiApiKey!);
@@ -107,8 +108,10 @@ function hasFlightResultRecords(searchResults: unknown): boolean {
 }
 
 function buildPreviousSuggestedQuestionsSummary(context: DynamicRecord): string {
-  const suggestions = context?.flight?.suggestedQuestions;
-  if (!Array.isArray(suggestions) || suggestions.length === 0) {
+  // The set shown when the turn began: a search or filter clears the live copy
+  // mid-turn, and these instructions are rebuilt before every model call.
+  const suggestions = previousFlightSuggestions(context);
+  if (suggestions.length === 0) {
     return 'none';
   }
 
@@ -187,6 +190,7 @@ export function buildFlightAgentInstructions(runContext: { context?: unknown }):
 ${buildFlightDateDynamicPromptContext(clock)}
 - UID is available in context.
 - Hydrated search key present (not validated): ${hasHydratedSearchKey ? 'yes' : 'no'}.
+- For the final suggestions update, a present search key counts even when not validated: pass three suggestions if one exists after this turn's tools (a successful flight_search creates one), otherwise an empty array.
 - Hydrated flight result records present (not validated): ${hasHydratedResults ? 'yes' : 'no'}.
 
 ### Current Existing Search Parameters — Fallback Context
@@ -226,7 +230,7 @@ ${buildPreviousSuggestedQuestionsSummary(context)}
 - Use fresh generated-contract context for every current-option comparison or recommendation.
 - Use only the active source options shown above for airline and airport filters.
 - Tool recovery metadata is authoritative feedback: repair only listed fields, retry only with a changed safe payload, and ask only when the correction remains materially ambiguous.
-- Suggested questions are optional. Call their tool at most once after core work; never retry it or let it block a successful result.
+- End every turn with exactly one update_flight_suggested_questions call after all other tools, including clarification and no-action turns. Retry it once only after INVALID_SUGGESTED_QUESTIONS, and never let it block or change a completed result.
 
 `;
 }

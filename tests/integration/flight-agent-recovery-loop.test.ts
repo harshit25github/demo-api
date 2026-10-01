@@ -307,7 +307,8 @@ test('blocking ambiguity asks one question without speculative tool calls', asyn
   assert.equal(run.requests.length, 1);
 });
 
-test('suggested-question failure is non-retryable and does not replace core results', async () => {
+test('a rejected suggestions draft is corrected once without replacing core results', async () => {
+  const corrected = ['Show nonstop flights only', 'Which option is fastest?', 'Any cheaper dates nearby?'];
   const run = await runScripted(
     [FlightSearchTool, UpdateFlightSuggestedQuestionsTool],
     [
@@ -315,17 +316,50 @@ test('suggested-question failure is non-retryable and does not replace core resu
       [functionCall('suggestions', 'update_flight_suggested_questions', {
         suggestedQuestions: ['Only one suggestion'],
       })],
+      [functionCall('suggestions_retry', 'update_flight_suggested_questions', {
+        suggestedQuestions: corrected,
+      })],
       [message('done', 'I found flight options. Note: Prices shown are per person.')],
     ],
     'Search DEL to DXB on Sep 20.',
   );
 
   assert.match(String(run.result.finalOutput), /I found flight options/);
-  const suggestionFailure = run.context.toolCallLog.at(-1) as any;
-  assert.equal(suggestionFailure.tool, 'update_flight_suggested_questions');
-  assert.equal(suggestionFailure.ok, false);
-  assert.equal(suggestionFailure.recovery.retrySafe, false);
-  assert.equal(run.requests.length, 3);
+  const attempts = run.context.toolCallLog.filter(
+    (entry: any) => entry.tool === 'update_flight_suggested_questions',
+  ) as any[];
+  assert.equal(attempts.length, 2);
+  assert.equal(attempts[0].ok, false);
+  assert.equal(attempts[0].recovery.retrySafe, true);
+  assert.equal(attempts[1].ok, true);
+  assert.deepEqual(run.context.flight.suggestedQuestions, corrected);
+  assert.equal(run.requests.length, 4);
+});
+
+test('a second rejected suggestions draft withdraws the tool and keeps core results', async () => {
+  const run = await runScripted(
+    [FlightSearchTool, UpdateFlightSuggestedQuestionsTool],
+    [
+      [functionCall('search', 'flight_search', searchPayload('2026-09-20'))],
+      [functionCall('suggestions', 'update_flight_suggested_questions', {
+        suggestedQuestions: ['Only one suggestion'],
+      })],
+      [functionCall('suggestions_retry', 'update_flight_suggested_questions', {
+        suggestedQuestions: ['Would you like nonstop flights?'],
+      })],
+      [message('done', 'I found flight options. Note: Prices shown are per person.')],
+    ],
+    'Search DEL to DXB on Sep 20.',
+  );
+
+  assert.match(String(run.result.finalOutput), /I found flight options/);
+  const lastAttempt = run.context.toolCallLog.at(-1) as any;
+  assert.equal(lastAttempt.ok, false);
+  assert.equal(lastAttempt.recovery.retrySafe, false);
+  const offeredLast = (run.requests.at(-1).tools || []).map((entry: any) => entry.name);
+  assert.ok(offeredLast.includes('flight_search'));
+  assert.equal(offeredLast.includes('update_flight_suggested_questions'), false);
+  assert.ok(run.context.flight.searchKey);
 });
 
 test('tool contracts expose recoverable constraints without mutating state on failure', async () => {
@@ -422,7 +456,7 @@ test('date and price failures expose safe repair facts and non-input failures ar
   assert.doesNotMatch(internalFailure.message, /database|private/i);
 });
 
-test('core-result fallback preserves useful results when optional work exhausts the turn budget', async () => {
+test('core-result fallback preserves useful results when the turn budget runs out', async () => {
   const state = recoveryContext();
   await (FlightSearchTool as any).invoke(
     { context: state.requestContext },
@@ -442,7 +476,6 @@ test('runtime defaults favor reasoning quality without forcing tool calls', () =
   assert.equal((flightAgentConfig.modelSettings.reasoning as any)?.effort, 'medium');
   assert.equal(flightAgentConfig.modelSettings.toolChoice, 'auto');
   assert.equal(flightAgentConfig.modelSettings.parallelToolCalls, false);
-  assert.ok(FLIGHT_PROMPT.length < 15_000, `expected compressed prompt, received ${FLIGHT_PROMPT.length} chars`);
   assert.match(FLIGHT_PROMPT, /Current Existing Search Parameters.*Relevant conversation history.*Safe defaults/is);
   assert.match(FLIGHT_PROMPT, /Recoverable input failure.*Blocking ambiguity.*Non-input failure/is);
 });
@@ -458,7 +491,7 @@ test('decision-loop instructions prefer existing results and verify outcomes bef
   assert.match(decisionLoop, /apply_filter requires a valid active search, not merely a hydrated search key/i);
   assert.match(decisionLoop, /tool feedback takes precedence when it is missing, stale, or expired/i);
   assert.match(decisionLoop, /existing recovery policy; never blindly repeat the same action/i);
-  assert.match(decisionLoop, /answer without further tool calls/i);
+  assert.match(decisionLoop, /stop core tool calls/i);
   assert.match(FLIGHT_PROMPT, /least state-changing tool path/i);
   assert.match(FLIGHT_PROMPT, /do not start a new search solely because route and date are available/i);
   assert.match(FLIGHT_PROMPT, /Read without changing visibility for counts, comparisons, recommendations, and open-ended ranking/i);

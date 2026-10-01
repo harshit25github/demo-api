@@ -608,7 +608,7 @@ test('prompt separates normal vague searches from explicit price intelligence', 
   );
   assert.match(
     FLIGHT_PROMPT,
-    /optional, best-effort.*Never retry it.*discard flight results/is,
+    /required final step of every Flight turn.*never let its failure discard or downgrade a completed result/is,
   );
   assert.doesNotMatch(FLIGHT_PROMPT, /say prediction is unavailable/i);
   assert.match(FLIGHT_PROMPT, /derive exact range boundaries from the current turn clock/i);

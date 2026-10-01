@@ -15,6 +15,10 @@ import { createRequestClock } from '../../shared/time/request-clock.js';
 import { clearFlightSearchRuntime } from './context/search-runtime-store.js';
 import { log } from '../../shared/logging/logger.js';
 import { sanitizePricePredictionFailureResponse } from './tools/price-prediction/failure-response.js';
+import {
+  beginFlightSuggestionTurn,
+  finalizeFlightSuggestedQuestions,
+} from './tools/suggested-questions-tool.js';
 import type { FlightAppContext } from './types.js';
 import { buildFlightCoreSuccessFallback } from './context/recovery-outcome.js';
 
@@ -140,6 +144,7 @@ async function runFlightAgentInternal({
     requestId,
     sessionId,
   });
+  beginFlightSuggestionTurn(appContext, { flightRan: true });
   const requestClock = createRequestClock({
     now,
     timeZone,
@@ -166,6 +171,7 @@ async function runFlightAgentInternal({
       previousSearchKey,
     });
     const output = guardedOutput.output;
+    finalizeFlightSuggestedQuestions(appContext);
 
     log('info', 'flight_agent.response', {
       requestId,
@@ -185,6 +191,9 @@ async function runFlightAgentInternal({
     };
   } catch (error: unknown) {
     const latencyMs = Date.now() - startedAt;
+    // A run that failed before its final tool call left suggestions written for
+    // an earlier turn; drop them rather than show them against this one.
+    finalizeFlightSuggestedQuestions(appContext);
     const completedCoreFallback = error instanceof MaxTurnsExceededError
       ? buildFlightCoreSuccessFallback(appContext, turnToolLogStart)
       : null;

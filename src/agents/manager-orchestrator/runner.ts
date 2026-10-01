@@ -6,6 +6,10 @@ import {
   ensureFlightRuntimeContext,
   prepareFlightAgentTurnContext,
 } from '../flight/context/flight-context.js';
+import {
+  beginFlightSuggestionTurn,
+  finalizeFlightSuggestedQuestions,
+} from '../flight/tools/suggested-questions-tool.js';
 import { createRequestContext } from '../../shared/runtime/request-context.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
 import { createManagerAgent } from './agent.js';
@@ -116,6 +120,8 @@ export function buildGatewayContext({
     requestId,
     sessionId,
   });
+  // Flight marks the turn when it actually runs; see manager/specialists/flight.ts.
+  beginFlightSuggestionTurn(appContext, { flightRan: false });
   return appContext;
 }
 
@@ -166,16 +172,23 @@ async function runManagerTurn({
 
   log('info', 'manager_agent.request', { requestId, traceId, sessionId, input });
 
-  const result: DynamicRecord = await withTrace(
-    'travel-manager',
-    () => runner.run(managerAgent, input, {
-      context: requestContext,
-      maxTurns,
-      session,
-      signal,
-    }),
-    { traceId, metadata: { requestId } },
-  );
+  let result: DynamicRecord;
+  try {
+    result = await withTrace(
+      'travel-manager',
+      () => runner.run(managerAgent, input, {
+        context: requestContext,
+        maxTurns,
+        session,
+        signal,
+      }),
+      { traceId, metadata: { requestId } },
+    );
+  } finally {
+    // Also on failure: the caller persists this context, and a Flight run that
+    // died before its final tool call must not leave last turn's suggestions.
+    finalizeFlightSuggestedQuestions(appContext);
+  }
 
   const finalized = finalizeManagerAgentResult({
     result,

@@ -13,7 +13,12 @@ process.env.OPENAI_API_KEY ||= 'test-key';
 
 const { RunContext, Runner, Usage } = await import('@openai/agents');
 const { createManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
-const { buildGatewayContext } = await import('../../src/agents/manager-orchestrator/runner.js');
+const { buildGatewayContext, runGatewayAgent } = await import('../../src/agents/manager-orchestrator/runner.js');
+const {
+  beginFlightSuggestionTurn,
+  finalizeFlightSuggestedQuestions,
+  markFlightSuggestionRun,
+} = await import('../../src/agents/flight/tools/suggested-questions-tool.js');
 const {
   createManagerTools,
   createManagerTurnState,
@@ -23,6 +28,7 @@ const {
 const { FlightManagerAgent } = await import('../../src/agents/flight/agent.js');
 const {
   createRequestContext,
+  getRequestState,
   getScopedRequestText,
 } = await import('../../src/shared/runtime/request-context.js');
 const { createRequestClock } = await import('../../src/shared/time/request-clock.js');
@@ -86,9 +92,14 @@ function seedFlightResults(appContext: any, tool: string, count = 2) {
  */
 async function runFlightTurn(
   respond: (appContext: any) => unknown,
-  { subtask = 'Find flights to Dubai', managerText = 'Here are your options.' } = {},
+  {
+    subtask = 'Find flights to Dubai',
+    managerText = 'Here are your options.',
+    prepare,
+  }: { subtask?: string; managerText?: string; prepare?: (appContext: any) => void } = {},
 ) {
   const appContext = makeContext('Find flights to Dubai');
+  prepare?.(appContext);
   const state = createManagerTurnState(appContext, 'manager-request');
   const original = (FlightManagerAgent as any).model;
   const managerInputs: string[] = [];
@@ -337,4 +348,78 @@ test('standalone Flight falls back to the turn message when there is no scoped i
   assert.equal(getScopedRequestText({ toolInput: { input: '   ' } }, 'Turn message'), 'Turn message');
   // When both exist, the scoped subtask wins.
   assert.equal(getScopedRequestText({ toolInput: { input: 'Scoped' } }, 'Turn message'), 'Scoped');
+});
+
+const SHOWN_LAST_TURN = ['Show nonstop flights only', 'Which option is fastest?', 'Any cheaper dates nearby?'];
+
+/** A Manager turn that starts with an active search and last turn's suggestions on screen. */
+function withShownSuggestions(appContext: any) {
+  appContext.flight.searchKey = 'manager-active-search';
+  appContext.flight.suggestedQuestions = [...SHOWN_LAST_TURN];
+  beginFlightSuggestionTurn(appContext, { flightRan: false });
+}
+
+test('a Flight run that writes no suggestions marks the turn, so finalize drops the stale ones', async () => {
+  const { appContext } = await runFlightTurn(() => flightStructuredAnswer(), {
+    prepare: withShownSuggestions,
+  });
+
+  assert.deepEqual(appContext.flight.suggestedQuestions, SHOWN_LAST_TURN);
+  const outcome = finalizeFlightSuggestedQuestions(appContext);
+  assert.equal(outcome.flightRan, true);
+  assert.equal(outcome.cleared, true);
+  assert.deepEqual(appContext.flight.suggestedQuestions, []);
+});
+
+test('a Flight run that fails is still marked, so its stale suggestions are dropped', async () => {
+  const { appContext } = await runFlightTurn(() => {
+    throw new Error('FLIGHT_RUN_FAILED');
+  }, { prepare: withShownSuggestions, managerText: 'That search could not be completed.' });
+
+  assert.equal(finalizeFlightSuggestedQuestions(appContext).cleared, true);
+  assert.deepEqual(appContext.flight.suggestedQuestions, []);
+});
+
+test('the Manager turn finalizes suggestions even when the run itself fails', async () => {
+  const context: any = {
+    flight: { searchKey: 'manager-active-search', suggestedQuestions: [...SHOWN_LAST_TURN] },
+  };
+  const failingRunner = {
+    async run(_agent: unknown, _input: unknown, options: any) {
+      markFlightSuggestionRun(getRequestState(options.context));
+      throw new Error('MANAGER_RUN_FAILED');
+    },
+  };
+
+  await assert.rejects(
+    runGatewayAgent({
+      input: 'Show nonstop flights only',
+      requestId: 'manager-failed-turn',
+      sessionId: 'manager-session',
+      context,
+      runner: failingRunner as any,
+    }),
+    /MANAGER_RUN_FAILED/,
+  );
+  assert.deepEqual(context.flight.suggestedQuestions, []);
+});
+
+test('a Manager turn that never reaches Flight keeps the suggestions for the active search', async () => {
+  const context: any = {
+    flight: { searchKey: 'manager-active-search', suggestedQuestions: [...SHOWN_LAST_TURN] },
+  };
+  const answeringRunner = {
+    async run() {
+      return { finalOutput: 'You searched for Feb 10.', newItems: [] };
+    },
+  };
+
+  await runGatewayAgent({
+    input: 'What date did I give you?',
+    requestId: 'manager-recall-turn',
+    sessionId: 'manager-session',
+    context,
+    runner: answeringRunner as any,
+  });
+  assert.deepEqual(context.flight.suggestedQuestions, SHOWN_LAST_TURN);
 });
