@@ -28,7 +28,9 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 process.env.ORCHESTRATION_MODE = 'manager';
-process.env.FLIGHT_AGENT_LOG_LEVEL = 'error';
+// 'warn' rather than 'error': a specialist run that fails logs its cause at warn,
+// and that is the one diagnostic these runs cannot reconstruct afterwards.
+process.env.FLIGHT_AGENT_LOG_LEVEL = 'warn';
 // Traces are the point of a live run: each turn is inspectable in the Agents SDK
 // dashboard afterwards. They are exported on a timer, so the run force-flushes
 // before it exits or a short script finishes before anything is sent.

@@ -25,6 +25,7 @@
 import { defineToolOutputGuardrail, ToolGuardrailFunctionOutputFactory } from '@openai/agents';
 import type { FunctionTool, ToolOutputGuardrailDefinition } from '@openai/agents';
 import { z } from 'zod';
+import { log } from '../../shared/logging/logger.js';
 import type { ManagerToolResult, ManagerToolStatus } from './result-contract.js';
 import { recordOutcome, type ManagerTurnState, type SpecialistName } from './turn-state.js';
 
@@ -139,6 +140,38 @@ export function specialistTimeoutResult(
   name: SpecialistName,
   details: ToolCallDetails | undefined,
 ): string {
+  return recordOutcome(state, name, readSubtaskFromDetails(details), {
+    status: 'failure',
+    summary: GENERIC_SPECIALIST_FAILURE,
+  });
+}
+
+/**
+ * The model-visible result for a specialist run that failed outright.
+ *
+ * The same masking as the guardrail, with one difference that matters: the cause
+ * is logged before it is thrown away. A failed run reaches the guardrail as the
+ * SDK's own failure text, which is replaced by one traveler-facing line, so a
+ * model timeout, an exhausted maxTurns and a rejected output schema all become
+ * indistinguishable after the fact. Live runs showed specialists failing
+ * intermittently with no way to tell which of those it was.
+ *
+ * Nothing branches on the wording — it goes to the log and no further, so the
+ * contract pinned by tests/integration/sdk-agent-tool-contract.test.ts holds.
+ */
+export function specialistFailureResult(
+  state: ManagerTurnState,
+  name: SpecialistName,
+  error: unknown,
+  details: ToolCallDetails | undefined,
+): string {
+  const failure = error as { name?: string; message?: string; code?: string };
+  log('warn', 'manager_agent.specialist_failed', {
+    requestId: state.requestId,
+    specialist: name,
+    error: `${failure?.name || 'Error'}: ${String(failure?.message ?? error).slice(0, 300)}`,
+    code: failure?.code ?? null,
+  });
   return recordOutcome(state, name, readSubtaskFromDetails(details), {
     status: 'failure',
     summary: GENERIC_SPECIALIST_FAILURE,

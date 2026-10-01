@@ -5,6 +5,7 @@ import { recordOutcome, type ManagerTurnState } from '../turn-state.js';
 import {
   createSpecialistResultGuardrail,
   readSubtaskFromResult,
+  specialistFailureResult,
   specialistInputSchema,
 } from '../specialist-result.js';
 
@@ -24,6 +25,11 @@ export function createFlightTool(state: ManagerTurnState): Tool<any> {
       state, 'flight_agent', readSubtaskFromResult(result), result.finalOutput,
     ),
   });
+
+  // A failed nested run otherwise reaches the guardrail as the SDK's own wording
+  // and is masked without trace. This logs the cause first.
+  flightTool.errorFunction = (_runContext, error, details) =>
+    specialistFailureResult(state, 'flight_agent', error, details);
 
   flightTool.outputGuardrails = [createSpecialistResultGuardrail(state, 'flight_agent')];
   return flightTool as Tool<any>;

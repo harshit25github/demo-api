@@ -1,18 +1,17 @@
 type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
-const LEVELS: Record<LogLevel, number | undefined> = {
+const LEVELS: Record<LogLevel, number> = {
   debug: 10,
   info: 20,
-  warn: undefined,
+  warn: 30,
   error: 50,
   silent: 99,
 };
 
 function shouldLog(level: LogLevel): boolean {
   const configuredLevel = process.env.AGENT_LOG_LEVEL || process.env.FLIGHT_AGENT_LOG_LEVEL || 'info';
-  const activeLevel = LEVELS[configuredLevel as LogLevel] ?? LEVELS.info!;
-  const requestedLevel = LEVELS[level];
-  return requestedLevel !== undefined && requestedLevel >= activeLevel;
+  const activeLevel = LEVELS[configuredLevel as LogLevel] ?? LEVELS.info;
+  return LEVELS[level] >= activeLevel;
 }
 
 function sanitize(value: unknown): unknown {

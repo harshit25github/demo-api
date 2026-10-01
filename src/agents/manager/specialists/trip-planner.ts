@@ -17,6 +17,7 @@ import { recordOutcome, type ManagerTurnState } from '../turn-state.js';
 import {
   createSpecialistResultGuardrail,
   readSubtaskFromResult,
+  specialistFailureResult,
   specialistInputSchema,
   specialistTimeoutResult,
 } from '../specialist-result.js';
@@ -120,6 +121,9 @@ export function createTripPlannerTool(state: ManagerTurnState): Tool<any> {
   tripTool.timeoutBehavior = 'error_as_result';
   tripTool.timeoutErrorFunction = (_runContext, _error, details) =>
     specialistTimeoutResult(state, 'trip_planner_agent', details);
+
+  tripTool.errorFunction = (_runContext, error, details) =>
+    specialistFailureResult(state, 'trip_planner_agent', error, details);
 
   tripTool.outputGuardrails = [createSpecialistResultGuardrail(state, 'trip_planner_agent')];
 

@@ -12,6 +12,7 @@ export {
   createSpecialistResultGuardrail,
   readSpecialistSubtask,
   readSubtaskFromResult,
+  specialistFailureResult,
   specialistInputSchema,
   specialistTimeoutResult,
   GENERIC_SPECIALIST_FAILURE,

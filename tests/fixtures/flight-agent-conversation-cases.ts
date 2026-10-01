@@ -399,11 +399,11 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         why: 'No search exists yet and none would help: a search prices one date, while the question spans a range. This is the tool’s core case.',
       },
       {
-        user: 'search the date it suggested',
+        user: 'then just search December 3',
         understanding:
-          'Turn the date just established into a concrete one-way search, with defaults for passengers and cabin.',
+          'The traveller supplies a concrete date instead. Search it for the route already established, with defaults for passengers and cabin.',
         expectedTools: ['flight_search'],
-        why: 'Actual options for a specific day come only from a search. The prediction gave guidance, not bookable results.',
+        why: 'Actual options for a specific day come only from a search: the prediction turn produced guidance at best, never bookable results. The date is given outright, so nothing here needs resolving or asking for.',
       },
       {
         user: 'make it business class',
@@ -420,9 +420,10 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
       {
         user: 'is this a good price or should I wait?',
         understanding:
-          'Book-now-or-wait intent for the route and date now committed, answered from fare intelligence rather than the visible fares.',
+          'Book-now-or-wait intent for the route and date now committed, answered from fare intelligence rather than the visible fares. Reading the current fare first to have something to compare against is fine; concluding from it alone is not.',
         expectedTools: ['price_prediction_tool'],
-        why: 'The options on screen show what today costs, not whether it is a good time to buy. Calling this from contract prices, or declining to ask the tool, both fail.',
+        alsoAllowed: ['getGeneratedContractsContext'],
+        why: 'The options on screen show what today costs, not whether it is a good time to buy. Deciding from contract prices without asking the tool is the failure.',
       },
       {
         user: "what's the price on the top option?",
