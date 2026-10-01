@@ -541,14 +541,15 @@ test('prompt grounds suggestions in known trip details before a search, and neve
     /A failed, empty, or unsuccessful result never justifies an empty array/,
     /If the tool returns INVALID_SUGGESTED_QUESTIONS or EMPTY_CTA_NOT_ALLOWED, fix only the listed issues and call it once more; never re-run a search, filter, contract read, or prediction because of it/,
     /^- Departure and arrival known, no date: price windows such as "Cheapest this week", "Cheapest next month", "Cheapest in the next 3 months"/m,
-    /^- Only the departure known: discovery from it, .* Never claim one destination is cheapest/m,
-    /^- Only the arrival known: destination planning, .* Make no fare claim without a departure location/m,
+    /^- Only the departure known: discovery from it, .* Never suggest or claim a cheapest destination; no tool compares unknown destinations/m,
+    /^- Only the arrival known: destination planning only, .* No fare, cheapest-date, or flight-search suggestion until a departure location is known/m,
+    /Never name a departure or arrival location the traveler has not given; timing choices such as "next weekend" are the only details a suggestion may add/,
     /^- Departure and dates known, arrival missing: /m,
     /^- Arrival and dates known, departure missing: /m,
     /^- Route and exact date known but no search ran: "Search this trip"/m,
     /^- Round trip missing its return timing: "Return after 3 days", "Return after a week", "Make it one way"/m,
     /^- Successful prediction without a search: the strongest returned date by name.*Last successful price prediction in Current search state/m,
-    /^- Failed or empty prediction with a known route: concrete search timing/m,
+    /^- Failed or empty prediction with a known route: concrete search timing.* Never another price-date comparison for the window that just failed/m,
     /^  - After a clarification: next steps grounded in what is known, not answers to your own question\.$/m,
   ]) {
     assert.match(FLIGHT_PROMPT, rule);
