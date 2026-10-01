@@ -54,7 +54,7 @@ const GAPS: GapRow[] = [
     title: 'Per-turn mandate removed',
     origin: 'Production regression',
     production:
-      'Mandatory on every turn. FLIGHT_PROD_PROMPT_TEXT states it in the stop rule (prompt.ts:171 "Perform only the mandatory final suggested-questions update, then respond"), the tools intro (:173), the tool section (:427 "Use at the end of every Flight Agent turn", :431 "call this tool as the final tool call"), the routing tail (:655 "Before final response, always update Flight suggested questions"), the chain table (:660-676), the checklist (:908) and the dynamic block (:987).',
+      'Mandatory on every turn. FLIGHT_PROD_PROMPT_TEXT states it in the stop rule (prompt.ts:171 "Perform only the mandatory final suggested-questions update, then respond"), the tools intro (:173), the tool section (:427 "Use at the end of every Flight Agent turn", :431 "call this tool as the final tool call"), the routing tail (:655 "Before final response, always update Flight suggested questions"), the chain table (:660-676), the checklist (:908) and the dynamic block (:987). The Production Map sheet lists each one beside its local equivalent.',
     current:
       'FLIGHT_PROMPT calls it "optional, best-effort enrichment" (prompt.ts:137) and says "Optional suggestion enrichment may run once" (:71). The dynamic instructions repeat "Suggested questions are optional" (agent.ts:229). Committed HEAD carries the same wording.',
     missing:
@@ -82,7 +82,7 @@ const GAPS: GapRow[] = [
     impact:
       'At analysis: contract reads 1 of 46, price prediction 0 of 11, Flight turns with no core tool 0 of 13 - the request classes the missing chains covered.',
     severity: 'High',
-    fix: 'Port a compact chain list adapted to the five registered tools. Do not copy the six chains that name resolve_flight_date: the tool is not registered (tools/index.ts:59-65) and flight-agent-price-prediction.test.ts:596 asserts FLIGHT_PROMPT never mentions it. Local ranking reads without selecting (prompt.ts:112), so production’s read-then-select chain becomes read only. The standalone chain matters most.',
+    fix: 'Port a compact chain list adapted to the five registered tools. Do not copy the six chains that name resolve_flight_date: the tool is not registered (tools/index.ts:59-65) and flight-agent-price-prediction.test.ts:596 asserts FLIGHT_PROMPT never mentions it. Local ranking reads without selecting (prompt.ts:112), so production’s read-then-select chain becomes read only. The standalone chain matters most. The Chain Map sheet gives the adapted list.',
     step: 'Step 3',
     status: 'Open',
     verify:
@@ -305,6 +305,84 @@ const GAPS: GapRow[] = [
     status: 'Open',
     verify: 'Doc review against the shipped prompt.',
   },
+  {
+    id: 'G15',
+    layer: 'A - Prompt authority',
+    title: 'Suggestion-quality rules dropped',
+    origin: 'Production regression',
+    production:
+      'Suggestions are user-side actions "shown under You might ask" (prompt.ts:454), with no assistant-style wording such as "Would you like", "Do you want" or "Should I" (:456). They never ask to add or change departure location, arrival location, travel or return dates, with block examples (:458-460). The reply never mentions the tool, its output or the suggestions (:445, :725). Intents rotate across cabin, passengers, trip type, filters and result reasoning (:472).',
+    current:
+      'FLIGHT_PROMPT keeps a condensed subset (prompt.ts:139): three distinct, context-aware suggestions; no completed or failed action; no active filter; no mandatory route or date fields; never the same three; vary intent. agent.ts:209-210 covers active filters. The voice rule, the never-mention rule and the block examples are gone.',
+    missing:
+      'The user-voice rule, the assistant-style ban, the never-mention rule and the block examples.',
+    impact:
+      'Once the call rate rises, assistant-voice suggestions can reach the UI, and a standalone reply can mention them. The deep-chats live check still asserts the voice and mandatory-field rules the prompt no longer states (flight-agent-intelligence-deep-chats-live.ts:803-804).',
+    severity: 'Medium',
+    fix: 'Restore a compact content block of four or five lines in the tool section, worded for both standalone and Manager mode.',
+    step: 'Step 3',
+    status: 'Open',
+    verify:
+      'A prompt unit test asserts the rules, and the deep-chats live check passes.',
+  },
+  {
+    id: 'G16',
+    layer: 'B - Tool definition',
+    title: 'Content rules are enforced only by the prompt',
+    origin: 'Shared weakness',
+    production:
+      'Prompt-only there too: "a tool call with the exact same suggestedQuestions array as Previous suggested questions is invalid" (prompt.ts:990) was never checked in code.',
+    current:
+      'updateFlightSuggestedQuestions stores any three non-empty strings (suggested-questions-tool.ts:68-88), including an exact repeat of the previous set or assistant-voice text.',
+    missing:
+      'Code-level validation. Trip Planner has it: validateTripPlannerSuggestedQuestions checks against the previous set, and a failure returns INVALID_SUGGESTIONS with "retry once" (trip-planner/context/lifecycle.ts:368-385).',
+    impact: 'The anti-repeat and voice rules depend on sampling.',
+    severity: 'Low',
+    fix: 'Optional: a small validator for exact repeats of the previous set, assistant-style openers, mandatory-field wording and length, returning a retryable failure under the G8 gate.',
+    step: 'Step 2',
+    status: 'Open',
+    verify: 'Unit tests for each rejected case and for the retry.',
+  },
+  {
+    id: 'G17',
+    layer: 'C - State / context',
+    title: 'The once-per-request gate spans the whole Manager turn',
+    origin: 'Local-only',
+    production:
+      'One agent turn was one request, so "at most once per turn" and "at most once per request" meant the same thing.',
+    current:
+      'The Manager sets one requestId for the whole Manager turn and prepares Flight context once (manager-orchestrator/runner.ts:107, :115). isEnabled (suggested-questions-tool.ts:101-106) and the draft finalize key on that id, so a second flight_agent call in the same Manager turn finds the tool hidden, even after a new search cleared the suggestions.',
+    missing:
+      'Turn state for each Flight run. Trip Planner resets its turnState at the start of every turn (trip-planner/context/lifecycle.ts:151-175).',
+    impact:
+      'Latent: no recorded turn lists more than one Flight subtask or Flight result. When it happens, the second Flight run cannot refresh suggestions.',
+    severity: 'Low',
+    fix: 'Reset a Flight turn state at the start of every Flight run, on both the Manager and standalone paths, and gate on it instead of the requestId.',
+    step: 'Step 2',
+    status: 'Open',
+    verify:
+      'Integration test: two Flight calls in one Manager turn both refresh suggestions.',
+  },
+  {
+    id: 'G18',
+    layer: 'C - State / context',
+    title: '"Active search" is not tied to the signal the tool uses',
+    origin: 'Production regression',
+    production:
+      'The dynamic prompt stated "Active search exists: yes" (prompt.ts:920) and bound the rule to it: three suggestions when yes, an empty array when no (:987, :994). A clarification turn with a search key still got three (:449).',
+    current:
+      'The dynamic prompt shows only "Hydrated search key present (not validated)" (agent.ts:189), and FLIGHT_PROMPT says apply_filter needs "a valid active search, not merely a hydrated search key" (prompt.ts:67). The rule itself says "When called with an active search" (:139). The tool decides on any non-empty searchKey string (suggested-questions-tool.ts:46-57).',
+    missing:
+      'One unambiguous binding to the tool’s own signal, including a search created earlier in the same turn.',
+    impact:
+      'The model can judge that no active search exists and send an empty array while a key is present; the tool rejects it and hides itself (G7). Latent: not seen in recorded turns.',
+    severity: 'Low',
+    fix: 'One sentence: if a search key exists after this turn’s tools, pass exactly three suggestions; otherwise pass an empty array. Say that clarification turns with a search key also get three.',
+    step: 'Step 3',
+    status: 'Open',
+    verify:
+      'Scripted test: a hydrated key plus a clarification turn stores three suggestions.',
+  },
 ];
 
 const OPEN_DECISIONS: string[][] = [
@@ -324,6 +402,26 @@ const OPEN_DECISIONS: string[][] = [
     'FLIGHT_PROD_PROMPT_TEXT (prompt.ts:148-995) carries all the mandatory language. It is commented "Historical comparison reference only; never included in runtime instructions" (:147), exists only in the uncommitted working tree, and no runtime or test code imports it: agent.ts:11 imports only FLIGHT_PROMPT. Lines 914-995 are a captured production dynamic block. scripts/audit-session-prompts.ts:58 states the invariant: "FLIGHT_PROMPT is the single authoritative runtime prompt."',
     'Resolved - do not edit that string; every rule must land in the live prompt.',
   ],
+  [
+    'Skip policy on read-only turns',
+    'When Flight skips the tool on a turn that ran no search or filter, the previous suggestions still describe the same results. Clearing them, as the draft finalize and Trip Planner do, removes any risk of suggesting what the user just did, but leaves no suggestions on most read-only turns until Steps 2-3 raise the call rate. Keeping them leaves suggestions that can repeat the action just taken.',
+    'Open - decide before Step 1. Recommended: clear, shipped together with Steps 2-3.',
+  ],
+  [
+    'Turns where Flight never runs',
+    'When the Manager answers without calling flight_agent, nothing touches context.flight.suggestedQuestions, and the previous Flight suggestions go out again in done.flightContext (api/chat/orchestrator.ts:228). They still describe the active search, but not the latest exchange. The Evidence sheet counts these turns separately.',
+    'Open - product decision.',
+  ],
+  [
+    'Uncommitted Step 1 draft',
+    'suggested-questions-tool.ts (writtenRequestIds, finalizeFlightSuggestedQuestions), runner.ts and manager/specialists/flight.ts were edited at 15:31-15:32 on 2026-10-01, after this register was first committed. The draft is uncommitted and untested. Known holes: no finalize when the nested Flight run throws on the Manager path, and logging only in the standalone runner.',
+    'Open - keep it as the Step 1 starting point or discard it. It is not approved work.',
+  ],
+  [
+    'G16 scope',
+    'Production never validated suggestion content in code, so a validator goes beyond parity. It matches Trip Planner, which validates and allows one retry.',
+    'Open - decide before Step 2.',
+  ],
 ];
 
 const FIX_SEQUENCE: string[][] = [
@@ -335,21 +433,27 @@ const FIX_SEQUENCE: string[][] = [
     'Track the gaps before changing behaviour.',
   ],
   [
+    'Step 0b',
+    'Baseline: re-run the ten scripted conversations on the current prompt, then re-run this generator',
+    '-',
+    'No recorded artifact reflects the working-tree prompt, so later steps need a fresh baseline to compare against. Live runs cost API calls.',
+  ],
+  [
     'Step 1',
     'Deterministic state correctness: per-turn written flag, turn-end finalize on the success and error paths of both the standalone and Manager runs, per-turn logging on the Manager path',
     'G9, G10, G11, G13',
-    'Correct on its own merits and independent of the mandate decision: after this, a skipped call can no longer ship stale data. Shipped alone it leaves no suggestions on most read-only turns, so land it with or just before Steps 2-3.',
+    'Correct on its own merits: after this, a skipped call can no longer ship stale data. Decide the read-only skip policy first. Shipped alone it leaves no suggestions on most read-only turns, so land it with or just before Steps 2-3.',
   ],
   [
     'Step 2',
-    'Tool contract: required-terminal description, schema decision, per-run gate with one retry',
-    'G6, G7, G8',
+    'Tool contract: required-terminal description, schema decision, per-run gate with one retry, per-Flight-run turn state, optional content validator',
+    'G6, G7, G8, G16, G17',
     'The tool description must stop contradicting the mandate before the prompt asserts it.',
   ],
   [
     'Step 3',
-    'Prompt authority: mandate wording, stop rule, adapted chain list, checklist line, Manager-mode ordering',
-    'G1, G2, G3, G4, G5',
+    'Prompt authority: mandate wording, stop rule, adapted chain list, checklist line, Manager-mode ordering, content rules, active-search binding',
+    'G1, G2, G3, G4, G5, G15, G18',
     'Raises the call rate once the state layer is already safe.',
   ],
   [
@@ -366,6 +470,10 @@ const READ_ME: string[][] = [
   [
     'What this is',
     'Tracking register for the update_flight_suggested_questions gap between production (FLIGHT_PROD_PROMPT_TEXT, src/agents/flight/prompt.ts:148-995, reference text that never reaches the model) and the local Flight Agent (FLIGHT_PROMPT, the dynamic instructions in agent.ts, the tool, and both runners).',
+  ],
+  [
+    'Sheets',
+    'Gap Register: one row per gap. Evidence: call rates measured from artifacts/. Skip Scenarios: when the current agent skips the tool. Production Map: where production states the mandate, beside the local equivalent. Chain Map: production’s 15 tool chains mapped to the five registered local tools. Fix Sequence: the order to close the gaps. Open Decisions: choices to make before development.',
   ],
   [
     'How to update',
@@ -385,7 +493,168 @@ const READ_ME: string[][] = [
   ],
   [
     'Uncommitted work',
-    'G9, G10, G11 and G13 refer to code that exists only in the uncommitted working tree. Nothing in this register is approved for implementation yet.',
+    'G9, G10, G11 and G13 refer to code that exists only in the uncommitted working tree; see Open Decisions. Nothing in this register is approved for implementation yet.',
+  ],
+];
+
+const PRODUCTION_MAP: string[][] = [
+  ['Production location (prompt.ts)', 'What production says', 'Local equivalent', 'Gaps'],
+  [
+    ':171 - decision process, Stop',
+    '"Once the request is satisfied or clarification is required, stop task-tool calls. Perform only the mandatory final suggested-questions update, then respond."',
+    'prompt.ts:71 "stop core tool calls. Optional suggestion enrichment may run once before final feedback."',
+    'G1',
+  ],
+  [
+    ':173 - tools intro',
+    '"Do NOT chain tools unnecessarily, except approved flight task chains and the required final update_flight_suggested_questions context update."',
+    'None.',
+    'G1, G2',
+  ],
+  [
+    ':426-449 - tool section E',
+    'Use at the end of every turn; final tool call before the text response; at most once; no tools after it; reads the latest searchKey at execution time; three suggestions with a key, an empty array without; never mention it; clarification turns still call it.',
+    'prompt.ts:135-139 "optional, best-effort enrichment"; at most once; three with an active search, an empty array without.',
+    'G1, G6, G18',
+  ],
+  [
+    ':450-481 - suggestion rules',
+    'User-side "You might ask" voice; no assistant-style wording; no mandatory-field suggestions, with block examples; no failed or just-completed action; never the same three; rotate intents; no active filter, including one applied this turn.',
+    'prompt.ts:139 keeps a condensed subset; agent.ts:209-210 covers active filters.',
+    'G15',
+  ],
+  [
+    ':655-659 - end of the routing procedure',
+    '"Before final response, always update Flight suggested questions." Call it as the final tool call; it re-checks the latest searchKey; do not expose its result.',
+    'None.',
+    'G1',
+  ],
+  [
+    ':660-676 - approved chains',
+    '15 chains, every one ending in the tool, including the tool alone for missing-info, clarification, source-option and no-action responses.',
+    'None. See the Chain Map sheet.',
+    'G2',
+  ],
+  [
+    ':725 - communication style',
+    '"After update_flight_suggested_questions, do not mention suggested questions."',
+    'None.',
+    'G15',
+  ],
+  [
+    ':908 - final checklist',
+    '"Did I call update_flight_suggested_questions as the final tool call and avoid mentioning its result to the user?"',
+    'None.',
+    'G3',
+  ],
+  [
+    ':914-995 - captured dynamic block',
+    '"Active search exists: yes" (:920); the mandate restated at the very end of the prompt (:987-988); compare against previous suggestions and never resend the same three (:989-990); mandatory-field guard (:993); an empty array when there is no active search (:994).',
+    'agent.ts:189 "Hydrated search key present (not validated)"; agent.ts:212-214 lists previous suggestions; agent.ts:229 "Suggested questions are optional."',
+    'G1, G18',
+  ],
+];
+
+const CHAIN_MAP: string[][] = [
+  ['#', 'Production chain (prompt.ts:660-676)', 'Local chain with the five registered tools', 'Port'],
+  [
+    '1',
+    'update_flight_suggested_questions alone - missing-info, clarification, source-option or no-action responses',
+    'update_flight_suggested_questions alone',
+    'Yes - the most important row',
+  ],
+  [
+    '2',
+    'resolve_flight_date -> update_flight_suggested_questions - vague timing resolved, route or return timing still missing',
+    'update_flight_suggested_questions alone: the local prompt derives date ranges from the turn clock',
+    'Merge into 1',
+  ],
+  [
+    '3',
+    'flight_search -> update_flight_suggested_questions - search or search update',
+    'Same',
+    'Yes',
+  ],
+  [
+    '4',
+    'resolve_flight_date -> flight_search -> update_flight_suggested_questions - vague-date search',
+    'flight_search -> update_flight_suggested_questions',
+    'Merge into 3',
+  ],
+  [
+    '5',
+    'apply_filter -> update_flight_suggested_questions - filter only',
+    'Same',
+    'Yes',
+  ],
+  [
+    '6',
+    'getGeneratedContractsContext(read) -> update_flight_suggested_questions - informational current-option question',
+    'Same',
+    'Yes',
+  ],
+  [
+    '7',
+    'getGeneratedContractsContext(select) -> update_flight_suggested_questions - explicit indexed comparison',
+    'getGeneratedContractsContext(select or show_all) -> update_flight_suggested_questions, for explicit display requests only; comparisons read (prompt.ts:112)',
+    'Adapt',
+  ],
+  [
+    '8',
+    'getGeneratedContractsContext(read) -> getGeneratedContractsContext(select) -> update_flight_suggested_questions - cheapest, best, recommendation, generic comparison',
+    'getGeneratedContractsContext(read) -> update_flight_suggested_questions: ranking reads without changing visibility (prompt.ts:112)',
+    'Adapt - same local chain as 6',
+  ],
+  [
+    '9',
+    'flight_search -> apply_filter -> update_flight_suggested_questions - search plus filter',
+    'Same; also covers apply_filter returning MISSING_SEARCH, then flight_search, then apply_filter (prompt.ts:123)',
+    'Yes',
+  ],
+  [
+    '10',
+    'resolve_flight_date -> flight_search -> apply_filter -> update_flight_suggested_questions - vague-date search plus filter',
+    'flight_search -> apply_filter -> update_flight_suggested_questions',
+    'Merge into 9',
+  ],
+  [
+    '11',
+    'price_prediction_tool -> update_flight_suggested_questions - route-based date intelligence',
+    'Same, after success or failure on advice-only requests',
+    'Yes',
+  ],
+  [
+    '12',
+    'resolve_flight_date -> price_prediction_tool -> update_flight_suggested_questions - vague-date price intelligence',
+    'price_prediction_tool -> update_flight_suggested_questions',
+    'Merge into 11',
+  ],
+  [
+    '13',
+    'price_prediction_tool -> flight_search -> update_flight_suggested_questions - a successful prediction supplies the date and results were requested',
+    'price_prediction_tool -> flight_search [-> apply_filter] -> update_flight_suggested_questions; also the single fallback search after a failed prediction (prompt.ts:102)',
+    'Yes',
+  ],
+  [
+    '14',
+    'resolve_flight_date -> price_prediction_tool -> flight_search -> update_flight_suggested_questions',
+    'price_prediction_tool -> flight_search -> update_flight_suggested_questions',
+    'Merge into 13',
+  ],
+  [
+    '15',
+    'getGeneratedContractsContext -> price_prediction_tool -> update_flight_suggested_questions - price advice about a current option',
+    'getGeneratedContractsContext(read) -> price_prediction_tool -> update_flight_suggested_questions (prompt.ts:95)',
+    'Yes',
+  ],
+  [],
+  [
+    'Result',
+    'Nine local chains: the tool alone; search; filter; search plus filter; contract read; contract select or show_all; prediction; prediction plus search; contract read plus prediction. Each ends in update_flight_suggested_questions, including after recovery retries.',
+  ],
+  [
+    'Constraint',
+    'Do not name resolve_flight_date in FLIGHT_PROMPT: it is not registered (tools/index.ts:59-65), and flight-agent-price-prediction.test.ts:596 asserts the name is absent.',
   ],
 ];
 
@@ -670,6 +939,34 @@ const SKIP_SCENARIOS: SkipScenario[] = [
       'search_filter_options turn 2, "Show nonstop flights only.": called in manager-flight-five-chats-live.json, not called in manager-flight-five-chats-traced-live.json.',
     why: 'Nothing enforces it, so it is left to sampling.',
   },
+  {
+    scenario: 'After a rejected draft',
+    evidence:
+      'Test-only: flight-agent-recovery-loop.test.ts:315-330. No recorded turn hit it.',
+    why: 'isEnabled hides the tool for the rest of the request after any attempt, so a one- or two-item draft can never be corrected (G7, G8).',
+  },
+  {
+    scenario: 'Second Flight call in one Manager turn',
+    evidence:
+      'Latent: no recorded turn lists more than one Flight subtask or Flight result.',
+    why: 'One requestId covers the whole Manager turn, so the second Flight run finds the tool hidden, even after a new search cleared the suggestions (G17).',
+  },
+  {
+    scenario: 'Hydrated but unvalidated search key',
+    evidence: 'Latent: not seen in recorded turns.',
+    why: 'The prompt separates a hydrated key from a valid active search. An empty array sent while a key exists is rejected, and the tool hides itself (G18, G7).',
+  },
+  {
+    scenario: 'Run error or max turns',
+    evidence: 'Not recorded separately.',
+    why: 'The run ends before the tool is reached, and the max-turns recovery path leaves it out of CORE_TOOLS (recovery-outcome.ts:6-10).',
+  },
+  {
+    scenario: 'Manager answers without calling Flight',
+    measure: (facts) =>
+      `${facts.filter((fact) => !fact.flightRan).length} of ${facts.length} recorded turns.`,
+    why: 'Not a Flight skip, so the Evidence sheet excludes these turns. Nothing refreshes or clears the Flight suggestions, and the previous ones go out again (see Open Decisions).',
+  },
 ];
 
 function buildSkipScenariosSheet({ facts }: Evidence): WorkbookSheet {
@@ -728,6 +1025,8 @@ const sheets: WorkbookSheet[] = [
   registerSheet,
   buildEvidenceSheet(evidence),
   buildSkipScenariosSheet(evidence),
+  { name: 'Production Map', rows: PRODUCTION_MAP },
+  { name: 'Chain Map', rows: CHAIN_MAP },
   { name: 'Fix Sequence', rows: FIX_SEQUENCE },
   { name: 'Open Decisions', rows: OPEN_DECISIONS },
   { name: 'Read Me', rows: READ_ME },
