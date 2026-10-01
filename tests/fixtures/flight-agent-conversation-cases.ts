@@ -23,8 +23,10 @@
  * removed for this. Put contract reads where no filter ran immediately before.
  *
  * Comparing a run against `expectedTools`:
- *   - drop `NON_CORE_TOOLS` first — the suggested-questions tool fires
- *     opportunistically after core work and must never decide a pass or fail
+ *   - drop `NON_CORE_TOOLS` first — the suggested-questions update ends every
+ *     Flight turn, so it is scored separately (the turn must end with it and
+ *     leave 3 suggestions with an active search, none without) instead of
+ *     being repeated in every `expectedTools`
  *   - collapse consecutive repeats of the same tool; Flight legitimately reads
  *     `getGeneratedContractsContext` more than once in a turn
  *   - treat order as meaningful only where a turn lists more than one tool
@@ -49,7 +51,7 @@ export type FlightConversationTool =
   | 'price_prediction_tool'
   | 'getGeneratedContractsContext';
 
-/** Ignored when scoring a turn: optional, and never part of the core outcome. */
+/** Left out of `expectedTools`: every Flight turn must end with it, scored on its own. */
 export const NON_CORE_TOOLS = ['update_flight_suggested_questions'] as const;
 
 /** The fixed turn clock every script is written against. */

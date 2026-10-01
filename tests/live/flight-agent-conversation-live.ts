@@ -9,12 +9,14 @@
  * Run:    $env:RUN_FLIGHT_CONVERSATION_LIVE='1'; npx tsx tests/live/flight-agent-conversation-live.ts --case relative_dates_then_shift
  * Narrow: add --limit-turns 3
  *
- * Scoring follows the rules the fixture documents: drop the non-core
- * suggested-questions tool, collapse consecutive repeats of the same tool, and
- * treat the remainder as an ordered sequence. `specialistsUsed` is reported but
- * never scored — the fixture's expectations are about Flight's tool selection,
- * and whether the Manager delegated a context-only question is a separate signal
- * worth reading rather than failing on.
+ * Scoring follows the rules the fixture documents: drop the suggested-questions
+ * update, collapse consecutive repeats of the same tool, and treat the remainder
+ * as an ordered sequence. The update is scored on its own: a turn that runs
+ * Flight must end with it, leaving 3 suggestions when a search is active and none
+ * otherwise. `specialistsUsed` is reported but never scored — the fixture's
+ * expectations are about Flight's tool selection, and whether the Manager
+ * delegated a context-only question is a separate signal worth reading rather
+ * than failing on.
  */
 import 'dotenv/config';
 import fs from 'node:fs/promises';
@@ -77,6 +79,26 @@ if (!(limitTurns === Infinity || (Number.isInteger(limitTurns) && limitTurns > 0
 }
 
 const nonCore = new Set<string>(NON_CORE_TOOLS);
+const SUGGESTIONS_TOOL = 'update_flight_suggested_questions';
+
+/**
+ * The suggested-questions mandate, checked apart from the core tools: a turn
+ * that runs Flight ends with the update and leaves 3 suggestions when a search
+ * is active, none otherwise. Returns the problem, or null when the turn complies.
+ */
+function checkSuggestions(
+  rawTools: readonly string[],
+  specialistsUsed: readonly string[],
+  flight: { searchKey?: unknown; suggestedQuestions?: unknown } | undefined,
+): string | null {
+  if (!specialistsUsed.includes('flight_agent')) return null;
+  if (rawTools.at(-1) !== SUGGESTIONS_TOOL) {
+    return `turn did not end with ${SUGGESTIONS_TOOL}`;
+  }
+  const count = Array.isArray(flight?.suggestedQuestions) ? flight.suggestedQuestions.length : 0;
+  const expected = flight?.searchKey ? 3 : 0;
+  return count === expected ? null : `expected ${expected} suggestions, found ${count}`;
+}
 
 /**
  * The fixture's comparison rules, in one place.
@@ -121,7 +143,11 @@ for (const [index, turn] of scenario.turns.entries()) {
       .map((entry: any) => String(entry?.tool || '')).filter(Boolean);
     const actual = normalizeTools(rawTools, turn.alsoAllowed ?? []);
     const expected = [...turn.expectedTools];
-    const passed = JSON.stringify(actual) === JSON.stringify(expected);
+    const coreToolsMatched = JSON.stringify(actual) === JSON.stringify(expected);
+    const specialistsUsed: string[] = result.specialistsUsed || [];
+    const suggestedQuestions: string[] = result.context.flight?.suggestedQuestions || [];
+    const suggestionsProblem = checkSuggestions(rawTools, specialistsUsed, result.context.flight);
+    const passed = coreToolsMatched && !suggestionsProblem;
     if (!passed) failures += 1;
 
     const subtasks = (result.result?.newItems || [])
@@ -155,7 +181,9 @@ for (const [index, turn] of scenario.turns.entries()) {
     console.log(`  expected : ${JSON.stringify(expected)}`);
     console.log(`  actual   : ${JSON.stringify(actual)}${
       rawTools.length !== actual.length ? `   (raw: ${JSON.stringify(rawTools)})` : ''}`);
-    console.log(`  delegated: ${JSON.stringify(result.specialistsUsed || [])}  cards=${
+    console.log(`  suggest  : ${suggestionsProblem ? `FAIL - ${suggestionsProblem}` : 'ok'}  ${
+      JSON.stringify(suggestedQuestions)}`);
+    console.log(`  delegated: ${JSON.stringify(specialistsUsed)}  cards=${
       Boolean(result.renderFlightOptions)}  trace=${traceId}`);
     for (const item of feedback) {
       console.log(`  feedback : status=${item.status} presentation=${item.presentation ?? 'null'} missingInfo=${
@@ -180,7 +208,10 @@ for (const [index, turn] of scenario.turns.entries()) {
       actualTools: actual,
       rawTools,
       passed,
-      specialistsUsed: result.specialistsUsed || [],
+      coreToolsMatched,
+      suggestionsCheck: suggestionsProblem || 'ok',
+      suggestedQuestions,
+      specialistsUsed,
       renderFlightOptions: Boolean(result.renderFlightOptions),
       subtasks,
       feedback,

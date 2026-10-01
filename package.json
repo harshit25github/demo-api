@@ -44,6 +44,7 @@
     "test:flight:intelligence-deep-chats": "tsx tests/live/flight-agent-intelligence-deep-chats-live.ts",
     "test:flight:basic-queries": "tsx tests/live/flight-agent-basic-queries-live.ts",
     "test:flight:suggested-questions": "tsx --test tests/unit/flight-agent-suggested-questions.test.ts",
+    "test:flight:suggested-questions-variation": "tsx tests/live/flight-agent-suggested-questions-variation-live.ts",
     "gaps:suggested-questions": "tsx scripts/write-suggested-questions-gap-register.ts",
     "test:flight:context-carry-forward": "tsx --test tests/integration/flight-agent-context-carry-forward.test.ts",
     "test:flight:price-prediction": "tsx --test tests/unit/flight-agent-price-prediction.test.ts",

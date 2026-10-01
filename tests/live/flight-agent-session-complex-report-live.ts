@@ -432,13 +432,25 @@ function toolSequenceText(tools) {
   return tools.length ? tools.join(' -> ') : '(none)';
 }
 
+const SUGGESTIONS_TOOL = 'update_flight_suggested_questions';
+
+/** The tools a turn's expectations are written in: everything but the suggestions update. */
+function coreTools(tools) {
+  return tools.filter((tool) => tool !== SUGGESTIONS_TOOL);
+}
+
 function validateTurn({ turnConfig, actualTools, context, response, previousTurns }) {
   const errors = [];
   const expectedText = toolSequenceText(turnConfig.expectedTools);
-  const actualText = toolSequenceText(actualTools);
+  const actualText = toolSequenceText(coreTools(actualTools));
 
   if (expectedText !== actualText) {
     errors.push(`Expected tools ${expectedText}, got ${actualText}.`);
+  }
+  // Every Flight turn ends with the suggestions update, so it is checked here
+  // rather than repeated in each expectedTools list.
+  if (actualTools.at(-1) !== SUGGESTIONS_TOOL) {
+    errors.push(`Expected the turn to end with ${SUGGESTIONS_TOOL}.`);
   }
 
   for (const check of turnConfig.checks || []) {
@@ -496,7 +508,8 @@ async function runScenario(scenario, scenarioIndex) {
     }
 
     const hallucinationError = assertNoFlightDetailsWithoutTool({
-      actualTools,
+      // The suggestions update is not a source of flight details.
+      actualTools: coreTools(actualTools),
       agentResponse: response.output,
     });
     if (hallucinationError) {
