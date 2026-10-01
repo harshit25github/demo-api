@@ -559,7 +559,7 @@ test('prompt grounds suggestions in known trip details before a search, and neve
 test('the Manager sends partial flight details to Flight instead of collecting them itself', () => {
   assert.match(
     MANAGER_PROMPT,
-    /That includes a reply that supplies only part of a flight request, such as "from Delhi" or "going to Mumbai": send Flight every detail gathered so far, even while another is still missing\./,
+    /That includes a reply that supplies only part of a flight request, such as "from Delhi" or "going to Mumbai": send Flight the route, dates, passengers and cabin gathered so far, even while another is still missing\. This is about collecting a new request; a new search still drops the old filters unless the traveler asks to keep them\./,
   );
   assert.match(MANAGER_PROMPT, /Flight also writes the suggested next steps shown with each reply/);
 });
