@@ -7,6 +7,10 @@
  * so re-running this command after each fix step re-measures the call rate
  * instead of restating the numbers from when the analysis was written.
  *
+ * Track progress here, not in the workbook: when a fix lands, change that gap's
+ * `status` below and regenerate. The workbook is rewritten on every run, so
+ * edits made in Excel are lost.
+ *
  *   npm run gaps:suggested-questions
  *
  * Commit the generator and the workbook together: the generator is the diffable
@@ -17,13 +21,19 @@ import path from 'node:path';
 import { writeWorkbook, type WorkbookSheet } from './lib/xlsx-workbook.js';
 
 const SUGGESTED_TOOL = 'update_flight_suggested_questions';
-/** Tools that wipe context.flight.suggestedQuestions as a side effect. */
-const CLEARING_TOOLS = ['flight_search', 'apply_filter'];
+/** Tools that replace the visible results the suggestions were written for. */
+const RESULT_CHANGING_TOOLS = ['flight_search', 'apply_filter'];
+/** The ten scripted Flight conversations, the set fix verification re-runs. */
+const SCRIPTED_GROUP = 'flight-conversation-*';
+
+/** See the Read Me sheet for what each value means. */
+type Origin = 'Production regression' | 'Local-only' | 'Shared weakness';
 
 interface GapRow {
   id: string;
   layer: string;
   title: string;
+  origin: Origin;
   production: string;
   current: string;
   missing: string;
@@ -31,6 +41,10 @@ interface GapRow {
   severity: 'High' | 'Medium' | 'Low';
   fix: string;
   step: string;
+  /** The tracking field: update it when a fix lands. */
+  status: string;
+  /** What has to be true before the gap can be marked closed. */
+  verify: string;
 }
 
 const GAPS: GapRow[] = [
@@ -38,203 +52,258 @@ const GAPS: GapRow[] = [
     id: 'G1',
     layer: 'A - Prompt authority',
     title: 'Per-turn mandate removed',
+    origin: 'Production regression',
     production:
-      'prompt.ts:427 "Use at the end of every Flight Agent turn"; :655 "Before final response, always update Flight suggested questions"; :171 stop rule "Perform only the mandatory final suggested-questions update, then respond".',
+      'Mandatory on every turn. FLIGHT_PROD_PROMPT_TEXT states it in the stop rule (prompt.ts:171 "Perform only the mandatory final suggested-questions update, then respond"), the tools intro (:173), the tool section (:427 "Use at the end of every Flight Agent turn", :431 "call this tool as the final tool call"), the routing tail (:655 "Before final response, always update Flight suggested questions"), the chain table (:660-676), the checklist (:908) and the dynamic block (:987).',
     current:
-      'prompt.ts:137 "This is optional, best-effort enrichment"; :71 "Optional suggestion enrichment may run once"; agent.ts:229 repeats "Suggested questions are optional".',
+      'FLIGHT_PROMPT calls it "optional, best-effort enrichment" (prompt.ts:137) and says "Optional suggestion enrichment may run once" (:71). The dynamic instructions repeat "Suggested questions are optional" (agent.ts:229). Committed HEAD carries the same wording.',
     missing:
       'Any unconditional statement that the turn is not finished until the tool has run.',
     impact:
-      '43% call rate across 201 recorded turns; 0% on read-only, prediction and no-tool turns.',
+      'At analysis (2026-10-01): Flight called it on 84 of 114 turns that ran flight_search or apply_filter, and on 2 of 72 turns that ran neither; 86 of 186 Flight turns overall. Current numbers are on the Evidence sheet.',
     severity: 'High',
-    fix: 'Replace the optional framing in all three live locations with a required-final-step rule.',
+    fix: 'Replace the optional framing in all three live locations (prompt.ts:71, prompt.ts:137, agent.ts:229) with a required-final-step rule. Keep "never retry it or let its failure discard a result".',
     step: 'Step 3',
+    status: 'Open',
+    verify:
+      'Evidence: the "Ran neither" row reaches 100% on a fresh run of the scripted conversations.',
   },
   {
     id: 'G2',
     layer: 'A - Prompt authority',
     title: 'Approved tool-chain table absent',
+    origin: 'Production regression',
     production:
-      'prompt.ts:660-676 lists 15 chains, every one terminating in this tool, including "update_flight_suggested_questions alone for missing-info, clarification, source-option, or no-action responses".',
-    current: 'FLIGHT_PROMPT contains no chain table at all.',
+      'prompt.ts:660-676 lists 15 approved chains, each ending in this tool, including "update_flight_suggested_questions alone for missing-info, clarification, source-option, or no-action responses" (:662).',
+    current:
+      'FLIGHT_PROMPT has no chain table; the tool section only says to run it "after the core request is complete" (prompt.ts:137).',
     missing:
-      'Per-request-class sequencing that names the tool as the terminal step.',
+      'Per-request-class sequencing that names the tool as the terminal step, including turns that need no core tool.',
     impact:
-      'The three 0% measured rows map one-to-one onto the missing chains (contract read, prediction, no-tool).',
+      'At analysis: contract reads 1 of 46, price prediction 0 of 11, Flight turns with no core tool 0 of 13 - the request classes the missing chains covered.',
     severity: 'High',
-    fix: 'Add a compact chain list ending in the tool; the standalone clarification case matters most (0/12 turns today).',
+    fix: 'Port a compact chain list adapted to the five registered tools. Do not copy the six chains that name resolve_flight_date: the tool is not registered (tools/index.ts:59-65) and flight-agent-price-prediction.test.ts:596 asserts FLIGHT_PROMPT never mentions it. Local ranking reads without selecting (prompt.ts:112), so production’s read-then-select chain becomes read only. The standalone chain matters most.',
     step: 'Step 3',
+    status: 'Open',
+    verify:
+      'Evidence: the getGeneratedContractsContext, price_prediction_tool and (no tool) rows reach 100%.',
   },
   {
     id: 'G3',
     layer: 'A - Prompt authority',
     title: 'Pre-response checklist gone',
+    origin: 'Production regression',
     production:
       'prompt.ts:908 "Did I call update_flight_suggested_questions as the final tool call and avoid mentioning its result to the user?"',
-    current: 'No checklist of any kind in the live prompt.',
+    current: 'No checklist of any kind in FLIGHT_PROMPT.',
     missing: 'A self-verification pass before the final output is emitted.',
     impact: 'No second chance for the model to notice the omission.',
     severity: 'Medium',
     fix: 'One checklist line in the "Final response and stopping" section.',
     step: 'Step 3',
+    status: 'Open',
+    verify: 'A prompt unit test asserts the checklist line.',
   },
   {
     id: 'G4',
     layer: 'A - Prompt authority',
-    title: 'A clause actively instructs the model to drop it',
-    production: 'Turn budget was never traded against this tool.',
+    title: 'A clause tells the model to drop it under budget pressure',
+    origin: 'Local-only',
+    production: 'The turn budget was never traded against this tool.',
     current:
       'prompt.ts:143 "Search/filter/contract success outranks suggestion enrichment. Prioritize completing structured feedback within the turn budget over optional work."',
     missing:
       'Nothing - this is an added counter-incentive rather than an omission.',
     impact:
-      'With maxTurns: 10 (config.ts:88) this is the first thing dropped under pressure.',
+      'With maxTurns 10 (config.ts:88) this is the first work dropped under pressure.',
     severity: 'High',
-    fix: 'Keep "never let it discard a successful result"; delete the optional-work / budget trade-off framing.',
+    fix: 'Keep "never let it discard a successful result"; delete the optional-work and turn-budget trade-off.',
     step: 'Step 3',
+    status: 'Open',
+    verify:
+      'A prompt unit test asserts the trade-off is gone; the max-turns recovery test (flight-agent-recovery-loop.test.ts:425) still preserves core results.',
   },
   {
     id: 'G5',
     layer: 'A - Prompt authority',
-    title: 'Manager-mode instructions de-escalate it',
+    title: 'Manager mode de-escalates it and sets no order',
+    origin: 'Production regression',
     production:
-      'The agent ended its turn in free text, so "final tool call before your final text response" was a coherent instruction.',
+      'The agent ended its turn in free text, so "call this tool as the final tool call before your final text response" (prompt.ts:431) was a coherent instruction.',
     current:
-      'FlightManagerAgent sets outputType: flightManagerOutputSchema (agent.ts:250) so the turn ends by emitting JSON; manager-output.ts:38 says "Optional suggested-question work never changes a successful core outcome."',
+      'FlightManagerAgent sets outputType: flightManagerOutputSchema (agent.ts:250), so the turn ends by emitting structured output, and manager-output.ts:38 says "Optional suggested-question work never changes a successful core outcome." All chat API traffic takes this path (manager-orchestrator/runner.ts), and so did every recorded artifact, including the scripted conversations.',
     missing:
       'An ordering rule: tool call first, structured output second.',
-    impact: 'Manager-path call rates of 43% (manager-flight-*) and 35% (manager-realistic-*).',
+    impact:
+      'At analysis: 86 of 186 Flight turns, all on the Manager path (45% for manager-flight-*, 38% for manager-realistic-*). There is no standalone-runner evidence to compare against.',
     severity: 'High',
     fix: 'State the ordering in FLIGHT_MANAGER_INSTRUCTIONS and drop the de-escalation sentence. Do NOT add a schema field - the consumer reads shared context, not Manager feedback.',
     step: 'Step 3',
+    status: 'Open',
+    verify: 'Evidence: every Manager-path Flight turn calls the tool.',
   },
   {
     id: 'G6',
     layer: 'B - Tool definition',
     title: 'Tool description contradicts any mandate',
+    origin: 'Production regression',
     production:
-      'A "Required behavior" block: call it as the final tool call before the final text response.',
+      'The tool section’s "Required behavior": call it as the final tool call before the final text response, at most once, then no more tools (prompt.ts:429-433).',
     current:
-      'suggested-questions-tool.ts:84 "Best-effort enrichment after the user’s core Flight request is complete..."',
+      'UpdateFlightSuggestedQuestionsTool description (suggested-questions-tool.ts:94): "Best-effort enrichment after the user’s core Flight request is complete..."',
     missing:
-      'Required/terminal framing in the text the model receives alongside the tool schema.',
+      'Required, terminal framing in the text the model receives alongside the tool schema.',
     impact:
       'The description ships in the same payload as the prompt and will undercut G1.',
     severity: 'High',
-    fix: 'Mirror the trip-planner sibling: "Call only after context capture and all planning tools, as the final tool call." (trip-planner/tools/context-tools.ts:205-206)',
+    fix: 'Mirror the Trip Planner sibling: "Call only after context capture and all planning tools, as the final tool call." (trip-planner/tools/context-tools.ts:205-206)',
     step: 'Step 2',
+    status: 'Open',
+    verify: 'A unit test asserts the description calls it the final tool call.',
   },
   {
     id: 'G7',
     layer: 'B - Tool definition',
-    title: 'Schema admits a payload that can only fail',
+    title: 'Schema admits payloads that can only fail',
+    origin: 'Shared weakness',
     production: '"Exactly 3" was prose only, same as here.',
     current:
-      'suggested-questions-tool.ts:16-23 uses .array(z.string().min(1)).max(3) with no .min(3). The provider sees maxItems: 3 and no minimum, so a 1-2 item array is schema-valid, reaches execute, and is rejected with INVALID_SUGGESTED_QUESTIONS / retrySafe: false (:58-71). isEnabled (:91-96) then hides the tool for the rest of the turn.',
-    missing: 'A schema that can express both valid states and nothing else.',
+      'updateFlightSuggestedQuestionsSchema (suggested-questions-tool.ts:26-33) is .array(z.string().min(1)).max(3) with no .min(3). A 1-2 item array, or an empty array while a search key exists, is schema-valid, reaches execute and is rejected with INVALID_SUGGESTED_QUESTIONS and retrySafe: false (:59-81). isEnabled (:101-106) then hides the tool for the rest of the request.',
+    missing: 'A schema that can express the valid states and nothing else.',
     impact:
-      'Dead-end failure mode - one malformed draft and the turn stores nothing, with no retry path. Already exercised at flight-agent-recovery-loop.test.ts:315-317.',
+      'A dead end: one malformed draft and the turn stores nothing, with no retry path. Not seen in any recorded turn; exercised by flight-agent-recovery-loop.test.ts:315-330.',
     severity: 'Medium',
-    fix: 'DECISION NEEDED. A plain .min(3) is wrong: the empty array is how "no active search, clear stale suggestions" is expressed (:41-47). Option (a) keep 0..3 plus a clearOnly discriminator; option (b) PREFERRED .min(3).max(3) like trip-planner (context-tools.ts:116-123) and move clearing into the Step 1 finalize. Also consider per-string .max(80).',
+    fix: 'DECISION NEEDED. A plain .min(3) is wrong while the empty array is how "no active search, clear stale suggestions" is expressed (:46-57). Option (a): keep 0..3 plus a clearOnly discriminator. Option (b), PREFERRED: .min(3).max(3) like Trip Planner (context-tools.ts:116-123), with clearing moved into the Step 1 finalize. Also consider a per-string .max(80).',
     step: 'Step 2',
+    status: 'Open',
+    verify:
+      'Unit tests: the schema rejects 1-2 items before execute, and the no-search path still clears.',
   },
   {
     id: 'G8',
     layer: 'B - Tool definition',
-    title: 'No phase gate; "at most once" is the only constraint',
+    title: 'No phase gate and no retry; "at most once" is the only constraint',
+    origin: 'Shared weakness',
     production:
-      '"After it returns successfully, call no more tools", and never before core work.',
+      'Phase rules lived in the prompt: never before core work, and "After it returns successfully, call no more tools" (prompt.ts:433).',
     current:
-      'isEnabled dedupes by requestId only (suggested-questions-tool.ts:91-96). It does not require core work to be complete and does not stop later tool calls.',
-    missing: 'A turn-phase gate.',
-    impact: 'The tool can fire mid-turn; nothing guarantees it is last.',
+      'isEnabled (suggested-questions-tool.ts:101-106) hides the tool once it has run for the current requestId, whether the call succeeded or failed. Nothing stops later tool calls, and a rejected draft cannot be retried.',
+    missing:
+      'A per-turn gate that allows one retry after a rejected draft and reopens the tool when results change after it ran.',
+    impact:
+      'One bad draft ends the turn with no suggestions. A search or filter after the call leaves new results with suggestions written for the old ones (HEAD) or none (working tree).',
     severity: 'Medium',
-    fix: 'Mirror the trip-planner gate (context-tools.ts:209-216: contextCaptured && !suggestionsUpdated && attempts < 2), adapted to "core work complete".',
+    fix: 'Gate on per-run turn state: at most two attempts, closed once written, reopened when flight_search or apply_filter runs after the write. Unlike Trip Planner (context-tools.ts:209-216), Flight has no mandatory first step, so "core work complete" cannot be computed - do not gate on it, and do not disable core tools after the write.',
     step: 'Step 2',
+    status: 'Open',
+    verify:
+      'Unit tests: a rejected draft can be retried once, and a search after the write reopens the tool.',
   },
   {
     id: 'G9',
     layer: 'C - State / context',
-    title: 'A skipped call silently keeps last turn’s suggestions',
+    title: 'A skipped call keeps the previous turn’s suggestions',
+    origin: 'Shared weakness',
     production:
-      'The tool was mandatory and re-read searchKey at execution time, so every turn ended in a deliberate write.',
+      'Every turn ended in a deliberate write: the tool was mandatory and re-read searchKey at execution time (prompt.ts:437-441).',
     current:
-      'prepareFlightAgentTurnContext clears only when there is no searchKey (flight-context.ts:345-347). On a read-only turn with an active search and no tool call, the previous turn’s three strings persist verbatim.',
+      'Committed HEAD never clears suggestions outside the tool, so a skipped call ships the previous turn’s strings even after a new search. The working tree adds a turn-start clear only when there is no search key (flight-context.ts:345-347, uncommitted), so with an active search a skipped read-only turn still ships the previous strings. An uncommitted, untested draft adds finalizeFlightSuggestedQuestions (suggested-questions-tool.ts:150-166), called from runner.ts:170 and :197 and from manager/specialists/flight.ts:24-32. On the Manager path it does not run when the nested Flight run throws, because customOutputExtractor is skipped.',
     missing:
-      'An end-of-turn finalize. The sibling has exactly this: finalizeTripPlannerTurn clears when !turnState.suggestionsUpdated (trip-planner/context/lifecycle.ts:422-425); trip-planner/runner.ts:434 clears on error.',
+      'A turn-end finalize on every path plus a per-turn written flag. Trip Planner has both: finalizeTripPlannerTurn clears when !turnState.suggestionsUpdated (trip-planner/context/lifecycle.ts:423-425), and trip-planner/runner.ts:434 clears on error.',
     impact:
-      'Silent staleness, invisible to tests - the lenient live assertions check suggestions.length === 3 (flight-agent-intelligence-deep-chats-live.ts:789-801), which passes on stale data.',
+      'Silent staleness, invisible to tests: the deep-chats live check only asserts suggestions.length === 3 (flight-agent-intelligence-deep-chats-live.ts:798), which stale data passes.',
     severity: 'High',
-    fix: 'Add a flight turn-finalize plus a per-turn suggestionsUpdated flag. Correct regardless of the mandate decision, so do it first.',
+    fix: 'Keep the finalize, cover the Manager error path, and add tests. First decide whether a skipped read-only turn should clear or keep its suggestions: clearing turns stale-but-same-search suggestions into none, so land Step 1 with or just before Steps 2-3.',
     step: 'Step 1',
+    status: 'Open - uncommitted draft in working tree, untested',
+    verify:
+      'Unit tests: with an active search and no tool call, no previous strings survive the turn; the finalize also runs when Flight throws on the Manager path.',
   },
   {
     id: 'G10',
     layer: 'C - State / context',
-    title: 'Mutation tools wipe without refill',
-    production: 'Same clearing, but the mandated end-of-turn write always refilled.',
+    title: 'Search and filter invalidate suggestions, but nothing guarantees a refill',
+    origin: 'Local-only',
+    production:
+      'The mandated end-of-turn write replaced the suggestions whenever results changed.',
     current:
-      'search-tool.ts:482 and filter/tool.ts:183 set suggestedQuestions = []; see the Evidence sheet for the count of turns that never refilled.',
+      'The working tree adds clearing to flight_search (search-tool.ts:482) and apply_filter (filter/tool.ts:183), both uncommitted; committed HEAD does not clear there. Either way nothing guarantees a refresh: the Evidence sheet counts the search/filter turns that ended without one.',
     missing: 'The guaranteed refill, not the clearing.',
     impact:
-      'Empty suggestion chips after a search or filter - the most user-visible symptom.',
+      'At analysis: 30 of 114 result-changing Flight turns ended without a refresh. With the working-tree code they ship no suggestions; with HEAD they ship suggestions written for the previous results - the most user-visible symptom.',
     severity: 'High',
-    fix: 'Keep the clearing (it is correct invalidation) and close the hole via G1/G8/G9.',
+    fix: 'Keep the clearing (it is correct invalidation) and close the hole through G1, G6, G8 and G9.',
     step: 'Step 1',
+    status: 'Open - the clearing is uncommitted working-tree code',
+    verify: 'Evidence: "Search/filter turns with no refresh" reaches 0.',
   },
   {
     id: 'G11',
     layer: 'D - Execution flow',
     title: 'Zero enforcement anywhere in the run',
-    production: 'Prompt-level only there too, but the prompt said "mandatory".',
+    origin: 'Shared weakness',
+    production: 'Prompt-level only there too, but the prompt said mandatory.',
     current:
-      'toolChoice: ‘auto’ (config.ts:19-22); no output guardrail on the agent (agent.ts:234-240); no post-run inspection of toolCallLog in runner.ts:154-185; the max-turns recovery path deliberately excludes it from CORE_TOOLS (recovery-outcome.ts:6-10).',
+      'toolChoice: auto (config.ts:19-22); no output guardrail on the Flight agent (agent.ts:234-251); the max-turns recovery path deliberately leaves the tool out of CORE_TOOLS (recovery-outcome.ts:6-10). The only post-run hook is the uncommitted finalize draft (G9).',
     missing: 'Any mechanism that notices the omission.',
-    impact: 'The prompt is the sole control, and it currently says "optional".',
+    impact: 'The prompt is the sole control, and it currently says optional.',
     severity: 'Medium',
-    fix: 'The G9 finalize is the enforcement point. Keep toolChoice: auto - forcing a specific tool would break the core tool loop.',
+    fix: 'Make the G9 finalize the enforcement point. Keep toolChoice: auto - forcing a specific tool would break the core tool loop.',
     step: 'Step 1',
+    status: 'Open - uncommitted draft in working tree, untested',
+    verify: 'Covered by the G9 tests.',
   },
   {
     id: 'G12',
     layer: 'D - Verification',
     title: 'The test suite pins the gap open',
+    origin: 'Local-only',
     production: 'n/a - this is local test debt.',
     current:
-      'NON_CORE_TOOLS strips the tool before scoring, rationale "must never decide a pass or fail" (flight-agent-conversation-cases.ts:26-27,53). flight-gap-contracts.test.ts:59 is named for the absence. In the report harness none of the 17 expectedTools arrays include it and validateTurn compares tool sequences by exact string equality (flight-agent-session-complex-report-live.ts:434-440). The one script that requires the call (flight-agent-suggested-questions-variation-live.ts:146-148) has no npm script and is never run.',
+      'flight-agent-price-prediction.test.ts:609-612 asserts FLIGHT_PROMPT contains "optional, best-effort", and :596 asserts it never names resolve_flight_date. NON_CORE_TOOLS strips the tool before scoring because it "must never decide a pass or fail" (flight-agent-conversation-cases.ts:26-27, 53). The untracked flight-gap-contracts.test.ts:59 is named for its absence. In the report harness none of the 17 expectedTools arrays include it, and validateTurn compares tool sequences by exact string equality (flight-agent-session-complex-report-live.ts:435-442). The one live script that requires the call (flight-agent-suggested-questions-variation-live.ts:146-148) has no npm script and is never run.',
     missing: 'Expectations that encode the mandate rather than its absence.',
     impact:
-      'Restoring the mandate turns the report harness red on every turn before it turns anything green.',
+      'Restoring the mandate turns the unit suite and the report harness red before it turns anything green.',
     severity: 'High',
-    fix: 'Flip the expectations as part of the change, not after it.',
+    fix: 'Flip the expectations in the same change as Step 3, not after it.',
     step: 'Step 4',
+    status: 'Open',
+    verify:
+      'npm test passes with the mandate in place, and the report harness expects the tool on every turn.',
   },
   {
     id: 'G13',
     layer: 'D - Execution flow',
     title: 'No observability',
+    origin: 'Shared weakness',
     production: 'n/a',
     current:
-      '.debug/flight-prompt-traces is metadata-only (captureMode "safe"; 61 files, 3 with modelCalls, 0 tool-call records). flight_agent.response (runner.ts:170-176) logs nothing about suggestions.',
-    missing: 'A per-turn record of whether the tool ran.',
+      '.debug/flight-prompt-traces is metadata-only (61 files, no tool-call records). The uncommitted draft logs suggestedQuestionCount and staleSuggestionsCleared in flight_agent.response (runner.ts:172-183), but only in the standalone runner. The Manager path, which carries every chat API turn and every recorded artifact, logs nothing about suggestions.',
+    missing:
+      'A per-turn record of whether the tool ran, on the path production traffic takes.',
     impact:
       'The call rate is unmeasurable in a running system; this gap was only visible by grepping recorded artifacts.',
     severity: 'Medium',
-    fix: 'Log suggestionsUpdated and the suggestion count per turn.',
+    fix: 'Log whether suggestions were written or cleared, and how many, from the Manager-path finalize as well as the standalone runner.',
     step: 'Step 1',
+    status: 'Open - uncommitted draft logs only on the standalone path',
+    verify: 'A Manager-path Flight turn emits the log line.',
   },
   {
     id: 'G14',
     layer: 'E - Docs',
     title: 'Docs still describe the mandate as live',
+    origin: 'Local-only',
     production: 'n/a',
     current:
-      'flight-agent-recent-changes.md:251, flight-agent-context-flow.md:429, flight-agent-date-handling-multiturn.md:390 and prompts/prompt-with-error.md:232 all state it runs last on every turn. No doc calls it optional.',
+      'flight-agent-recent-changes.md:251, flight-agent-context-flow.md:429, flight-agent-date-handling-multiturn.md:390 and prompts/prompt-with-error.md:232 all say it runs last on every turn. No doc calls it optional.',
     missing: 'Agreement between the docs and the live prompt.',
     impact: 'Anyone reading the docs concludes the rule is already enforced.',
     severity: 'Low',
-    fix: 'Docs become correct once G1-G3 land; add the chain list and note that FLIGHT_PROD_PROMPT_TEXT is dead text.',
+    fix: 'The docs become correct once Step 3 lands; add the chain list and note that FLIGHT_PROD_PROMPT_TEXT is reference text that never reaches the model.',
     step: 'Step 5',
+    status: 'Open',
+    verify: 'Doc review against the shipped prompt.',
   },
 ];
 
@@ -242,53 +311,18 @@ const OPEN_DECISIONS: string[][] = [
   ['Topic', 'Detail', 'Owner / status'],
   [
     'Who renders the suggestions?',
-    'context.flight.suggestedQuestions is persisted and emitted in the SSE done.flightContext payload (api/chat/orchestrator.ts:228), but public/ has zero references to "suggest" and the dashboard reads only showFlight and searchResults. The only reader today is the Flight agent’s own next-turn prompt (agent.ts:109-116), as anti-staleness input. Restoring the mandate buys production parity and correct state plus ~1 extra model call per turn, but no user-visible change until a renderer exists.',
+    'context.flight.suggestedQuestions is persisted with the chat’s runtime context (api/chat/orchestrator.ts:191) and emitted in the SSE done.flightContext payload (:228). public/chat-dashboard reads flightContext for showFlight and searchResults but has zero references to suggestions. The only in-repo reader is the Flight agent’s own next-turn prompt (agent.ts:109-116, 212-214), as anti-repeat input. Restoring the mandate buys production parity and correct state plus about one extra model call per Flight turn, but no user-visible change until a renderer exists.',
     'Open - confirm the real consumer (presumably the CheapOair mobile client).',
   ],
   [
     'G7 schema shape',
-    'Plain .min(3) breaks the empty-array clear path. Option (b) - exactly 3 at the schema level, clearing moved to the Step 1 finalize - is preferred.',
+    'A plain .min(3) breaks the empty-array clear path. Option (b) - exactly 3 at the schema level, clearing moved to the Step 1 finalize - is preferred.',
     'Open - decide before Step 2.',
   ],
   [
     'Dead reference prompt',
-    'FLIGHT_PROD_PROMPT_TEXT (prompt.ts:148-995) carries all the mandatory language, is commented "Historical comparison reference only; never included in runtime instructions" (:147) and has zero references in src/, tests/ or scripts/. agent.ts:11 imports only FLIGHT_PROMPT. scripts/audit-session-prompts.ts:58 states the invariant: "FLIGHT_PROMPT is the single authoritative runtime prompt."',
+    'FLIGHT_PROD_PROMPT_TEXT (prompt.ts:148-995) carries all the mandatory language. It is commented "Historical comparison reference only; never included in runtime instructions" (:147), exists only in the uncommitted working tree, and no runtime or test code imports it: agent.ts:11 imports only FLIGHT_PROMPT. Lines 914-995 are a captured production dynamic block. scripts/audit-session-prompts.ts:58 states the invariant: "FLIGHT_PROMPT is the single authoritative runtime prompt."',
     'Resolved - do not edit that string; every rule must land in the live prompt.',
-  ],
-];
-
-const SKIP_SCENARIOS: string[][] = [
-  ['Scenario', 'Measured evidence', 'Why the current agent skips it'],
-  [
-    'Informational question about current options',
-    '0 of 11 turns called the tool',
-    'No chain covers getGeneratedContractsContext, and no mutation tool ran, so the "when called with an active search" wording never clearly applies.',
-  ],
-  [
-    'Price / date intelligence',
-    '0 of 5 turns',
-    'Same - prompt.ts:672-676 chains exist only in the dead reference text.',
-  ],
-  [
-    'Clarification / missing-info turn with no tools',
-    '0 of 12 turns',
-    'Production had an explicit standalone chain for exactly this case; the local prompt has none.',
-  ],
-  ['Filter-only turn', 'skipped on 5 of 18 turns', 'Called opportunistically, not reliably.'],
-  [
-    'Under turn-budget pressure',
-    'licensed by prompt.ts:143',
-    'The prompt tells the model to prioritise structured feedback over "optional work".',
-  ],
-  [
-    'Manager mode',
-    '43% and 35% call rates',
-    'The turn ends by emitting the structured output, and manager-output.ts:38 explicitly calls the work optional.',
-  ],
-  [
-    'Non-deterministically, on identical input',
-    'search_filter_options turn 2 "Show nonstop flights only" - called in manager-flight-five-chats-live.json, not called in the byte-identical -traced-live.json',
-    'Nothing enforces it, so it is left to sampling.',
   ],
 ];
 
@@ -302,41 +336,82 @@ const FIX_SEQUENCE: string[][] = [
   ],
   [
     'Step 1',
-    'Deterministic state correctness: suggestionsUpdated flag, flight turn finalize on success and error paths, per-turn logging',
+    'Deterministic state correctness: per-turn written flag, turn-end finalize on the success and error paths of both the standalone and Manager runs, per-turn logging on the Manager path',
     'G9, G10, G11, G13',
-    'Correct on its own merits and independent of the mandate decision. After this, a skipped call can no longer ship stale data.',
+    'Correct on its own merits and independent of the mandate decision: after this, a skipped call can no longer ship stale data. Shipped alone it leaves no suggestions on most read-only turns, so land it with or just before Steps 2-3.',
   ],
   [
     'Step 2',
-    'Tool contract: required-terminal description, schema decision, isEnabled phase gate',
+    'Tool contract: required-terminal description, schema decision, per-run gate with one retry',
     'G6, G7, G8',
     'The tool description must stop contradicting the mandate before the prompt asserts it.',
   ],
   [
     'Step 3',
-    'Prompt authority: mandate wording, stop rule, chain list, checklist line, Manager-mode ordering',
+    'Prompt authority: mandate wording, stop rule, adapted chain list, checklist line, Manager-mode ordering',
     'G1, G2, G3, G4, G5',
     'Raises the call rate once the state layer is already safe.',
   ],
   [
     'Step 4',
-    'Tests: invert NON_CORE_TOOLS, rewrite flight-gap-contracts case, add the tool to the 17 expectedTools arrays, add the missing npm script',
+    'Tests: flip flight-agent-price-prediction.test.ts:609-612, invert NON_CORE_TOOLS, rewrite the flight-gap-contracts case, add the tool to the 17 expectedTools arrays, add an npm script for the variation live check',
     'G12',
-    'Must land with Step 3 - the report harness compares tool sequences by exact equality and would otherwise fail every turn.',
+    'Must land with Step 3: the unit suite asserts the optional wording, and the report harness compares tool sequences by exact equality.',
   ],
   ['Step 5', 'Reconcile the four docs', 'G14', 'Last, once behaviour is settled.'],
+];
+
+const READ_ME: string[][] = [
+  ['Topic', 'Detail'],
+  [
+    'What this is',
+    'Tracking register for the update_flight_suggested_questions gap between production (FLIGHT_PROD_PROMPT_TEXT, src/agents/flight/prompt.ts:148-995, reference text that never reaches the model) and the local Flight Agent (FLIGHT_PROMPT, the dynamic instructions in agent.ts, the tool, and both runners).',
+  ],
+  [
+    'How to update',
+    'Edit scripts/write-suggested-questions-gap-register.ts, then run npm run gaps:suggested-questions. The generator rewrites this workbook, so edits made here are lost. When a fix lands, change that gap’s status in the generator and commit the generator and the workbook together.',
+  ],
+  [
+    'Line numbers',
+    'file:line references point at the working tree on 2026-10-01, including uncommitted changes. Symbol names are given where lines are likely to move.',
+  ],
+  [
+    'Measurements',
+    'The Evidence sheet and the measured Skip Scenarios rows are re-tallied from artifacts/ on every run. Text marked "At analysis" quotes the numbers from 2026-10-01.',
+  ],
+  [
+    'Origin',
+    'Production regression: production stated the rule and the local agent dropped or contradicted it. Local-only: introduced locally. Shared weakness: production had the same code or wording, but its per-turn mandate masked it.',
+  ],
+  [
+    'Uncommitted work',
+    'G9, G10, G11 and G13 refer to code that exists only in the uncommitted working tree. Nothing in this register is approved for implementation yet.',
+  ],
 ];
 
 interface TurnRecord {
   rawTools?: unknown;
   flightTools?: unknown;
   actualTools?: unknown;
+  specialistsUsed?: unknown;
 }
 
-interface Tally {
-  turns: number;
-  called: number;
-  clearedNotRefilled: number;
+interface TurnFact {
+  group: string;
+  /** Sorted core tools in the turn, or "(no tool)". */
+  signature: string;
+  called: boolean;
+  /** flight_search or apply_filter replaced the results the suggestions described. */
+  changedResults: boolean;
+  /** False when the Manager answered without invoking Flight, which cannot skip anything. */
+  flightRan: boolean;
+  /** The turn ran Flight as a Manager tool rather than through the standalone runner. */
+  managerPath: boolean;
+}
+
+interface Evidence {
+  fileCount: number;
+  facts: TurnFact[];
 }
 
 function toolList(turn: TurnRecord): string[] | null {
@@ -348,12 +423,8 @@ function toolList(turn: TurnRecord): string[] | null {
   return null;
 }
 
-function emptyTally(): Tally {
-  return { turns: 0, called: 0, clearedNotRefilled: 0 };
-}
-
 function groupFor(fileName: string): string {
-  if (fileName.startsWith('flight-conversation-')) return 'flight-conversation-*';
+  if (fileName.startsWith('flight-conversation-')) return SCRIPTED_GROUP;
   if (fileName.startsWith('manager-flight-')) return 'manager-flight-*';
   return 'manager-realistic-*';
 }
@@ -374,43 +445,7 @@ function collectTurns(parsed: unknown): TurnRecord[] {
   return turns;
 }
 
-interface TurnFact {
-  group: string;
-  signature: string;
-  called: boolean;
-}
-
-function signatureTable(
-  facts: TurnFact[],
-  heading: string,
-): (string | number)[][] {
-  const bySignature = new Map<string, { turns: number; called: number }>();
-  for (const fact of facts) {
-    const row = bySignature.get(fact.signature) || { turns: 0, called: 0 };
-    row.turns += 1;
-    if (fact.called) row.called += 1;
-    bySignature.set(fact.signature, row);
-  }
-
-  const rows: (string | number)[][] = [
-    [heading],
-    ['Core tools in the turn', 'Turns', 'Tool called', 'Rate'],
-  ];
-  for (const [signature, row] of [...bySignature.entries()].sort(
-    (left, right) => right[1].turns - left[1].turns,
-  )) {
-    rows.push([
-      signature,
-      row.turns,
-      row.called,
-      row.turns > 0 ? `${Math.round((100 * row.called) / row.turns)}%` : 'n/a',
-    ]);
-  }
-  return rows;
-}
-
-async function buildEvidenceSheet(artifactsDir: string): Promise<WorkbookSheet> {
-  const byGroup = new Map<string, Tally>();
+async function collectEvidence(artifactsDir: string): Promise<Evidence> {
   const facts: TurnFact[] = [];
   let fileCount = 0;
 
@@ -432,85 +467,223 @@ async function buildEvidenceSheet(artifactsDir: string): Promise<WorkbookSheet> 
     if (turns.length === 0) continue;
     fileCount += 1;
 
-    const group = groupFor(name);
-    const tally = byGroup.get(group) || emptyTally();
-
     for (const turn of turns) {
       const tools = toolList(turn);
       if (!tools) continue;
-      tally.turns += 1;
-      const called = tools.includes(SUGGESTED_TOOL);
-      if (called) tally.called += 1;
-      if (!called && tools.some((tool) => CLEARING_TOOLS.includes(tool))) {
-        tally.clearedNotRefilled += 1;
-      }
-
       const core = [...new Set(tools.filter((tool) => tool !== SUGGESTED_TOOL))].sort();
+      const specialists = Array.isArray(turn.specialistsUsed) ? turn.specialistsUsed : null;
       facts.push({
-        group,
+        group: groupFor(name),
         signature: core.length > 0 ? core.join(' + ') : '(no tool)',
-        called,
+        called: tools.includes(SUGGESTED_TOOL),
+        changedResults: core.some((tool) => RESULT_CHANGING_TOOLS.includes(tool)),
+        // Standalone recordings have no specialist list; Flight is the only agent there.
+        flightRan: specialists ? specialists.includes('flight_agent') : true,
+        managerPath: specialists !== null,
       });
     }
-
-    byGroup.set(group, tally);
   }
 
-  const rate = (called: number, turns: number) =>
-    turns > 0 ? `${Math.round((100 * called) / turns)}%` : 'n/a';
+  return { fileCount, facts };
+}
+
+function countCalled(facts: TurnFact[]): number {
+  return facts.filter((fact) => fact.called).length;
+}
+
+function countNoRefresh(facts: TurnFact[]): number {
+  return facts.filter((fact) => fact.changedResults && !fact.called).length;
+}
+
+function rate(called: number, turns: number): string {
+  return turns > 0 ? `${Math.round((100 * called) / turns)}%` : 'n/a';
+}
+
+function signatureTable(
+  facts: TurnFact[],
+  heading: string,
+): (string | number)[][] {
+  const bySignature = new Map<string, { turns: number; called: number }>();
+  for (const fact of facts) {
+    const row = bySignature.get(fact.signature) || { turns: 0, called: 0 };
+    row.turns += 1;
+    if (fact.called) row.called += 1;
+    bySignature.set(fact.signature, row);
+  }
+
+  const rows: (string | number)[][] = [
+    [heading],
+    ['Core tools in the turn', 'Flight turns', 'Tool called', 'Rate'],
+  ];
+  for (const [signature, row] of [...bySignature.entries()].sort(
+    (left, right) => right[1].turns - left[1].turns,
+  )) {
+    rows.push([signature, row.turns, row.called, rate(row.called, row.turns)]);
+  }
+  return rows;
+}
+
+function buildEvidenceSheet({ fileCount, facts }: Evidence): WorkbookSheet {
+  const flightFacts = facts.filter((fact) => fact.flightRan);
+  const changed = flightFacts.filter((fact) => fact.changedResults);
+  const unchanged = flightFacts.filter((fact) => !fact.changedResults);
+  const managerTurns = facts.filter((fact) => fact.managerPath).length;
 
   const rows: (string | number)[][] = [
     ['Evidence - re-tallied from artifacts/ on every run of this generator'],
     [`Generated: ${new Date().toISOString()}`],
     [`Artifact files with recorded turns: ${fileCount}`],
     [
-      'Method: per recorded turn, read the tool list (rawTools, else flightTools, else actualTools) and check whether it contains ' +
+      `Recorded turns: ${facts.length}. Turns where Flight ran: ${flightFacts.length}. Turns the Manager answered without Flight: ${facts.length - flightFacts.length} - excluded below, because Flight never ran and so could not skip the tool. Manager-path turns: ${managerTurns} of ${facts.length}.`,
+    ],
+    [
+      'Method: for each Flight turn, read the tool list (rawTools, else flightTools, else actualTools) and check whether it contains ' +
         SUGGESTED_TOOL +
-        '. "Cleared not refilled" counts turns where flight_search or apply_filter ran - both wipe suggestedQuestions - and the tool was not called.',
+        '. "Search/filter turns with no refresh" counts turns where flight_search or apply_filter replaced the results and the tool was not called. With the working-tree code those turns end with no suggestions; with committed HEAD they keep suggestions written for the previous results.',
+    ],
+    [
+      'At analysis (2026-10-01): the recordings come from two prompt eras (manager-flight-five-chats-* and manager-realistic-conversations from 2026-09-19, the rest from 2026-09-30 to 2026-10-01). None reflect the working-tree prompt edited at 14:28 on 2026-10-01, so capture a fresh baseline before Step 1.',
     ],
     [],
-    ...signatureTable(facts, 'Call rate by core-tool signature - all recorded turns'),
+    ['Call rate by whether the turn changed the results'],
+    ['Flight turns', 'Turns', 'Tool called', 'Rate'],
+    [
+      'Ran flight_search or apply_filter',
+      changed.length,
+      countCalled(changed),
+      rate(countCalled(changed), changed.length),
+    ],
+    [
+      'Ran neither',
+      unchanged.length,
+      countCalled(unchanged),
+      rate(countCalled(unchanged), unchanged.length),
+    ],
+    [],
+    ...signatureTable(flightFacts, 'Call rate by core-tool signature - all Flight turns'),
     [],
     ...signatureTable(
-      facts.filter((fact) => fact.group === 'flight-conversation-*'),
-      'Call rate by core-tool signature - flight-conversation-* fixtures only (the set the fix verification re-runs)',
+      flightFacts.filter((fact) => fact.group === SCRIPTED_GROUP),
+      `Call rate by core-tool signature - ${SCRIPTED_GROUP} scripted conversations only (the set fix verification re-runs)`,
     ),
   ];
 
   rows.push([]);
   rows.push(['Call rate by artifact group']);
-  rows.push(['Group', 'Turns', 'Tool called', 'Rate', 'Cleared not refilled']);
+  rows.push([
+    'Group',
+    'Recorded turns',
+    'Flight turns',
+    'Tool called',
+    'Rate',
+    'Search/filter turns with no refresh',
+  ]);
 
-  let totalTurns = 0;
-  let totalCalled = 0;
-  let totalCleared = 0;
-  for (const [group, tally] of byGroup) {
-    totalTurns += tally.turns;
-    totalCalled += tally.called;
-    totalCleared += tally.clearedNotRefilled;
+  const groups = [...new Set(facts.map((fact) => fact.group))].sort();
+  for (const group of groups) {
+    const inGroup = facts.filter((fact) => fact.group === group);
+    const flightInGroup = inGroup.filter((fact) => fact.flightRan);
     rows.push([
       group,
-      tally.turns,
-      tally.called,
-      rate(tally.called, tally.turns),
-      tally.clearedNotRefilled,
+      inGroup.length,
+      flightInGroup.length,
+      countCalled(flightInGroup),
+      rate(countCalled(flightInGroup), flightInGroup.length),
+      countNoRefresh(flightInGroup),
     ]);
   }
   rows.push([
     'TOTAL',
-    totalTurns,
-    totalCalled,
-    rate(totalCalled, totalTurns),
-    totalCleared,
+    facts.length,
+    flightFacts.length,
+    countCalled(flightFacts),
+    rate(countCalled(flightFacts), flightFacts.length),
+    countNoRefresh(flightFacts),
   ]);
 
   rows.push([]);
   rows.push(['Target after the fix']);
   rows.push([
-    'Every core-tool signature row reaches 100%, including getGeneratedContractsContext, price_prediction_tool and (no tool) - the three that are effectively never called today - and "Cleared not refilled" reaches 0.',
+    'Every core-tool signature row reaches 100%, including getGeneratedContractsContext, price_prediction_tool and (no tool), and "Search/filter turns with no refresh" reaches 0.',
   ]);
 
   return { name: 'Evidence', rows };
+}
+
+interface SkipScenario {
+  scenario: string;
+  /** Re-tallied from artifacts on every run; omit when no recording measures it. */
+  measure?: (facts: TurnFact[]) => string;
+  evidence?: string;
+  why: string;
+}
+
+/** Measure a scenario by the Flight turns whose core tools match `signature`. */
+function signatureRate(signature: string) {
+  return (facts: TurnFact[]): string => {
+    const all = facts.filter((fact) => fact.flightRan && fact.signature === signature);
+    const scripted = all.filter((fact) => fact.group === SCRIPTED_GROUP);
+    return `All Flight turns: ${countCalled(all)} of ${all.length} called it. Scripted conversations: ${countCalled(scripted)} of ${scripted.length}.`;
+  };
+}
+
+const SKIP_SCENARIOS: SkipScenario[] = [
+  {
+    scenario: 'Informational or ranking question about current options',
+    measure: signatureRate('getGeneratedContractsContext'),
+    why: 'No chain covers a contract read and no search or filter ran, so the "when called with an active search" wording never clearly applies.',
+  },
+  {
+    scenario: 'Price / date intelligence',
+    measure: signatureRate('price_prediction_tool'),
+    why: 'The prediction chains exist only in FLIGHT_PROD_PROMPT_TEXT (prompt.ts:672-676).',
+  },
+  {
+    scenario: 'Clarification, missing-info or source-option answer with no core tool',
+    measure: signatureRate('(no tool)'),
+    why: 'Production had a standalone chain for exactly this case (prompt.ts:662); the local prompt has none.',
+  },
+  {
+    scenario: 'Filter-only turn',
+    measure: signatureRate('apply_filter'),
+    why: 'Called opportunistically, not reliably. The skips are spread across ordinary filter additions, not just resets.',
+  },
+  {
+    scenario: 'Search turn (for comparison)',
+    measure: signatureRate('flight_search'),
+    why: 'The one case the model handles reliably: it treats the tool as a refresh after new results, not as the end of every turn.',
+  },
+  {
+    scenario: 'Under turn-budget pressure',
+    evidence: 'Licensed by prompt.ts:143.',
+    why: 'The prompt tells the model to prioritise structured feedback over "optional work".',
+  },
+  {
+    scenario: 'Manager mode',
+    measure: (facts) =>
+      `${facts.filter((fact) => fact.managerPath).length} of ${facts.length} recorded turns ran on the Manager path.`,
+    why: 'The turn ends by emitting structured output, and manager-output.ts:38 explicitly calls the work optional.',
+  },
+  {
+    scenario: 'Non-deterministically, on identical input',
+    evidence:
+      'search_filter_options turn 2, "Show nonstop flights only.": called in manager-flight-five-chats-live.json, not called in manager-flight-five-chats-traced-live.json.',
+    why: 'Nothing enforces it, so it is left to sampling.',
+  },
+];
+
+function buildSkipScenariosSheet({ facts }: Evidence): WorkbookSheet {
+  return {
+    name: 'Skip Scenarios',
+    rows: [
+      ['Scenario', 'Evidence (measured rows are re-tallied on every run)', 'Why the current agent skips it'],
+      ...SKIP_SCENARIOS.map((item) => [
+        item.scenario,
+        item.measure ? item.measure(facts) : item.evidence || '',
+        item.why,
+      ]),
+    ],
+  };
 }
 
 const registerSheet: WorkbookSheet = {
@@ -520,6 +693,7 @@ const registerSheet: WorkbookSheet = {
       'ID',
       'Layer',
       'Gap',
+      'Origin',
       'Production behavior',
       'Current behavior',
       'Missing rule / logic',
@@ -528,11 +702,13 @@ const registerSheet: WorkbookSheet = {
       'Recommended fix direction',
       'Step',
       'Status',
+      'Verify by',
     ],
     ...GAPS.map((gap) => [
       gap.id,
       gap.layer,
       gap.title,
+      gap.origin,
       gap.production,
       gap.current,
       gap.missing,
@@ -540,18 +716,21 @@ const registerSheet: WorkbookSheet = {
       gap.severity,
       gap.fix,
       gap.step,
-      'Open',
+      gap.status,
+      gap.verify,
     ]),
   ],
 };
 
 const projectRoot = process.cwd();
+const evidence = await collectEvidence(path.join(projectRoot, 'artifacts'));
 const sheets: WorkbookSheet[] = [
   registerSheet,
-  await buildEvidenceSheet(path.join(projectRoot, 'artifacts')),
-  { name: 'Skip Scenarios', rows: SKIP_SCENARIOS },
+  buildEvidenceSheet(evidence),
+  buildSkipScenariosSheet(evidence),
   { name: 'Fix Sequence', rows: FIX_SEQUENCE },
   { name: 'Open Decisions', rows: OPEN_DECISIONS },
+  { name: 'Read Me', rows: READ_ME },
 ];
 
 const outputPath = path.join(
@@ -561,8 +740,12 @@ const outputPath = path.join(
 );
 const written = await writeWorkbook(outputPath, sheets);
 
+const flightFacts = evidence.facts.filter((fact) => fact.flightRan);
 console.log(`Gap register written: ${written}`);
 console.log(`Gaps tracked: ${GAPS.length}`);
+console.log(
+  `Flight turns: ${flightFacts.length} of ${evidence.facts.length} recorded; tool called on ${countCalled(flightFacts)}; search/filter turns with no refresh: ${countNoRefresh(flightFacts)}`,
+);
 for (const sheet of sheets) {
   console.log(`  ${sheet.name}: ${sheet.rows.length} rows`);
 }
