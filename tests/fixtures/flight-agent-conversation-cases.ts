@@ -460,12 +460,6 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         why: 'Durations are per-contract. Re-running the search would discard a valid result set and rebuild the same one, which is the waste this script is built to expose.',
       },
       {
-        user: 'and the longest?',
-        understanding: 'The same result set, read from the other end.',
-        expectedTools: ['getGeneratedContractsContext'],
-        why: 'Still a contract read against an unchanged search. A second search here is unambiguously unnecessary.',
-      },
-      {
         user: 'which airlines showed up?',
         understanding: 'The carriers present across the current options.',
         expectedTools: ['getGeneratedContractsContext'],
@@ -486,9 +480,10 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
       {
         user: 'filter to the airline on the shortest one',
         understanding:
-          'The airline identified two turns ago becomes an airline filter, resolved against the current search’s source options.',
+          'The shortest option was identified earlier, but its airline may never have been named aloud. Establish which carrier it is, then filter to it against the current search’s source options.',
         expectedTools: ['apply_filter'],
-        why: 'The results are still valid and only the view narrows. Re-searching to "search that airline" is wrong, since airline is not a search input.',
+        alsoAllowed: ['getGeneratedContractsContext'],
+        why: 'The results are still valid and only the view narrows, so re-searching to "search that airline" is wrong — airline is not a search input. Reading the contracts first is allowed because the carrier is often not in the earlier duration answer, leaving nothing to resolve the reference against.',
       },
       {
         user: 'still Feb 10, right?',
