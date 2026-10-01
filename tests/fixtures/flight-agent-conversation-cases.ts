@@ -571,11 +571,12 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         why: 'A single named date is an ordinary search, not a prediction range.',
       },
       {
-        user: 'is that a good price?',
+        user: 'should I book this now or might it drop?',
         understanding:
           'Book-now-or-wait intent for a route and date both now known. If the lookup again returns nothing, say the recommendation could not be verified for that date, without asking for the date again.',
         expectedTools: ['price_prediction_tool'],
-        why: 'Retrying with genuinely different input is legitimate where retrying the same failed call is not. It also tests the rule against re-asking for a detail already in hand.',
+        alsoAllowed: ['getGeneratedContractsContext'],
+        why: 'A question about this fare over time, which the options on screen cannot answer however they are ranked. Retrying with genuinely different input is legitimate where retrying the same failed call is not, and it also tests the rule against re-asking for a detail already in hand. Phrased with "might it drop" rather than a bare "is that a good price", which reads just as naturally as a comparison between the visible options — and answering that one by ranking them, with the claim scoped to those options, is reasonable rather than a defect.',
       },
       {
         user: 'nonstop only',
@@ -594,13 +595,14 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
         understanding:
           'Date comparison around a known date, inside the prediction window.',
         expectedTools: ['price_prediction_tool'],
-        why: 'The fares on screen are for one day and cannot rank other days. Answering this from the visible contracts is the failure.',
+        alsoAllowed: ['getGeneratedContractsContext'],
+        why: 'The fares on screen are for one day and cannot rank other days, so answering from the visible contracts alone is the failure. Reading them for the current fare, before or after the lookup, is support for the answer rather than a substitute for it.',
       },
       {
-        user: 'what date are we on?',
+        user: "what's the outbound date on this search?",
         understanding: 'A restatement of the committed outbound date.',
         expectedTools: [],
-        why: 'Stable search parameter, and unaffected by the filter or the failed predictions.',
+        why: 'Stable search parameter, and unaffected by the filter or the failed predictions. Asked precisely rather than as "what date are we on", which reads just as easily as today’s date and tests nothing either way.',
       },
     ],
   },
