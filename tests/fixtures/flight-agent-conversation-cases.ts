@@ -665,4 +665,41 @@ export const flightAgentConversationCases: readonly FlightConversationCase[] = [
       },
     ],
   },
+
+  {
+    id: 'trip_details_one_at_a_time',
+    focus: 'Holding suggestions back until a search exists, then fitting them to it',
+    description:
+      'A bare request for a flight, then the departure location, arrival location and dates in three separate messages. Tests that no turn guesses a missing detail or re-asks a supplied one, that the turns before the search store no suggestions, and that the first search produces three that fit the new round trip.',
+    turns: [
+      {
+        user: 'I want to book a flight',
+        understanding:
+          'Flight intent with no route or timing at all. Ask for the departure location, arrival location and travel date together.',
+        expectedTools: [],
+        why: 'Nothing can be searched yet, and with no search there is nothing to suggest, so the suggestions update stores none.',
+      },
+      {
+        user: 'from Delhi',
+        understanding:
+          'The departure location is Delhi. The arrival location and travel date are still missing; ask only for those.',
+        expectedTools: [],
+        why: 'Two blocking details remain. Searching would invent them, and asking again for the departure location just given is the failure to catch.',
+      },
+      {
+        user: 'going to Mumbai',
+        understanding:
+          'The arrival location is Mumbai. Only the travel date is missing; ask for it alone.',
+        expectedTools: [],
+        why: 'One blocker remains. Guessing a date would return options for a day the traveller never named.',
+      },
+      {
+        user: 'leaving November 20 and coming back November 27',
+        understanding:
+          'A round trip from Delhi to Mumbai, out on November 20 and back on November 27, with one adult in economy by default. Search without re-asking anything.',
+        expectedTools: ['flight_search'],
+        why: 'The last blocker arrives, and every other detail came from the two messages before it. The first three suggestions of the conversation should fit this new round-trip search.',
+      },
+    ],
+  },
 ];
