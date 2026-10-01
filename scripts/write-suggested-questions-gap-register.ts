@@ -403,7 +403,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Replace the three-or-empty rule with the state matrix, let the tool store 3 records whatever the search state, and change the live check to require 3 whenever travel context exists.',
     step: 'Step 6',
-    status: 'Open',
+    status: 'Fixed in 3915f3b and 047f9cd',
     verify:
       'Live: trip_details_one_at_a_time and missing_information_progression store 3 CTAs on every turn with partial context.',
   },
@@ -422,7 +422,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'Reject an empty array whenever route, date or search context exists, as a retry-safe failure under the existing one-retry gate.',
     step: 'Step 6',
-    status: 'Open',
+    status: 'Fixed in 3915f3b',
     verify:
       'Unit: an empty draft with a known route is rejected. Live: prediction_unavailable_fallback turn 1 stores 3.',
   },
@@ -442,7 +442,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'Change the schema to records. Keep writing the texts to suggestedQuestions for the client, and the records to flight.ctaState.',
     step: 'Step 6',
-    status: 'Open',
+    status: 'Addressed in the prompt (3915f3b): sameness is judged by intent; intent-key records not adopted',
     verify: 'Unit: records are stored with their keys, and paraphrases of a blocked key are rejected.',
   },
   {
@@ -461,7 +461,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'Persist ctaState in context.flight, which already survives snapshotGatewayContext. Compute the fingerprint from route, dates, trip type, cabin and passengers, and validate drafts against the blocked keys.',
     step: 'Step 6',
-    status: 'Open',
+    status: 'Partly fixed in 3915f3b: suggestions used on the previous turn are blocked; no persisted intent state, so older ones can return in Manager mode',
     verify:
       'Unit: a consumed key is rejected for the rest of the scope, and a generated key is accepted again after the fingerprint changes.',
   },
@@ -481,7 +481,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'Add the strongest dates from lastPricePrediction to the dynamic instructions while its route matches the current one.',
     step: 'Step 6',
-    status: 'Open',
+    status: 'Fixed in 3915f3b',
     verify:
       'Unit: the dynamic instructions list the strongest dates after a successful prediction and drop them after a route change.',
   },
@@ -500,7 +500,7 @@ const GAPS: GapRow[] = [
     severity: 'Medium',
     fix: 'Narrow the prompt rule and the validator to empty slot-filling. Allow destination-planning CTAs, which the Manager routes to Trip Planner when tapped.',
     step: 'Step 6',
-    status: 'Open',
+    status: 'Fixed in 3915f3b and 047f9cd',
     verify:
       'Unit: the validator accepts every example in the production state matrix and still rejects "Add travel date".',
   },
@@ -518,7 +518,7 @@ const GAPS: GapRow[] = [
     severity: 'High',
     fix: 'DECISION NEEDED: have the Manager delegate flight-detail collection to Flight, or generate CTAs for flight-intent turns the Manager answers itself.',
     step: 'Step 6',
-    status: 'Open',
+    status: 'Fixed in 3915f3b, scoped in a340ee2: the Manager sends partial flight details to Flight',
     verify:
       'Live: every turn of trip_details_one_at_a_time with partial context ends with 3 CTAs, whichever agent answered it.',
   },
@@ -564,27 +564,27 @@ const OPEN_DECISIONS: string[][] = [
   [
     'Who generates CTAs on turns the Manager answers itself (G25)',
     'Pre-search CTAs need a model call that sees the partial trip. Either the Manager routes every flight-detail turn to Flight, which adds a specialist call to turns it now answers alone, or it generates the CTA records itself for flight-intent turns.',
-    'Open - decide before Step 6.',
+    'Resolved in 3915f3b - the Manager prompt now sends any reply that supplies part of a flight request to Flight. Live: "from Delhi" and "going to Mumbai" both reached Flight and got grounded suggestions.',
   ],
   [
     'Updated production text: blocking scope of used intents',
     'Used intents are "blocked for the conversation" (prompt.ts:484, :1007), but the worked example says "neither may appear again in this search phase" (:486). Conversation scope would stop offering "Show non-stop flights" for every later route once it has been used.',
-    'Open - confirm the intended scope with the production owners.',
+    'Resolved locally in 3915f3b - blocked while the trip is unchanged, matching the worked example. Still worth confirming with the production owners.',
   ],
   [
     'Updated production text: a rejected empty list',
     'An empty list is allowed when "three safe, distinct actions cannot be grounded" (prompt.ts:470), but the tool rejects [] whenever travel context exists (:474). If the single retry also fails, nothing is stored, so the previous turn\'s CTAs stay on screen.',
-    'Open - decide whether a final rejection should clear the visible CTAs.',
+    'Resolved locally - after a final rejection the turn-end finalize clears the unwritten suggestions, so nothing stale stays on screen.',
   ],
   [
     'Updated production text: phase-wide blocking of generated intents',
     'Every generated intent stays blocked while the phase fingerprint is unchanged, and the fingerprint leaves out filters (prompt.ts:1006). A long conversation about one search uses up three intents per turn and can run out of good ones.',
-    'Open - consider blocking only the last few turns\' generated intents, or adding filters to the fingerprint.',
+    'Resolved locally in 3915f3b - not adopted. Only the previous turn\'s set is compared, which cannot run out of suggestions.',
   ],
   [
     'Updated production text: leftover search-key re-check',
     'The routing tail still says the tool "re-checks the latest searchKey at execution time" (prompt.ts:722), though a search key no longer decides whether CTAs are generated.',
-    'Open - remove it from the production text, or define what the re-check now does.',
+    'Not applicable locally - the local prompt never had that line. Worth removing from the production text.',
   ],
 ];
 
@@ -638,7 +638,7 @@ const FIX_SEQUENCE: string[][] = [
     'Port the updated production CTA design: the pre-search state matrix, CTA records with intent keys, ctaState with a phase fingerprint and consumed intents, EMPTY_CTA_NOT_ALLOWED and REPEATED_CTA_INTENT, prediction hydration, narrowed content rules, and a CTA path for turns the Manager answers itself',
     'G19, G20, G21, G22, G23, G24, G25',
     'Production changed the design on 2026-10-01 at 18:04, after Steps 1-5 landed. Settle the open questions on the new text first, because they decide the tool contract.',
-    'Open - awaiting go-ahead',
+    'Done in 3915f3b, 5625dd8, 047f9cd and a340ee2; G21 and G22 only partly, by design',
   ],
 ];
 
@@ -650,7 +650,7 @@ const READ_ME: string[][] = [
   ],
   [
     'Sheets',
-    'Gap Register: one row per gap. Evidence: call rates measured from artifacts/. Skip Scenarios: when the current agent skips the tool. Production Map: where production states the mandate, beside the local equivalent. Chain Map: production’s 15 tool chains mapped to the five registered local tools. Fix Sequence: the order the gaps were closed in, with commits. Open Decisions: the choices made along the way, and those still open.',
+    'Gap Register: one row per gap. Evidence: call rates measured from artifacts/. Skip Scenarios: when the current agent skips the tool. Production Map: where production states the mandate, beside the local equivalent. Chain Map: production’s 15 tool chains mapped to the five registered local tools. Search Review: production’s flight_search rules against the local prompt. Fix Sequence: the order the gaps were closed in, with commits. Open Decisions: the choices made along the way, and those still open.',
   ],
   [
     'How to update',
@@ -674,7 +674,7 @@ const READ_ME: string[][] = [
   ],
   [
     'Uncommitted work',
-    'G1-G18 record the commit that closed them in Status; G19-G25, from the updated production text, are open. The "Current behavior" column describes the code at analysis time. The clearing in flight_search and apply_filter (G10) is still uncommitted working-tree code.',
+    'Every gap records the commits that closed it in Status; G21 and G22 are only partly closed, by design. The "Current behavior" column describes the code at analysis time. The clearing in flight_search and apply_filter (G10) is still uncommitted working-tree code.',
   ],
 ];
 
@@ -734,6 +734,25 @@ const PRODUCTION_MAP: string[][] = [
     'agent.ts:189 "Hydrated search key present (not validated)"; agent.ts:212-214 lists previous suggestions; agent.ts:229 "Suggested questions are optional."',
     'G1, G18',
   ],
+];
+
+const SEARCH_REVIEW: string[][] = [
+  ['Area', 'Production rule (FLIGHT_PROD_PROMPT_TEXT, updated text)', 'Local handling', 'Verdict'],
+  ['Blocking details', 'Departure, arrival and outbound date block a search; a detail is missing only if absent from the latest message, the existing parameters and the history.', 'Evidence priority across four levels, checked before any question (FLIGHT_PROMPT, "Evidence priority and request assembly").', 'Covered'],
+  ['When to search', 'Call flight_search as soon as all three are known; any route, date, passenger, trip-type or cabin change starts a new search.', 'Same rule in the flight_search section, plus "do not start a new search solely because route and date are available".', 'Covered'],
+  ['Partial updates', 'The latest message overrides only the fields it mentions; a route-only change keeps the dates.', 'Same, stated for routes, dates, passengers, trip type and cabin.', 'Covered'],
+  ['Defaults', 'One-way, 1 adult, economy; a return date makes it a round trip.', 'Same safe defaults.', 'Covered'],
+  ['Round trip without return', 'Ask only for return timing or duration.', 'Same; a stated stay length derives the return date.', 'Covered'],
+  ['Passenger and cabin inference', '"we" or "2 people" sets adults; "cheaper" or "budget" sets economy.', 'Never infers a count from "we" and never downgrades an established cabin for "cheaper".', 'Local kept: stricter'],
+  ['Multi-city', 'Only when explicitly requested.', 'Same.', 'Covered'],
+  ['Search plus filters', 'flight_search then apply_filter; never claim an unapplied filter; pending filters apply after the search.', 'Same, plus pending filters preserved across clarification turns and carried by the Manager.', 'Covered'],
+  ['Vague timing', 'resolve_flight_date resolves it, the search uses its date, and a later route-only turn reuses it.', 'Dates derived from the turn clock with the same week, weekend, month and year rules, and the interval is preserved across route-only or duration-only replies.', 'Covered, adapted: no resolver tool'],
+  ['Prediction then search', 'After a successful prediction, search its first date when results were requested; after a failure, search once on a usable date.', 'Same, with the failure fallback restricted to a date inside the traveler\'s allowed interval.', 'Covered'],
+  ['Searching a recommended date later', 'The hydrated prediction lets a later turn search the strongest date.', 'The dynamic instructions now show the last successful prediction (3915f3b).', 'Fixed (G23)'],
+  ['Filter before any search', 'Ask for route and date.', 'MISSING_SEARCH with complete intent runs the search, then the filter; otherwise asks only for what is missing.', 'Local kept: stronger'],
+  ['Invalid dates', 'Correct the date and retry once silently.', 'Never shifts an exact user date; retries only with retry-safe feedback, otherwise asks one narrow question.', 'Local kept: safer'],
+  ['Searches started from suggestions', '"Search this trip", "Search flights next weekend", "Return after a week", "Make it one way" and "Search the strongest predicted date" lead to searches.', 'Each lands on an existing search or date rule; the predicted date comes from the new prediction summary.', 'Covered'],
+  ['Turns the Manager answered alone', 'A single agent sees every flight turn.', 'The Manager now sends partial flight details to Flight (3915f3b), so detail-collection turns reach the search logic.', 'Fixed (G25)'],
 ];
 
 const CHAIN_MAP: string[][] = [
@@ -1309,6 +1328,7 @@ const sheets: WorkbookSheet[] = [
   buildSkipScenariosSheet(evidence),
   { name: 'Production Map', rows: PRODUCTION_MAP },
   { name: 'Chain Map', rows: CHAIN_MAP },
+  { name: 'Search Review', rows: SEARCH_REVIEW },
   { name: 'Fix Sequence', rows: FIX_SEQUENCE },
   { name: 'Open Decisions', rows: OPEN_DECISIONS },
   { name: 'Read Me', rows: READ_ME },
