@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import { retryPolicies } from '@openai/agents';
 import type { ModelRetrySettings, ModelSettings, RetryPolicyContext } from '@openai/agents';
-import { assertOpenAIConfig as assertSharedOpenAIConfig, getOpenAIApiKey } from '../../shared/config/openai.js';
 import { log } from '../../shared/logging/logger.js';
 
 const model = 'gpt-5.2';
@@ -83,13 +82,16 @@ const modelSettings: ModelSettings = isGpt5Model
     };
 
 export const flightAgentConfig = {
-  openaiApiKey: getOpenAIApiKey(),
+  openaiApiKey: process.env.OPENAI_API_KEY,
   model,
   maxTurns: Number(process.env.FLIGHT_AGENT_MAX_TURNS || 10),
   logLevel: process.env.FLIGHT_AGENT_LOG_LEVEL || 'info',
   modelSettings,
 };
 
-export function assertOpenAIConfig() {
-  return assertSharedOpenAIConfig();
+export function assertOpenAIConfig(): string {
+  if (!flightAgentConfig.openaiApiKey) {
+    throw new Error('OPENAI_API_KEY is required to run the agent workflow.');
+  }
+  return flightAgentConfig.openaiApiKey;
 }
