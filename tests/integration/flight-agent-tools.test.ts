@@ -2220,6 +2220,23 @@ test('ApplyFilterTool preserves remaining values during partial layover and airl
   });
 });
 
+test('ApplyFilterTool keeps an explicit stop code when the wording names several stop buckets', async () => {
+  // Live run 7 Oct: "Allow up to 1 stop (nonstop or 1-stop acceptable)" with
+  // code "2" became nonstop, because the first matching word won.
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+
+  const result = parseToolResult(await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'stops', filterCode: '2', rawUserFilter: 'Allow up to 1 stop (nonstop or 1-stop acceptable)',
+    })] }),
+    {},
+  ));
+
+  assert.deepEqual(findPayloadFilter(result.finalFilterPayload, 'stop'), { filterType: 'stop', Values: ['2'] });
+});
+
 test('ApplyFilterTool keeps the API payload in step with state when removal wording says "filter"', async () => {
   // The wording used to decide the API payload while the merge decided state,
   // so "remove the Emirates filter" cleared every airline in one and not the other.
