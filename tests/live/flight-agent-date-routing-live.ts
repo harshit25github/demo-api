@@ -11,16 +11,16 @@ const timeZone = 'Asia/Kolkata';
 const cases = [
   { id: 'tomorrow', input: 'Find one-way flights from DEL to DXB tomorrow.', out: '2026-09-20' },
   { id: 'day-after-tomorrow', input: 'Find one-way flights from DEL to DXB the day after tomorrow.', out: '2026-09-21' },
-  { id: 'next-weekend', input: 'Find one-way flights from DEL to DXB next weekend.', out: '2026-09-26' },
-  { id: 'next-to-next-weekend', input: 'Find one-way flights from DEL to DXB next-to-next weekend.', out: '2026-10-03' },
-  { id: 'next-week', input: 'Find one-way flights from DEL to DXB sometime next week.', out: '2026-09-21' },
-  { id: 'next-month', input: 'Find one-way flights from DEL to DXB sometime next month.', out: '2026-10-01' },
+  { id: 'next-weekend', input: 'Find one-way flights from DEL to DXB next weekend.', predStart: '2026-09-26', predEnd: '2026-09-27' },
+  { id: 'next-to-next-weekend', input: 'Find one-way flights from DEL to DXB next-to-next weekend.', predStart: '2026-10-03', predEnd: '2026-10-04' },
+  { id: 'next-week', input: 'Find one-way flights from DEL to DXB sometime next week.', predStart: '2026-09-21', predEnd: '2026-09-27' },
+  { id: 'next-month', input: 'Find one-way flights from DEL to DXB sometime next month.', predStart: '2026-10-01', predEnd: '2026-10-31' },
   { id: 'after-two-weeks', input: 'Find one-way flights from DEL to DXB after 2 weeks.', out: '2026-10-03' },
-  { id: 'date-range', input: 'Find one-way flights from DEL to DXB between October 12 and October 16.', out: '2026-10-12' },
-  { id: 'roundtrip-duration', input: 'Find round-trip flights from DEL to DXB next weekend, staying 5 days.', out: '2026-09-26', ret: '2026-10-01' },
+  { id: 'date-range', input: 'Find one-way flights from DEL to DXB between October 12 and October 16.', predStart: '2026-10-12', predEnd: '2026-10-16' },
+  { id: 'roundtrip-duration', input: 'Find round-trip flights from DEL to DXB next weekend, staying 5 days.', predStart: '2026-09-26', predEnd: '2026-09-27' },
   { id: 'next-friday', input: 'Find one-way flights from DEL to DXB next Friday.', out: '2026-09-25' },
   { id: 'exact-past', input: 'Find one-way flights from DEL to DXB on September 10, 2026.', noSearch: true },
-  { id: 'year-boundary', input: 'Find one-way flights from DEL to DXB next month.', out: '2027-01-01', now: '2026-12-30T04:30:00.000Z' },
+  { id: 'year-boundary', input: 'Find one-way flights from DEL to DXB next month.', predStart: '2027-01-01', predEnd: '2027-01-31', now: '2026-12-30T04:30:00.000Z' },
   { id: 'prediction-next-week', input: 'Find the cheapest dates from DEL to DXB sometime next week.', predStart: '2026-09-21', predEnd: '2026-09-27' },
 ] as const;
 

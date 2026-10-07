@@ -3,7 +3,10 @@ import { z } from 'zod';
 import {
   getFlightSearchState,
 } from '../context/flight-context.js';
-import { updateFlightSearchRuntime } from '../context/search-runtime-store.js';
+import {
+  getFlightSearchRuntime,
+  updateFlightSearchRuntime,
+} from '../context/search-runtime-store.js';
 import { log } from '../../../shared/logging/logger.js';
 import { getRequestState } from '../../../shared/runtime/request-context.js';
 import type { FlightAppContext, FlightContract } from '../types.js';
@@ -19,7 +22,7 @@ const generatedContractsContextSchema = z.object({
   mode: z
     .enum(['read', 'select', 'show_all'])
     .describe(
-      'Use read to inspect options, select to display only specific options, or show_all to display every current option.',
+      'Use read for information, comparisons, or rankings without changing visibility; select only when asked to display specific options; show_all restores visibility within the current result set without clearing filters.',
     ),
   indexes: z
     .array(z.number().int().min(1))
@@ -47,6 +50,7 @@ function getCurrentResultSet(appContext: FlightAppContext) {
   if (Array.isArray(searchResults)) {
     return {
       sourceName: 'searchResults',
+      hasResultSet: true,
       results: searchResults,
       replace(nextResults: FlightContract[]) {
         appContext.flight.searchResults = nextResults;
@@ -58,6 +62,7 @@ function getCurrentResultSet(appContext: FlightAppContext) {
       if (Array.isArray(searchResults[key])) {
         return {
           sourceName: `searchResults.${key}`,
+          hasResultSet: true,
           results: searchResults[key],
           replace(nextResults: FlightContract[]) {
             appContext.flight.searchResults = {
@@ -71,6 +76,7 @@ function getCurrentResultSet(appContext: FlightAppContext) {
   }
   return {
     sourceName: 'searchResults',
+    hasResultSet: false,
     results: [],
     replace(nextResults: FlightContract[]) {
       appContext.flight.searchResults = nextResults;
@@ -80,6 +86,10 @@ function getCurrentResultSet(appContext: FlightAppContext) {
 
 function visibleCount(contracts: FlightContract[]): number {
   return contracts.filter((contract) => contract.display !== false).length;
+}
+
+function visibleIndexes(contracts: FlightContract[]): number[] {
+  return contracts.flatMap((contract, index) => contract.display !== false ? [index + 1] : []);
 }
 
 function moneyLabel(price: any): string | null {
@@ -192,7 +202,7 @@ function buildSearchParams(appContext: FlightAppContext) {
 export const GetGeneratedContractsContextTool = tool({
   name: 'getGeneratedContractsContext',
   description:
-    'Inspect or select current generated flight contracts. Use mode=read without changing visibility, mode=select to display only supplied 1-based indexes, and mode=show_all with indexes=null to restore all. For ranking or recommendations, read all then select 1-3 options. Failures do not change visibility and include available-index or missing-search recovery facts. Retry only when a changed selection is unambiguously supported; ask when the user explicitly requested an unavailable option.',
+    'Inspect or select current generated flight contracts. Use mode=read for information, comparisons, rankings, and recommendations without changing visibility. Use mode=select only when the user explicitly asks to display supplied 1-based indexes, and mode=show_all with indexes=null to restore visibility within the current result set, not remove filters. Read visibleIndexes to establish which options are currently shown; do not guess an ambiguous reference. An empty current result set is a valid outcome, not a reason to start a new search or remove filters. Failures do not change visibility. Retry only when a changed selection is unambiguously supported; report the available option numbers when the user requested an unavailable option.',
   parameters: generatedContractsContextSchema,
   strict: true,
   errorFunction: createFlightToolSchemaErrorFunction('getGeneratedContractsContext', {
@@ -200,8 +210,16 @@ export const GetGeneratedContractsContextTool = tool({
   }),
   execute(input, context) {
     const appContext = getFlightContext(context);
-    const { sourceName, results, replace } = getCurrentResultSet(appContext);
+    const { sourceName, hasResultSet, results, replace } = getCurrentResultSet(appContext);
+    const searchRuntime = getFlightSearchRuntime(appContext.flight.searchKey);
     const contracts = results.map(normalizeContract);
+    // A hydrated key or empty placeholder alone does not prove that a search
+    // completed. The runtime must corroborate the current empty result set.
+    const hasVerifiedEmptyResults = hasResultSet && searchRuntime?.visibleFlights.length === 0;
+    const resultState = contracts.length > 0 ? 'available' : hasVerifiedEmptyResults ? 'empty' : 'unavailable';
+    const availableIndexConstraint = contracts.length > 0
+      ? `Available indexes are 1 through ${contracts.length}.`
+      : 'No option indexes are available in the current result set.';
     const requestedIndexes = input.indexes || null;
     const searchParams = buildSearchParams(appContext);
     const fail = ({
@@ -210,12 +228,14 @@ export const GetGeneratedContractsContextTool = tool({
       fieldIssues = [],
       requiredState = [],
       details = {},
+      retrySafe,
     }: {
       code: string;
       message: string;
       fieldIssues?: FlightToolFieldIssue[];
       requiredState?: string[];
       details?: Record<string, unknown>;
+      retrySafe?: boolean;
     }) => recordFlightToolFailure({
       appContext,
       toolName: 'getGeneratedContractsContext',
@@ -225,12 +245,17 @@ export const GetGeneratedContractsContextTool = tool({
         message,
         fieldIssues,
         requiredState,
+        retrySafe,
         details: {
           source: 'dummy',
           UID: appContext.flight.uid,
           searchKey: appContext.flight.searchKey || null,
           searchParams,
+          resultState,
+          filters: searchRuntime?.appliedFilters || [],
+          originalCount: searchRuntime?.sourceFlights.length ?? null,
           selectedIndexes: [],
+          visibleIndexes: visibleIndexes(results),
           visibleCount: visibleCount(results),
           contracts: [],
           summary: buildRankingSummary(contracts),
@@ -239,10 +264,11 @@ export const GetGeneratedContractsContextTool = tool({
       }),
     });
 
-    if (contracts.length === 0) {
+    if (resultState === 'unavailable') {
       const output = fail({
         code: 'NO_CONTRACTS',
-        message: 'No generated flight contracts are available. If complete search intent already exists, run flight_search; otherwise ask only for the missing blocking field.',
+        message: 'Current generated flight records are unavailable, so their options cannot be inspected or ranked. Preserve the known trip and filters; do not start a new search solely to answer a current-options question. Search only when the user requests flight results, reusing known details and asking only for a genuinely missing blocker.',
+        retrySafe: false,
         requiredState: ['current generated flight contracts'],
         fieldIssues: [{
           path: 'context.flight.searchResults',
@@ -276,7 +302,7 @@ export const GetGeneratedContractsContextTool = tool({
         fieldIssues: [{
           path: 'indexes',
           problem: 'At least one unique available option index is required for select mode.',
-          constraint: `Available indexes are 1 through ${contracts.length}.`,
+          constraint: availableIndexConstraint,
         }],
       });
     }
@@ -305,7 +331,7 @@ export const GetGeneratedContractsContextTool = tool({
         fieldIssues: [{
           path: 'indexes',
           problem: 'Duplicate option indexes are not allowed.',
-          constraint: `Use unique indexes from 1 through ${contracts.length}.`,
+          constraint: `${availableIndexConstraint} Use unique indexes.`,
         }],
       });
     }
@@ -321,7 +347,7 @@ export const GetGeneratedContractsContextTool = tool({
           fieldIssues: [{
             path: 'indexes',
             problem: `Unavailable option indexes: ${missingIndexes.join(', ')}.`,
-            constraint: `Available indexes are 1 through ${contracts.length}.`,
+            constraint: availableIndexConstraint,
           }],
           details: {
             totalAvailable: contracts.length,
@@ -370,11 +396,17 @@ export const GetGeneratedContractsContextTool = tool({
       ok: true,
       source: 'dummy',
       resultSource: sourceName,
-      message: 'Sample generated flight contract context only. No live API was called.',
+      message: resultState === 'empty'
+        ? 'The current result set has zero options. Preserve the active search and filters; report no matching options rather than starting a new search or removing filters.'
+        : 'Sample generated flight contract context only. No live API was called.',
       UID: appContext.flight.uid,
       searchKey: appContext.flight.searchKey || null,
       searchParams,
+      resultState,
+      filters: searchRuntime?.appliedFilters || [],
+      originalCount: searchRuntime?.sourceFlights.length ?? null,
       selectedIndexes,
+      visibleIndexes: visibleIndexes(activeResults),
       visibleCount: visibleCount(activeResults),
       requestedIndexes: uniqueIndexes,
       contracts: selectedContracts,

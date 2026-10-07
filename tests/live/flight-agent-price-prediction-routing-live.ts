@@ -18,35 +18,46 @@ function createContext(id) {
 
 const scenarios = [
   {
-    id: 'normal-next-week',
+    id: 'flexible-window-next-week',
     turns: [
       {
         input: 'Find flights from DEL to BOM next week',
-        expectedTools: [SEARCH_TOOL],
+        expectedTools: [PRICE_TOOL, SEARCH_TOOL],
         expectedSearchDate: '2026-08-03',
-        forbidPricePrediction: true,
+        requirePricePrediction: true,
       },
     ],
   },
   {
-    id: 'normal-next-weekend',
+    id: 'flexible-window-next-weekend',
     turns: [
       {
         input: 'Show flights from JFK to LAX next weekend',
-        expectedTools: [SEARCH_TOOL],
+        expectedTools: [PRICE_TOOL, SEARCH_TOOL],
         expectedSearchDate: '2026-08-08',
-        forbidPricePrediction: true,
+        requirePricePrediction: true,
       },
     ],
   },
   {
-    id: 'normal-named-month',
+    id: 'flexible-window-named-month',
     turns: [
       {
         input: 'Book a flight from DEL to BOM in August',
-        expectedTools: [SEARCH_TOOL],
+        expectedTools: [PRICE_TOOL, SEARCH_TOOL],
         expectedSearchDate: '2026-08-01',
-        forbidPricePrediction: true,
+        requirePricePrediction: true,
+      },
+    ],
+  },
+  {
+    id: 'implicit-flexibility-advice-only',
+    turns: [
+      {
+        input: 'I can travel from DEL to BOM between August 10 and August 20. Recommend a date.',
+        expectedTools: [PRICE_TOOL],
+        requirePricePrediction: true,
+        forbidSearch: true,
       },
     ],
   },
@@ -93,9 +104,9 @@ const scenarios = [
       },
       {
         input: 'DEL to BOM',
-        expectedTools: [SEARCH_TOOL],
+        expectedTools: [PRICE_TOOL, SEARCH_TOOL],
         expectedSearchDate: '2026-08-08',
-        forbidPricePrediction: true,
+        requirePricePrediction: true,
       },
     ],
   },
@@ -150,7 +161,7 @@ for (const scenario of scenarios as any[]) {
       issues.push('Normal date/search intent incorrectly called price prediction.');
     }
     if (turn.requirePricePrediction && !toolNames.includes(PRICE_TOOL)) {
-      issues.push('Explicit price intelligence did not call price prediction.');
+      issues.push('Flexible-window or explicit price intelligence did not call price prediction.');
     }
     if (turn.forbidSearch && searchCall) {
       issues.push('Flight search ran before required context was available.');

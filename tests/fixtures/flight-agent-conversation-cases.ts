@@ -86,16 +86,16 @@ export interface FlightConversationCase {
 export const flightAgentConversationCases: readonly FlightConversationCase[] = [
   {
     id: 'relative_dates_then_shift',
-    focus: 'Resolving relative timing, then moving it twice without losing the rest of the search',
+    focus: 'Evaluating a flexible relative window, then moving the selected date without losing the rest of the search',
     description:
-      'Timing arrives vague and changes twice. Tests that Flight commits to a concrete date from the clock instead of asking, and that a date change re-searches while an unchanged route does not.',
+      'Timing arrives as a flexible window and changes twice. Tests that Flight evaluates the window before searching a recommended date, and that a later exact date change re-searches while an unchanged route does not.',
     turns: [
       {
         user: 'I need to get to Bengaluru from Delhi sometime next week',
         understanding:
-          'Route is complete and the timing is vague but resolvable from the turn clock. Commit to a concrete outbound date inside that window; assume one-way, one adult, economy until told otherwise.',
-        expectedTools: ['flight_search'],
-        why: 'Ordinary search intent with timing the clock can settle. Asking the traveller which day, or reaching for price intelligence because the date is loose, both fail this turn.',
+          'Route is complete and the timing permits multiple dates. Evaluate the full next-week window, then search the strongest returned date; assume one-way, one adult, economy until told otherwise.',
+        expectedTools: ['price_prediction_tool', 'flight_search'],
+        why: 'A bounded flexible window is implicit date intelligence even without cheapest or price wording. Prediction must choose within the bracket before the requested search runs.',
       },
       {
         user: 'make it Wednesday instead',

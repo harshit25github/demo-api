@@ -31,10 +31,18 @@ const flightSearchSchema = z.object({
       z.object({
         origin: z
           .string()
-          .describe('Origin city, airport, or IATA code, for example Delhi or DEL.'),
+          .describe('One clean departure city/location name only, for example Delhi. Put DEL in origin_iata, not in this name.'),
         destination: z
           .string()
-          .describe('Destination city, airport, or IATA code, for example Mumbai or BOM.'),
+          .describe('One clean arrival city/location name only, for example New York. Put NYC in destination_iata, not in this name.'),
+        origin_iata: z.string().nullish()
+          .describe('Confirmed three-letter departure airport/metropolitan IATA code only, otherwise null.'),
+        destination_iata: z.string().nullish()
+          .describe('Confirmed three-letter arrival airport/metropolitan IATA code only, otherwise null.'),
+        origin_airport_name: z.string().nullish()
+          .describe('Explicit or confirmed departure airport name only, otherwise null. Never append it to origin.'),
+        destination_airport_name: z.string().nullish()
+          .describe('Explicit or confirmed arrival airport name only, otherwise null. Never append it to destination.'),
         outbound_date: z
           .string()
           .describe('Departure date in YYYY-MM-DD format when possible.'),
@@ -88,6 +96,20 @@ export function validateFlightSearchInput(
     }
     if (!segment.destination.trim()) {
       fieldIssues.push({ path: `${prefix}.destination`, problem: 'Arrival location is empty.' });
+    }
+    for (const endpoint of ['origin', 'destination'] as const) {
+      const codeField = `${endpoint}_iata` as const;
+      const code = segment[codeField];
+      if (code != null && !/^[A-Z]{3}$/.test(code)) {
+        fieldIssues.push({ path: `${prefix}.${codeField}`, problem: 'IATA must contain only three uppercase letters.' });
+      } else if (code) {
+        for (const nameField of [endpoint, `${endpoint}_airport_name` as const]) {
+          if (new RegExp(`(?:^|[\\s(])${code}(?:$|[\\s)])`).test(segment[nameField] || '')) {
+            fieldIssues.push({ path: `${prefix}.${nameField}`, problem: 'Name field includes its IATA code.',
+              constraint: `Keep only the confirmed name here and preserve ${code} in ${codeField}.` });
+          }
+        }
+      }
     }
 
     const outbound = parseIsoDate(segment.outbound_date);
@@ -441,7 +463,7 @@ function getFlightContext(runContext: { context?: unknown } | undefined): Flight
 export const FlightSearchTool = tool({
   name: 'flight_search',
   description:
-    'Search for flights after departure location, arrival location, and outbound date are known from the latest message, current flight context, or reliable history. Reuse unchanged context values and default only optional trip/passenger/cabin fields. The tool validates before mutating state. Input failures include field-level recovery metadata and are safe to retry only with a changed, evidence-supported payload. Returns dummy sample flight data until the production adapter is connected.',
+    'Run a requested new or changed search after departure location, arrival location, and outbound date are known from the scoped request, current context, or explicitly supplied history. Round trips also need return timing or a known duration; ask only for that blocker if missing. Passenger counts suffice; do not request child/infant ages. Reuse unchanged values and default only unknown optional fields. Do not re-search for existing-option reasoning or filter removal. Validation occurs before state mutation; input failures permit only changed, evidence-supported recovery. Returns dummy sample flight data until the production adapter is connected.',
   parameters: flightSearchSchema,
   strict: true,
   errorFunction: createFlightToolSchemaErrorFunction('flight_search', {
@@ -479,6 +501,7 @@ export const FlightSearchTool = tool({
     const flightContext = appContext.flight;
     flightContext.searchKey = searchKey;
     flightContext.searchResults = result.flights;
+    flightContext.suggestedQuestions = [];
     flightContext.showFlight = true;
     flightContext.bookingStatus = 'results_shown';
     flightContext.totalResultsFound = result.flights.length;

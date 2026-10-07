@@ -5,6 +5,7 @@ import {
 import type { FlightContext, PassengerData } from '../types.js';
 
 type MutableRecord = Record<string, any>;
+const endpointDetails = { iata: 'airportIATA', airport_name: 'airportName' } as const;
 
 function isRecord(value: unknown): value is MutableRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -62,6 +63,7 @@ export function normalizeResolvedLocation(value: unknown, fallbackLocation: unkn
   return {
     userCity: firstNonEmptyString(source.userCity, source.city, fallback),
     airportIATA: firstNonEmptyString(source.airportIATA, source.iata, fallbackIata),
+    ...(source.airportName != null ? { airportName: nonEmptyString(source.airportName) } : {}),
   };
 }
 
@@ -162,7 +164,7 @@ function normalizeOnd(ond: unknown): MutableRecord | null {
   if (!isRecord(ond)) {
     return null;
   }
-  const normalized = {
+  const normalized: MutableRecord = {
     origin: normalizeLocation(ond.origin),
     destination: normalizeLocation(ond.destination),
     outbound_date: firstFlightSearchDate(
@@ -179,6 +181,12 @@ function normalizeOnd(ond: unknown): MutableRecord | null {
       ond.inboundDate,
     ),
   };
+  for (const endpoint of ['origin', 'destination']) {
+    for (const suffix of Object.keys(endpointDetails)) {
+      const key = `${endpoint}_${suffix}`;
+      if (key in ond) normalized[key] = nonEmptyString(ond[key]);
+    }
+  }
   return Object.values(normalized).some((item) => item !== null) ? normalized : null;
 }
 
@@ -206,7 +214,7 @@ export function partialFlightSearchState(source: unknown): MutableRecord {
   const passengerSource = source.passengerData ?? source.passengers ?? source.pax;
   const hasPassengerSource = passengerSource !== undefined && passengerSource !== null;
 
-  return {
+  const state: MutableRecord = {
     onds,
     origin:
       normalizeLocation(source.origin) ||
@@ -234,15 +242,42 @@ export function partialFlightSearchState(source: unknown): MutableRecord {
       source.cabin_class ?? source.cabinClass ?? source.coach,
     ),
   };
+  for (const endpoint of ['origin', 'destination']) {
+    const segment = endpoint === 'origin' ? firstOnd : lastOnd;
+    const resolved = source[endpoint === 'origin' ? 'resolvedOrigin' : 'resolvedDestination'];
+    const sameCity = resolved?.userCity?.toLowerCase() === state[endpoint]?.toLowerCase();
+    for (const [suffix, resolvedKey] of Object.entries(endpointDetails)) {
+      const key = `${endpoint}_${suffix}`;
+      if (key in source) state[key] = nonEmptyString(source[key]);
+      else if (segment && key in segment) state[key] = segment[key];
+      // Legacy code-only route values remain readable without duplicating the
+      // same code into a name/code pair. New separated payloads are preserved above.
+      else if (sameCity && state[endpoint]?.toUpperCase() !== resolved?.airportIATA &&
+        nonEmptyString(resolved?.[resolvedKey])) state[key] = nonEmptyString(resolved[resolvedKey]);
+    }
+  }
+  return state;
 }
 
 function mergeOnd(base: MutableRecord = {}, update: MutableRecord = {}) {
-  return {
+  const merged: MutableRecord = {
     origin: update.origin || base.origin || null,
     destination: update.destination || base.destination || null,
     outbound_date: update.outbound_date || base.outbound_date || null,
     return_date: update.return_date || base.return_date || null,
   };
+  for (const endpoint of ['origin', 'destination']) {
+    for (const suffix of Object.keys(endpointDetails)) {
+      const key = `${endpoint}_${suffix}`;
+      if (key in update) merged[key] = update[key];
+      else if (key in base) {
+        const changedCity = update[endpoint] && update[endpoint] !== base[endpoint];
+        const changedAirport = `${endpoint}_iata` in update && update[`${endpoint}_iata`] !== base[`${endpoint}_iata`];
+        merged[key] = changedCity || (suffix === 'airport_name' && changedAirport) ? null : base[key];
+      }
+    }
+  }
+  return merged;
 }
 
 function synchronizeState(state: MutableRecord): MutableRecord {
@@ -275,6 +310,14 @@ function synchronizeState(state: MutableRecord): MutableRecord {
         : synchronized.return_date || firstOnd.return_date || null;
     firstOnd.origin = synchronized.origin || firstOnd.origin || null;
     lastOnd.destination = synchronized.destination || lastOnd.destination || null;
+    for (const endpoint of ['origin', 'destination']) {
+      const segment = endpoint === 'origin' ? firstOnd : lastOnd;
+      for (const suffix of Object.keys(endpointDetails)) {
+        const key = `${endpoint}_${suffix}`;
+        if (key in synchronized) segment[key] = synchronized[key];
+        else if (key in segment) synchronized[key] = segment[key];
+      }
+    }
     firstOnd.outbound_date = synchronized.outbound_date || firstOnd.outbound_date || null;
     firstOnd.return_date = synchronized.return_date;
   }
@@ -301,6 +344,15 @@ export function mergeFlightSearchStates(
     );
   }
   for (const key of ['origin', 'destination']) {
+    for (const suffix of Object.keys(endpointDetails)) {
+      const detail = `${key}_${suffix}`;
+      if (detail in update) merged[detail] = update[detail];
+      else if (detail in base) {
+        const changedCity = update[key] && update[key] !== base[key];
+        const changedAirport = `${key}_iata` in update && update[`${key}_iata`] !== base[`${key}_iata`];
+        if (changedCity || (suffix === 'airport_name' && changedAirport)) merged[detail] = null;
+      }
+    }
     if (update[key]) {
       merged[key] = update[key];
     }
@@ -347,6 +399,9 @@ export function flightSegmentsFromSearch(searchState: MutableRecord) {
     date: ond.outbound_date || '',
     origin: ond.origin || '',
     destination: ond.destination || '',
+    ...Object.fromEntries(['origin', 'destination'].flatMap((endpoint) =>
+      Object.keys(endpointDetails).map((suffix) => `${endpoint}_${suffix}`)
+        .filter((key) => key in ond).map((key) => [key, ond[key]]))),
   }));
   return segments.length > 0 ? segments : defaultSegments();
 }
@@ -378,5 +433,12 @@ export function writeFlightSearchState(
     flight.resolvedDestination,
     destination,
   );
+  for (const endpoint of ['origin', 'destination']) {
+    const resolved = endpoint === 'origin' ? flight.resolvedOrigin : flight.resolvedDestination;
+    for (const [suffix, resolvedKey] of Object.entries(endpointDetails)) {
+      const key = `${endpoint}_${suffix}`;
+      if (key in synchronized) resolved[resolvedKey] = synchronized[key];
+    }
+  }
   return flight;
 }

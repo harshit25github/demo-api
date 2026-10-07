@@ -6,6 +6,11 @@ import { ensureFlightRuntimeContext } from '../../src/agents/flight/context/flig
 import { buildFlightCoreSuccessFallback } from '../../src/agents/flight/context/recovery-outcome.js';
 import { resolveFlightDateIntent } from '../../src/agents/flight/date/resolver.js';
 import { FLIGHT_PROMPT } from '../../src/agents/flight/prompt.js';
+import {
+  buildManagerInstructions,
+  MANAGER_PROMPT,
+} from '../../src/agents/manager-orchestrator/manager-prompt.js';
+import { FLIGHT_MANAGER_INSTRUCTIONS } from '../../src/agents/flight/manager-output.js';
 import { flightAgentConfig } from '../../src/agents/flight/config.js';
 import { FlightSearchTool } from '../../src/agents/flight/tools/search-tool.js';
 import { ApplyFilterTool } from '../../src/agents/flight/tools/filter/tool.js';
@@ -486,7 +491,7 @@ test('decision-loop instructions prefer existing results and verify outcomes bef
   for (const stage of ['Understand', 'Plan', 'Act', 'Verify', 'Recover', 'Stop']) {
     assert.match(decisionLoop, new RegExp(`^- ${stage}:`, 'm'));
   }
-  assert.match(decisionLoop, /latest user input, hydrated context, relevant history, then allowed defaults/i);
+  assert.match(decisionLoop, /latest user input, hydrated context, relevant history carried by Manager or available in this run, then allowed defaults/i);
   assert.match(decisionLoop, /define what would satisfy that request, resolve dependencies/i);
   assert.match(decisionLoop, /apply_filter requires a valid active search, not merely a hydrated search key/i);
   assert.match(decisionLoop, /tool feedback takes precedence when it is missing, stale, or expired/i);
@@ -496,6 +501,15 @@ test('decision-loop instructions prefer existing results and verify outcomes bef
   assert.match(FLIGHT_PROMPT, /do not start a new search solely because route and date are available/i);
   assert.match(FLIGHT_PROMPT, /Read without changing visibility for counts, comparisons, recommendations, and open-ended ranking/i);
   assert.match(FLIGHT_PROMPT, /Select only when the user explicitly asks to display particular existing option indexes/i);
+  assert.match(FLIGHT_PROMPT, /Never call apply_filter, including reset, to obtain more options, bypass an empty filtered set/i);
+  assert.match(MANAGER_PROMPT, /current-option fact, comparison, ranking, or recommendation is read-only/i);
+  assert.match(MANAGER_PROMPT, /Never add "clear filters".*merely because the current filtered set previously had zero matches/is);
+  assert.match(
+    buildManagerInstructions({ context: {} }),
+    /Never introduce a filter addition, removal, relaxation, reset, or unfiltered fallback.*Forbidden unless the user explicitly requested it/is,
+  );
+  assert.match(FLIGHT_MANAGER_INSTRUCTIONS, /search presentation wins even when prediction failed, status is partial, or apply_filter followed/i);
+  assert.match(FLIGHT_MANAGER_INSTRUCTIONS, /filter followed the fallback search/i);
   assert.doesNotMatch(FLIGHT_PROMPT, /For open-ended ranking, read all, choose 1-3 supported options, then select them/i);
   assert.match(FLIGHT_PROMPT, /For "make it cheaper\/faster," inspect and compare existing contracts/i);
   assert.match(FLIGHT_PROMPT, /concrete constraint/i);

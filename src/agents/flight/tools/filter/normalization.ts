@@ -37,7 +37,7 @@ export const applyFilterSchema = z.object({
         filterType: z
           .enum(filterTypeValues)
           .describe(
-            'Filter category: baggage, departureTime, arrivalTime, stops, totalDuration, layoverDuration, price, airline, layoverAirport, departureAirport, arrivalAirport, or reset. Use reset as the only entry to clear all filters in one call.',
+            'Filter category: baggage, departureTime, arrivalTime, stops, totalDuration, layoverDuration, price, airline, layoverAirport, departureAirport, arrivalAirport, or reset. Standalone clear-all uses one reset entry. For reset plus new constraints, include reset and the requested additions in one call.',
           ),
         filterCode: z
           .string()
@@ -94,7 +94,7 @@ export const applyFilterSchema = z.object({
         rawUserFilter: z
           .string()
           .nullable()
-          .describe('Original user filter text used to map natural language to API codes.'),
+          .describe('Original operation clause for this filter, preserving remove/also/only/nearby/all wording. Exclude unrelated clauses: an addition after reset must not contain the reset clause.'),
       }),
     )
     .min(1)

@@ -171,9 +171,9 @@ function actualContractSuccessOutput() {
     cheapestDates,
     cheapestCombinations: [],
     priceRangeSummary: null,
-    recommendation: 'Best time to book: Sep 15, 2026',
+    recommendation: 'Strongest predicted travel date: Sep 15, 2026',
     formattedResponse:
-      '### 🏆 Top Cheapest Dates to Book\n\n| Rank | Date |\n|:----:|------|\n| 1 | Sep 15, 2026 |\n| 2 | Sep 22, 2026 |\n| 3 | Sep 14, 2026 |\n| 4 | Sep 13, 2026 |\n| 5 | Sep 23, 2026 |\n\n### 💡 Recommendation\n\n**Book on Sep 15, 2026** for the best predicted fare.',
+      '### Strongest Predicted Travel Dates\n\n| Rank | Travel Date |\n|:----:|-------------|\n| 1 | Sep 15, 2026 |\n| 2 | Sep 22, 2026 |\n| 3 | Sep 14, 2026 |\n| 4 | Sep 13, 2026 |\n| 5 | Sep 23, 2026 |\n\n### Recommendation\n\nStrongest predicted travel date: **Sep 15, 2026**. These recommendations rank travel dates; fare amounts and purchase-price trends are not provided.',
     message: 'Price predictions returned successfully.',
   };
 }
@@ -346,6 +346,11 @@ test('price_prediction_tool is registered with the camelCase contract', () => {
     'tripDurationFlexibility',
   ]);
   assert.match(FLIGHT_PROMPT, /originCity, destinationCity, startDate, endDate/);
+  assert.match(
+    PricePredictionTool.description,
+    /explicit or implicit flexible date window that permits multiple travel dates even without price wording/i,
+  );
+  assert.match(PricePredictionTool.description, /preserve a stated bracket as the prediction bounds/i);
   assert.match(MANAGER_PROMPT, /cheapest.*best.*shortest/i);
   assert.match(MANAGER_PROMPT, /flight_agent.*flight search/is);
   assert.match(MANAGER_PROMPT, /route.*date.*passenger.*cabin.*changes/i);
@@ -479,7 +484,7 @@ test('explicit developer debugging can inspect the original failure response', (
 });
 
 test('successful prediction and unrelated turns are not rewritten', () => {
-  const output = 'Best time to book: Sep 15, 2026';
+  const output = 'Strongest predicted travel date: Sep 15, 2026';
   const successfulContext = priceFailureContext('SUCCESS');
   const successful = sanitizePricePredictionFailureResponse({
     output,
@@ -586,13 +591,18 @@ test('date resolver accepts structured intent and does not parse raw user text',
   });
 });
 
-test('prompt separates normal vague searches from explicit price intelligence', () => {
-  assert.match(FLIGHT_PROMPT, /A month, relative date, weekend, or range does not by itself trigger price prediction/i);
-  assert.match(FLIGHT_PROMPT, /mention the selected date naturally/i);
+test('prompt routes flexible date windows through price prediction without requiring price words', () => {
+  assert.match(
+    FLIGHT_PROMPT,
+    /explicit or implicit flexible date window that gives a choice among multiple permissible travel dates/i,
+  );
+  assert.match(FLIGHT_PROMPT, /window itself is strong date-intelligence intent/i);
+  assert.match(FLIGHT_PROMPT, /preserve the full user-allowed window for price prediction/i);
   assert.match(FLIGHT_PROMPT, /strongest predicted travel date/i);
   assert.match(FLIGHT_PROMPT, /do not say "best predicted fare," "lowest fare," or "low-fare dates/i);
-  assert.match(FLIGHT_PROMPT, /Find flights next month.*normal searches/i);
-  assert.match(FLIGHT_PROMPT, /Find the cheapest date next month.*explicit price intelligence/i);
+  assert.match(FLIGHT_PROMPT, /any day next week.*between Oct 10 and Oct 20.*sometime next month/is);
+  assert.match(FLIGHT_PROMPT, /exact date.*relative expression that resolves to one intended day.*direct flight_search/is);
+  assert.match(FLIGHT_PROMPT, /recommend the strongest date or dates in that bracket/i);
   assert.doesNotMatch(FLIGHT_PROMPT, /resolve_flight_date/i);
   assert.match(
     FLIGHT_PROMPT,
@@ -613,6 +623,8 @@ test('prompt separates normal vague searches from explicit price intelligence', 
   assert.doesNotMatch(FLIGHT_PROMPT, /say prediction is unavailable/i);
   assert.match(FLIGHT_PROMPT, /derive exact range boundaries from the current turn clock/i);
   assert.doesNotMatch(FLIGHT_PROMPT, /durable resolved date intent/i);
+  assert.match(MANAGER_PROMPT, /flexible date window.*date-intelligence intent/i);
+  assert.match(MANAGER_PROMPT, /bounded timing that leaves a choice among multiple permissible dates/i);
 });
 
 test('a submitted range beyond 89 days is rejected instead of silently clipped', async () => {
@@ -709,8 +721,8 @@ test('one-way prediction returns date-only predictions and five cheapest dates',
   assert.deepEqual(Object.keys(result.predictions[0]), ['departureDate']);
   assert.deepEqual(Object.keys(result.cheapestDates[0]), ['departureDate']);
   assert.equal(result.priceRangeSummary, null);
-  assert.match(result.recommendation, /Best time to book:/i);
-  assert.match(result.formattedResponse, /Top Cheapest Dates to Book/i);
+  assert.match(result.recommendation, /Strongest predicted travel date:/i);
+  assert.match(result.formattedResponse, /Strongest Predicted Travel Dates/i);
   assert.doesNotMatch(result.formattedResponse, /\$|USD|INR|great deal|fair price/i);
 });
 
@@ -744,8 +756,40 @@ test('round-trip prediction ranks combinations and applies duration flexibility'
     'tripDuration',
   ]);
   assert.equal(result.priceRangeSummary, null);
-  assert.match(result.recommendation, /Best round-trip dates:/i);
+  assert.match(result.recommendation, /Strongest predicted round-trip combination:/i);
+  assert.match(result.formattedResponse, /Promising Round-Trip Combinations/i);
   assert.doesNotMatch(result.formattedResponse, /\$|USD|INR|great deal|fair price/i);
+});
+
+test('date-only guidance never turns travel dates into purchase advice or verified fare claims', async () => {
+  for (const input of [oneWayInput(), roundTripInput()]) {
+    const result = await getPricePrediction(input, {
+      now: REFERENCE_NOW,
+      repository: createTestRepository(),
+    });
+
+    assert.equal(result.status, 'SUCCESS');
+    const guidance = [result.recommendation, result.formattedResponse, result.message].join('\n');
+    assert.doesNotMatch(
+      guidance,
+      /\bbook (?:on|now)\b|\b(?:best )?time to (?:book|buy)\b|\b(?:best predicted|lowest|low-) ?fares?\b|\bprices? (?:will )?(?:rise|fall|drop)\b|\$|\b(?:USD|INR|great deal|fair price)\b/i,
+    );
+    assert.match(result.formattedResponse, /rank travel dates/i);
+    assert.match(result.formattedResponse, /fare amounts and purchase-price trends are not provided/i);
+    assert.equal(result.priceRangeSummary, null);
+    const rankedDates = result.tripType === 'roundtrip'
+      ? result.cheapestCombinations
+      : result.cheapestDates;
+    assert.ok(rankedDates.length > 0);
+    for (const option of rankedDates) {
+      assert.deepEqual(
+        Object.keys(option).sort(),
+        result.tripType === 'roundtrip'
+          ? ['outboundDate', 'returnDate', 'tripDuration']
+          : ['departureDate'],
+      );
+    }
+  }
 });
 
 test('round-trip contract requires return dates while duration fields remain nullable', async () => {
@@ -1080,11 +1124,11 @@ test('dynamic instructions expose immutable clock and date routing without a res
   );
   assert.match(
     dynamicInstructions,
-    /Normal search intent such as.*uses flight_search/i,
+    /Any explicit or implicit flexible window that permits multiple travel dates uses price_prediction_tool first/i,
   );
   assert.match(
     dynamicInstructions,
-    /For explicit price intelligence with vague timing, derive the requested range from the current turn clock/i,
+    /explicit price intelligence or implicit flexible-window intent.*derive the exact requested bounds from the current turn clock/is,
   );
   assert.match(
     dynamicInstructions,
@@ -1093,8 +1137,9 @@ test('dynamic instructions expose immutable clock and date routing without a res
   assert.doesNotMatch(dynamicInstructions, /Treat every non-success price_prediction_tool result as internal/i);
   assert.match(dynamicInstructions, /Hydrated search key present \(not validated\): no/i);
   assert.match(dynamicInstructions, /Hydrated flight result records present \(not validated\): no/i);
-  assert.match(FLIGHT_PROMPT, /A month, relative date, weekend, or range does not by itself trigger price prediction/i);
-  assert.match(dynamicInstructions, /choose the earliest valid date in that interval within the booking window/i);
+  assert.match(FLIGHT_PROMPT, /window itself is strong date-intelligence intent/i);
+  assert.match(dynamicInstructions, /Preserve the full user-allowed bracket for price_prediction_tool/i);
+  assert.match(dynamicInstructions, /earliest valid date in the allowed interval may be used for the single disclosed fallback search/i);
   assert.match(dynamicInstructions, /Never shift an exact user date/i);
   assert.doesNotMatch(dynamicInstructions, /resolve_flight_date/i);
 });

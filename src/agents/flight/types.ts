@@ -1,12 +1,17 @@
 export interface FlightEndpoint {
   userCity: string | null;
   airportIATA: string | null;
+  airportName?: string | null;
 }
 
 export interface FlightSegment {
   date: string;
   origin: string;
   destination: string;
+  origin_iata?: string | null;
+  destination_iata?: string | null;
+  origin_airport_name?: string | null;
+  destination_airport_name?: string | null;
 }
 
 export interface PassengerData {

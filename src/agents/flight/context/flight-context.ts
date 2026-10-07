@@ -218,7 +218,11 @@ function createFlightContextFromSource(source: MutableRecord = {}): FlightContex
         context.departureAirportFilters,
       ) || [],
     resolvedOrigin: normalizeResolvedLocation(
-      firstDefined(flight.resolvedOrigin, context.resolvedOrigin),
+      {
+        ...firstDefined(flight.resolvedOrigin, context.resolvedOrigin, {}),
+        ...('origin_iata' in state ? { userCity: origin, airportIATA: state.origin_iata } : {}),
+        ...('origin_airport_name' in state ? { airportName: state.origin_airport_name } : {}),
+      },
       origin,
     ),
     depLandAirports:
@@ -230,7 +234,11 @@ function createFlightContextFromSource(source: MutableRecord = {}): FlightContex
         context.arrivalAirportFilters,
       ) || [],
     resolvedDestination: normalizeResolvedLocation(
-      firstDefined(flight.resolvedDestination, context.resolvedDestination),
+      {
+        ...firstDefined(flight.resolvedDestination, context.resolvedDestination, {}),
+        ...('destination_iata' in state ? { userCity: destination, airportIATA: state.destination_iata } : {}),
+        ...('destination_airport_name' in state ? { airportName: state.destination_airport_name } : {}),
+      },
       destination,
     ),
     directFlightOnly: Boolean(
@@ -342,6 +350,9 @@ export function prepareFlightAgentTurnContext(
   const appContext = ensureFlightRuntimeContext(context);
   appContext.requestId = requestId;
   appContext.sessionId = sessionId;
+  if (!appContext.flight.searchKey) {
+    appContext.flight.suggestedQuestions = [];
+  }
   return appContext;
 }
 

@@ -5,23 +5,17 @@ import { FLIGHT_PROMPT } from '../../src/agents/flight/prompt.js';
 import { FlightSearchTool } from '../../src/agents/flight/tools/search-tool.js';
 import { PricePredictionTool } from '../../src/agents/flight/tools/price-prediction/tool.js';
 
-test('static Flight prompt uses departure and arrival location terminology', () => {
+test('static Flight prompt names route blockers for Manager feedback without traveler scripts', () => {
   assert.match(
     FLIGHT_PROMPT,
     /departure location \(internal field `origin`\), arrival location \(internal field `destination`\)/i,
   );
   assert.match(
     FLIGHT_PROMPT,
-    /Please share your departure location, arrival location, and travel date/i,
+    /Delhi is already the arrival location.*departure location and travel date/i,
   );
-  assert.match(
-    FLIGHT_PROMPT,
-    /Please share your departure location and arrival location/i,
-  );
-  assert.match(
-    FLIGHT_PROMPT,
-    /Delhi as your arrival location.*departure location and travel date/i,
-  );
+  assert.match(FLIGHT_PROMPT, /put blockers in missingInformation/i);
+  assert.doesNotMatch(FLIGHT_PROMPT, /Please share your|end exactly with/i);
   assert.doesNotMatch(FLIGHT_PROMPT, /ask for origin and destination/i);
   assert.doesNotMatch(FLIGHT_PROMPT, /Origin\?", "Destination\?/i);
   assert.doesNotMatch(FLIGHT_PROMPT, /Change destination to X/i);
@@ -47,7 +41,7 @@ test('assembled Flight instructions preserve dynamic location behavior', () => {
   );
   assert.match(
     FLIGHT_PROMPT,
-    /Please share your departure location and arrival location/i,
+    /put blockers in missingInformation/i,
   );
   assert.match(
     dynamicInstructions,
@@ -70,6 +64,10 @@ test('Flight tool contracts retain their original internal field names', () => {
   assert.deepEqual(Object.keys(routeFields), [
     'origin',
     'destination',
+    'origin_iata',
+    'destination_iata',
+    'origin_airport_name',
+    'destination_airport_name',
     'outbound_date',
     'return_date',
   ]);

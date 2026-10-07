@@ -34,6 +34,10 @@ export function buildPricePredictionRouteSummary(context: MutableRecord): string
   const first = flight.segments[0];
   const last = flight.segments.at(-1) || first;
   const routeCode = (location: string | undefined, resolved: { userCity?: string | null; airportIATA?: string | null }) => {
+    if (location && location.trim().toLowerCase() === resolved.userCity?.trim().toLowerCase()) {
+      const confirmed = knownCityIataCode(resolved.airportIATA);
+      if (confirmed) return confirmed;
+    }
     const direct = knownCityIataCode(location);
     if (direct) return direct;
     if (location && location.trim().toLowerCase() !== resolved.userCity?.trim().toLowerCase()) return null;

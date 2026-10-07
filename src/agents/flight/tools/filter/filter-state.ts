@@ -165,7 +165,11 @@ export function mergeApplyFilterState(
   incomingFilters: FlightFilter[],
 ): FlightFilter[] {
   if (hasClearAllIntent(incomingFilters)) {
-    return [];
+    // Reset the old state, then apply only the independently requested clauses.
+    // A reset must not discard additions in the same request.
+    return mergeApplyFilterState([], incomingFilters.filter(
+      (filter) => !hasClearAllIntent([filter]),
+    ));
   }
 
   // Update rule: duration and price ranges always replace their old range. "only/instead"
@@ -275,7 +279,7 @@ export function mergeFinalAndRemovalPayloads(
   removalPayloads: FilterPayload[],
 ): FilterPayload[] {
   if (removalPayloads.some((payload) => payload.filterType === 'reset')) {
-    return [{ filterType: 'reset', Values: [] }];
+    return [{ filterType: 'reset', Values: [] }, ...finalFilterPayload];
   }
 
   const removalTypes = new Set(removalPayloads.map((payload) => payload.filterType));

@@ -50,7 +50,7 @@ function resetFilter(rawUserFilter: string): FlightFilter {
 export const ApplyFilterTool = tool({
   name: 'apply_filter',
   description:
-    'Apply filters to an active flight search. For “remove all filters,” call once with filters containing one reset entry (filterType=reset; all other fields null; rawUserFilter=user request). Do not remove each type separately; filters=[] is invalid. Requires context.flight.searchKey from a successful flight_search; if it is missing but complete route/date intent is already known, run flight_search first and then retry this tool. Source-option codes are resolved only from current search arrays. Baggage codes: checked=0, carry-on=1, personal item=2. Time codes: EARLYMORNING, MORNING, AFTERNOON, EVENING. Stops: non-stop=0, one stop=2, two-or-more=3. Total duration, layover duration, and price are maximum-only. Validation failures do not mutate state and include recovery metadata.',
+    'Apply every filter addition/removal explicitly requested in the current user message to an active search in one call. Never call this tool, including reset, merely to inspect, compare, rank, recommend, or recover options from an empty filtered set; those tasks preserve all active filters. Standalone clear-all is allowed only when the user explicitly asks to clear every filter and uses one reset entry with other fields null; a mixed explicit reset-and-add request includes reset plus the requested additions. Preserve each operation clause in rawUserFilter, excluding unrelated reset wording from additions. Do not remove every type separately; filters=[] is invalid. Requires context.flight.searchKey from a successful search; when absent, create the requested search from reliable route/date context before filtering. Airline/airport names and group wording are resolved against complete current arrays, even if prompt summaries are abbreviated. Baggage: checked=0, carry-on=1, personal item=2. Times: EARLYMORNING, MORNING, AFTERNOON, EVENING. Stops: non-stop=0, one stop=2, two-or-more=3. Duration and price are maximum-only. Read the complete returned filters list, feedback, and count before claiming any constraint was applied.',
   parameters: applyFilterSchema,
   strict: true,
   errorFunction: createFlightToolSchemaErrorFunction('apply_filter', {
@@ -180,6 +180,7 @@ export const ApplyFilterTool = tool({
     // Keep only prod-owned visible results in context. Dummy-only active filter
     // state remains in the runtime store behind searchKey.
     flightContext.searchResults = filteredFlights;
+    flightContext.suggestedQuestions = [];
     flightContext.totalResultsFound = filteredFlights.length;
     flightContext.showFlight = true;
     flightContext.directFlightOnly = updatedFilters.some(

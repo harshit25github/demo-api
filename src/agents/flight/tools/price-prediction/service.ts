@@ -644,9 +644,9 @@ function buildRecommendation(
 ): string {
   if (tripType === 'roundtrip') {
     const option = cheapestOption as RoundTripPrediction;
-    return `Best round-trip dates: ${formatPredictionDate(option.outboundDate)} to ${formatPredictionDate(option.returnDate)}`;
+    return `Strongest predicted round-trip combination: ${formatPredictionDate(option.outboundDate)} to ${formatPredictionDate(option.returnDate)}`;
   }
-  return `Best time to book: ${formatPredictionDate((cheapestOption as OneWayPrediction).departureDate)}`;
+  return `Strongest predicted travel date: ${formatPredictionDate((cheapestOption as OneWayPrediction).departureDate)}`;
 }
 
 function buildFormattedResponse(
@@ -660,7 +660,7 @@ function buildFormattedResponse(
         `| ${index + 1} | ${formatPredictionDate(option.outboundDate)} | ${formatPredictionDate(option.returnDate)} |`,
     );
     const best = roundTripOptions[0];
-    return `### 🏆 Top Cheapest Date Combinations\n\n| Rank | Outbound | Return |\n|:----:|----------|--------|\n${rows.join('\n')}\n\n### 💡 Recommendation\n\n**Travel ${formatPredictionDate(best.outboundDate)} to ${formatPredictionDate(best.returnDate)}** for the best predicted fare.`;
+    return `### Promising Round-Trip Combinations\n\n| Rank | Outbound | Return |\n|:----:|----------|--------|\n${rows.join('\n')}\n\n### Recommendation\n\nStrongest predicted round-trip combination: **${formatPredictionDate(best.outboundDate)} to ${formatPredictionDate(best.returnDate)}**. These recommendations rank travel dates; fare amounts and purchase-price trends are not provided.`;
   }
 
   const oneWayOptions = cheapestOptions as OneWayPrediction[];
@@ -668,7 +668,7 @@ function buildFormattedResponse(
     (option, index) => `| ${index + 1} | ${formatPredictionDate(option.departureDate)} |`,
   );
   const best = oneWayOptions[0];
-  return `### 🏆 Top Cheapest Dates to Book\n\n| Rank | Date |\n|:----:|------|\n${rows.join('\n')}\n\n### 💡 Recommendation\n\n**Book on ${formatPredictionDate(best.departureDate)}** for the best predicted fare.`;
+  return `### Strongest Predicted Travel Dates\n\n| Rank | Travel Date |\n|:----:|-------------|\n${rows.join('\n')}\n\n### Recommendation\n\nStrongest predicted travel date: **${formatPredictionDate(best.departureDate)}**. These recommendations rank travel dates; fare amounts and purchase-price trends are not provided.`;
 }
 
 function rankCheapestOptions<T extends RankedPrediction>(predictions: T[]): T[] {

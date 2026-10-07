@@ -518,7 +518,7 @@ test('prompt lists an approved chain ending in the update for every request clas
     /^- Option facts, comparisons, rankings, or recommendations: getGeneratedContractsContext read\.$/m,
     /^- Explicit display .*: getGeneratedContractsContext select or show_all\.$/m,
     /^- Price or date advice only: price_prediction_tool\.$/m,
-    /^- Price or date advice plus requested results: price_prediction_tool, then flight_search/m,
+    /^- Flexible-window search, or price\/date advice plus requested results: price_prediction_tool, then flight_search/m,
     /^- Price advice about a current option: getGeneratedContractsContext read, then price_prediction_tool\.$/m,
   ]) {
     assert.match(chains[1], requestClass);

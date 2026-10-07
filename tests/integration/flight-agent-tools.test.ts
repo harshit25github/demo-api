@@ -276,6 +276,7 @@ test('GetGeneratedContractsContextTool read mode never changes visibility', asyn
 
   assert.equal(result.ok, true);
   assert.equal(result.visibleCount, 1);
+  assert.deepEqual(result.visibleIndexes, [2]);
   assert.deepEqual(result.selectedIndexes, []);
   assert.deepEqual(context.flight.searchResults, before);
 });
@@ -511,11 +512,132 @@ test('GetGeneratedContractsContextTool returns NO_CONTRACTS with hydrated search
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'NO_CONTRACTS');
+  assert.equal(result.resultState, 'unavailable');
+  assert.equal(result.recovery.retrySafe, false);
+  assert.deepEqual(result.visibleIndexes, []);
   assert.equal(result.searchKey, 'prefilled-search-key');
   assert.deepEqual(result.searchParams, baseSearchPayload);
   assert.deepEqual(context.toolCallLog.map((entry) => entry.tool), [
     'getGeneratedContractsContext',
   ]);
+});
+
+test('contract reads preserve an empty filtered result set and its active constraints', async () => {
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'price',
+      maxPrice: 1,
+      rawUserFilter: 'under $1',
+    })] }),
+    {},
+  );
+  const flightBefore = structuredClone(context.flight);
+  const runtimeBefore = snapshotFlightSearchRuntime(context.flight.searchKey);
+  const callsBefore = context.toolCallLog.length;
+
+  const result = parseToolResult(await GetGeneratedContractsContextTool.invoke(
+    { context },
+    JSON.stringify({ mode: 'read', indexes: null }),
+    {},
+  ));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.resultState, 'empty');
+  assert.equal(result.originalCount, 3);
+  assert.equal(result.summary.totalAvailable, 0);
+  assert.equal(result.summary.cheapestOption, null);
+  assert.deepEqual(result.contracts, []);
+  assert.deepEqual(result.visibleIndexes, []);
+  assert.deepEqual(result.filters, runtimeBefore.appliedFilters);
+  assert.equal(result.filters[0].maxPrice, 1);
+  assert.deepEqual(context.flight, flightBefore);
+  assert.deepEqual(snapshotFlightSearchRuntime(context.flight.searchKey), runtimeBefore);
+  assert.deepEqual(context.toolCallLog.slice(callsBefore).map((entry) => entry.tool), [
+    'getGeneratedContractsContext',
+  ]);
+});
+
+test('numbered options on an empty filtered set are unavailable without changing search or filters', async () => {
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'price', maxPrice: 1, rawUserFilter: 'under $1',
+    })] }),
+    {},
+  );
+  const flightBefore = structuredClone(context.flight);
+  const runtimeBefore = snapshotFlightSearchRuntime(context.flight.searchKey);
+
+  for (const mode of ['read', 'select']) {
+    const result = parseToolResult(await GetGeneratedContractsContextTool.invoke(
+      { context },
+      JSON.stringify({ mode, indexes: [1] }),
+      {},
+    ));
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'INDEX_OUT_OF_RANGE');
+    assert.equal(result.resultState, 'empty');
+    assert.equal(result.totalAvailable, 0);
+    assert.deepEqual(result.missingIndexes, [1]);
+    assert.deepEqual(result.filters, runtimeBefore.appliedFilters);
+    assert.match(result.recovery.fieldIssues[0].constraint, /No option indexes are available/);
+    assert.equal(result.recovery.stateChanged, false);
+    assert.deepEqual(context.flight, flightBefore);
+    assert.deepEqual(snapshotFlightSearchRuntime(context.flight.searchKey), runtimeBefore);
+  }
+});
+
+test('missing contract records are unavailable even when search runtime still has flights', async () => {
+  for (const hasPriorSearch of [false, true]) {
+    const context = createContext();
+    if (hasPriorSearch) {
+      await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+      delete context.flight.searchResults;
+    }
+    const flightBefore = structuredClone(context.flight);
+    const runtimeBefore = snapshotFlightSearchRuntime(context.flight.searchKey);
+
+    const result = parseToolResult(await GetGeneratedContractsContextTool.invoke(
+      { context },
+      JSON.stringify({ mode: 'read', indexes: null }),
+      {},
+    ));
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'NO_CONTRACTS');
+    assert.equal(result.resultState, 'unavailable');
+    assert.equal(result.recovery.retrySafe, false);
+    assert.equal(result.recovery.stateChanged, false);
+    assert.deepEqual(context.flight, flightBefore);
+    assert.deepEqual(snapshotFlightSearchRuntime(context.flight.searchKey), runtimeBefore);
+  }
+});
+
+test('completed empty searches can be inspected without inventing available options', async () => {
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  context.flight.searchResults = [];
+  updateFlightSearchRuntime(context.flight.searchKey, { sourceFlights: [], visibleFlights: [] });
+  const runtimeBefore = snapshotFlightSearchRuntime(context.flight.searchKey);
+
+  const result = parseToolResult(await GetGeneratedContractsContextTool.invoke(
+    { context },
+    JSON.stringify({ mode: 'read', indexes: null }),
+    {},
+  ));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.resultState, 'empty');
+  assert.equal(result.originalCount, 0);
+  assert.deepEqual(result.filters, []);
+  assert.equal(result.summary.totalAvailable, 0);
+  assert.deepEqual(snapshotFlightSearchRuntime(context.flight.searchKey), runtimeBefore);
 });
 
 test('new search and filter results reset prior contract visibility', async () => {
