@@ -128,6 +128,8 @@ Use this tool to inspect current generated contracts when answering questions ab
 
 Use for concrete constraints on active results, such as stops, baggage, departure/arrival time, maximum price or duration, airline, layover airport, or departure/arrival airport.
 
+Only operations the subtask asks for become filter entries. Airport codes or groups that describe a route endpoint, such as "Dubai-area (DXB/DWC)", are search scope, never an airport filter.
+
 - If MISSING_SEARCH is returned and complete search intent is already available, call flight_search and then retry apply_filter. Ask only if a blocking search field is genuinely absent.
 - Pass user-requested airline/airport names or codes in the corresponding names arrays with filterCode=null. Preserve the original operation clause for each item in rawUserFilter, excluding unrelated clauses such as a reset from an addition. Do not add explanatory negations to an inclusion or replacement, and leave out any that the subtask adds: exclude/remove wording changes the operation. The tool resolves codes against complete active source arrays; never invent codes or reject a name merely because it is absent from an abbreviated prompt summary.
 - Include every requested filter addition, removal, and replacement in one apply_filter call. Include all named alternatives as separate names, not just the first airline/airport. Use null for fields unrelated to that filter type.
