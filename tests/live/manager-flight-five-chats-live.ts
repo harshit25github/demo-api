@@ -195,9 +195,15 @@ function isoDay(base: string, offset: number): string {
   date.setUTCDate(date.getUTCDate() + offset);
   return date.toISOString().slice(0, 10);
 }
+// A well-mixed hash (FNV-1a plus a finalizer). A plain polynomial hash gave
+// consecutive dates consecutive prices, so the earliest day always won and a
+// search on the winner was indistinguishable from the no-data fallback.
 function predictedPrice(key: string): number {
-  let hash = 0;
-  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) % 100_003;
+  let hash = 2166136261;
+  for (const char of key) hash = Math.imul((hash ^ char.charCodeAt(0)) >>> 0, 16777619) >>> 0;
+  hash = (hash ^ (hash >>> 13)) >>> 0;
+  hash = Math.imul(hash, 0x5bd1e995) >>> 0;
+  hash = (hash ^ (hash >>> 15)) >>> 0;
   return 180 + (hash % 260);
 }
 function predictionRow(isRoundTrip: boolean) {
