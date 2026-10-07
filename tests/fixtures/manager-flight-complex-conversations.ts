@@ -489,7 +489,9 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedFilterTypes: ['departureTime', 'stops', 'baggage', 'totalDuration', 'airline'],
       },
       {
-        user: 'Also require a Dubai layover under 60 minutes and arrival in the evening.',
+        // Doha, not Dubai: a Dubai layover contradicts a Delhi -> Dubai route, and
+        // on 7 Oct Flight rightly declined to apply one and said why.
+        user: 'Also require a Doha layover under 60 minutes and arrival in the evening.',
         expectedIntent: 'Add layover airport, layover duration, and arrival time to existing filters.',
         expectedTools: ['apply_filter', SUGGESTIONS],
         why: 'The new constraints narrow current results and should preserve every active filter.',
@@ -519,7 +521,7 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedFilterTypes: ['departureTime', 'stops', 'baggage', 'totalDuration', 'airline', 'layoverAirport', 'layoverDuration', 'arrivalTime'],
       },
       {
-        user: 'Change to business class for three adults, same route and dates. Keep one stop, afternoon departure, evening arrival, checked baggage, total duration under three hours, a Dubai layover under 60 minutes, but drop the airline restriction.',
+        user: 'Change to business class for three adults, same route and dates. Keep one stop, afternoon departure, evening arrival, checked baggage, total duration under three hours, a Doha layover under 60 minutes, but drop the airline restriction.',
         expectedIntent: 'Change passenger count and cabin, run a new search, then reapply seven explicitly retained filters without airline.',
         expectedTools: ['flight_search', 'apply_filter', SUGGESTIONS],
         why: 'Passenger and cabin changes require a new search; the named constraints must be applied only after it succeeds.',

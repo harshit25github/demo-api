@@ -55,12 +55,12 @@ export const expectedFilterValues: Record<string, readonly FilterValues[]> = {
     {},
     { stops: ['0'], departureTime: ['EVENING'], price: [250], totalDuration: [180], baggage: ['2'] },
     { departureTime: ['AFTERNOON'], stops: ['2'], baggage: ['0'], totalDuration: [180], airline: ['CA'] },
-    { departureTime: ['AFTERNOON'], stops: ['2'], baggage: ['0'], totalDuration: [180], airline: ['CA'], layoverAirport: ['DXB'], layoverDuration: [60], arrivalTime: ['EVENING'] },
-    { departureTime: ['AFTERNOON'], stops: ['2'], baggage: ['0'], totalDuration: [180], airline: ['AC', 'AC+', 'EK'], layoverAirport: ['DXB'], layoverDuration: [60], arrivalTime: ['EVENING'] },
-    { departureTime: ['AFTERNOON'], stops: ['2'], baggage: ['0'], totalDuration: [180], airline: ['AC', 'AC+', 'EK'], layoverAirport: ['DXB'], layoverDuration: [60], arrivalTime: ['EVENING'] },
-    { stops: ['2'], departureTime: ['AFTERNOON'], arrivalTime: ['EVENING'], baggage: ['0'], totalDuration: [180], layoverAirport: ['DXB'], layoverDuration: [60] },
-    { stops: ['2'], departureTime: ['AFTERNOON'], arrivalTime: ['EVENING'], baggage: ['0'], totalDuration: [180], layoverAirport: ['DXB'], layoverDuration: [60] },
-    { stops: ['2'], departureTime: ['AFTERNOON'], arrivalTime: ['EVENING'], baggage: ['0'], totalDuration: [180], layoverAirport: ['DXB'], layoverDuration: [60] },
+    { departureTime: ['AFTERNOON'], stops: ['2'], baggage: ['0'], totalDuration: [180], airline: ['CA'], layoverAirport: ['DOH'], layoverDuration: [60], arrivalTime: ['EVENING'] },
+    { departureTime: ['AFTERNOON'], stops: ['2'], baggage: ['0'], totalDuration: [180], airline: ['AC', 'AC+', 'EK'], layoverAirport: ['DOH'], layoverDuration: [60], arrivalTime: ['EVENING'] },
+    { departureTime: ['AFTERNOON'], stops: ['2'], baggage: ['0'], totalDuration: [180], airline: ['AC', 'AC+', 'EK'], layoverAirport: ['DOH'], layoverDuration: [60], arrivalTime: ['EVENING'] },
+    { stops: ['2'], departureTime: ['AFTERNOON'], arrivalTime: ['EVENING'], baggage: ['0'], totalDuration: [180], layoverAirport: ['DOH'], layoverDuration: [60] },
+    { stops: ['2'], departureTime: ['AFTERNOON'], arrivalTime: ['EVENING'], baggage: ['0'], totalDuration: [180], layoverAirport: ['DOH'], layoverDuration: [60] },
+    { stops: ['2'], departureTime: ['AFTERNOON'], arrivalTime: ['EVENING'], baggage: ['0'], totalDuration: [180], layoverAirport: ['DOH'], layoverDuration: [60] },
   ],
 };
 
