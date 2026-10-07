@@ -159,6 +159,12 @@ export function suggestionIssues({
     if (option && Number(option[1]) > resultCount) {
       issues.push(`suggestion names option ${option[1]} but only ${resultCount} current option(s) exist: "${suggestion}"`);
     }
+    // Ranking current options, not a price window such as "Cheapest this week".
+    const ranks = /\b(?:cheapest|fastest|shortest|quickest|lowest|best value|compare)\b/i.test(suggestion) &&
+      /\b(?:options?|flights?|ones?)\b/i.test(suggestion) && !/\b(?:dates?|days?|weeks?|weekends?|months?)\b/i.test(suggestion);
+    if (ranks && resultCount < 2) {
+      issues.push(`suggestion ranks or compares options but only ${resultCount} current option(s) exist: "${suggestion}"`);
+    }
   }
   const normalize = (items: string[]) => items.map((item) => item.trim().toLowerCase()).sort().join('|');
   if (previous.length === 3 && suggestions.length === 3 && normalize(previous) === normalize(suggestions)) {

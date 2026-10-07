@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, subtaskEnrichmentIssues, type ObservedFlightToolCall } from '../live/manager-flight-evidence.js';
+import { activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, subtaskEnrichmentIssues, suggestionIssues, type ObservedFlightToolCall } from '../live/manager-flight-evidence.js';
 import { managerFlightComplexConversations } from '../fixtures/manager-flight-complex-conversations.js';
 import { expectedFilterValues, expectedPredictionInput } from '../fixtures/manager-flight-complex-state.js';
 import { managerFlightNormalizationConversation } from '../fixtures/manager-flight-normalization-conversation.js';
@@ -38,6 +38,21 @@ test('subtask evidence flags per-date coverage the traveler never asked for', ()
     'Search NYC → LAX with a flexible outbound window 2026-10-21 through 2026-10-28; keep Air China only.',
   ]), []);
   assert.deepEqual(subtaskEnrichmentIssues('Show me fares for each day next week.', ['List fares for each day next week.']), []);
+});
+
+test('suggestion evidence catches stale, impossible, and repeated chips but allows price windows', () => {
+  const base = { previous: [], activeFilters: [], airlineOptions: [{ Code: 'CA', Text: 'Air China' }], resultCount: 3 };
+  // Observed 7 Oct: ranking chips with one option and with none.
+  assert.equal(suggestionIssues({ ...base, resultCount: 1, suggestions: ['Which option is fastest?'] }).length, 1);
+  assert.equal(suggestionIssues({ ...base, resultCount: 0, suggestions: ['Which option is cheapest?'] }).length, 1);
+  assert.deepEqual(suggestionIssues({ ...base, resultCount: 2, suggestions: ['Which option is fastest?'] }), []);
+  assert.deepEqual(suggestionIssues({ ...base, resultCount: 0, suggestions: ['Cheapest this week', 'Cheapest in the next 3 months'] }), []);
+  const nonstopActive = { ...base, activeFilters: [{ filterType: 'stops', filterCode: '0' }, { filterType: 'airline', filterCode: 'CA' }] };
+  assert.equal(suggestionIssues({ ...nonstopActive, suggestions: ['Show nonstop flights only', 'Show only Air China'] }).length, 2);
+  assert.deepEqual(suggestionIssues({ ...nonstopActive, suggestions: ['Remove the nonstop filter', 'Remove the Air China filter'] }), []);
+  assert.equal(suggestionIssues({ ...base, resultCount: 1, suggestions: ['Show details for option 2'] }).length, 1);
+  const three = ['Show nonstop flights only', 'Which option is fastest?', 'Change to business class'];
+  assert.equal(suggestionIssues({ ...base, previous: [...three].reverse(), suggestions: three }).length, 1);
 });
 
 test('failed-date CTA evidence rejects the observed repeated lookup, not current-option ranking', () => {
