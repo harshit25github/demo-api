@@ -1,0 +1,3424 @@
+{
+  "fixedNow": "2026-10-05T10:00:00.000Z",
+  "models": {
+    "manager": "gpt-5.2",
+    "flight": "gpt-5.2",
+    "tripPlanner": "gpt-5.2"
+  },
+  "reasoningEffort": "low",
+  "registeredFlightTools": [
+    "flight_search",
+    "getGeneratedContractsContext",
+    "apply_filter",
+    "price_prediction_tool",
+    "update_flight_suggested_questions"
+  ],
+  "scenario": {
+    "id": "compound_filters_route_change",
+    "title": "Compound filters, replacements, removals, prediction, and route change",
+    "focus": "Filter stacking and replacement, current-option reasoning, prediction-to-search sequencing, and distinguishing a departure-location change from an airport filter.",
+    "turns": [
+      {
+        "user": "Find one-way flights from New York to Los Angeles on October 20, 2026 for one adult in economy.",
+        "expectedIntent": "Start a new exact-date one-way flight search.",
+        "expectedTools": [
+          "flight_search",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The route, exact date, passengers, trip type, and cabin are complete, so a new search is required without price prediction.",
+        "expectedStateChange": "Create a new search key, store three current options, and start with no active filters.",
+        "validates": "Manager delegates a complete flight request once and Flight does not over-trigger prediction for an exact date.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": []
+      },
+      {
+        "user": "Show only nonstop morning departures under $220 with carry-on baggage.",
+        "expectedIntent": "Apply four constraints to the current result set in one mutation.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Stops, departure time, maximum price, and baggage are supported filters and do not change the search inputs.",
+        "expectedStateChange": "Keep the search key and activate stops, departureTime, price, and baggage filters.",
+        "validates": "One compound apply_filter call, no unnecessary re-search, and complete filter stacking.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime",
+          "price",
+          "baggage"
+        ]
+      },
+      {
+        "user": "Make it evening instead, drop the price cap, and remove the carry-on requirement.",
+        "expectedIntent": "Replace one active filter and remove two others while preserving nonstop.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "This is an in-place filter update: evening replaces morning, while price and baggage are removed.",
+        "expectedStateChange": "Keep the search key with only stops and evening departure active.",
+        "validates": "Indirect replacement wording and multi-filter removal without losing unrelated state.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime"
+        ]
+      },
+      {
+        "user": "Remove the nonstop filter, show only Air China, and keep total trip duration under four hours.",
+        "expectedIntent": "Remove stops and add airline plus total-duration constraints.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "All requested changes operate on the existing cards; evening departure remains unchanged because it was not removed.",
+        "expectedStateChange": "Keep the search key with evening departure, Air China, and maximum total duration active.",
+        "validates": "Targeted removal, named-airline resolution, duration filtering, and preservation of an unmentioned active filter.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "departureTime",
+          "airline",
+          "totalDuration"
+        ]
+      },
+      {
+        "user": "Which current option is cheapest, and why?",
+        "expectedIntent": "Reason over current generated options without changing visibility or search state.",
+        "expectedTools": [
+          "getGeneratedContractsContext",
+          "update_flight_suggested_questions"
+        ],
+        "why": "A current-option ranking requires fresh contract evidence, not a new search or another filter.",
+        "expectedStateChange": "Keep the search key and all active filters unchanged.",
+        "validates": "Fresh contract retrieval, context reuse, and no state mutation for option reasoning.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "departureTime",
+          "airline",
+          "totalDuration"
+        ]
+      },
+      {
+        "user": "Check for better travel dates between October 21 and October 28, then show flights on the strongest date with Air China still applied.",
+        "expectedIntent": "Evaluate a flexible date window, search the strongest or bounded fallback date, then reapply the explicitly retained airline.",
+        "expectedTools": [
+          "price_prediction_tool",
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The flexible bracket requires prediction before the requested search; the new search clears old filters, so only the explicitly retained Air China filter is reapplied.",
+        "expectedStateChange": "Create a new search key on an in-window date and leave only the Air China filter active.",
+        "validates": "Prediction-to-search-to-filter ordering, bounded failure fallback, and selective filter carry-forward.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "airline"
+        ]
+      },
+      {
+        "user": "Start the trip in Newark instead of New York, using the same date, passengers, and cabin. Keep Air China and remove every other filter.",
+        "expectedIntent": "Change the departure endpoint, run a new search, and reapply only the requested airline filter.",
+        "expectedTools": [
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Starting in Newark changes the search route; it is not merely a departure-airport filter on the old New York search.",
+        "expectedStateChange": "Create a new search key for Newark to Los Angeles and keep only Air China active.",
+        "validates": "Filter-looking route changes, reuse of prior date/passengers/cabin, and removal of stale filters after re-search.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "airline"
+        ]
+      }
+    ]
+  },
+  "coverage": {
+    "flight_search": true,
+    "getGeneratedContractsContext": true,
+    "apply_filter": true,
+    "price_prediction_tool": true,
+    "update_flight_suggested_questions": true
+  },
+  "turns": [
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 1,
+      "traceId": "trace_c3996447c6c048f2953f0ef4d4566929",
+      "user": "Find one-way flights from New York to Los Angeles on October 20, 2026 for one adult in economy.",
+      "expectedIntent": "Start a new exact-date one-way flight search.",
+      "expectedTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "why": "The route, exact date, passengers, trip type, and cabin are complete, so a new search is required without price prediction.",
+      "expectedStateChange": "Create a new search key, store three current options, and start with no active filters.",
+      "validates": "Manager delegates a complete flight request once and Flight does not over-trigger prediction for an exact date.",
+      "output": "✈️ I found **3 one-way economy flights** for **1 adult** from **New York (NYC) → Los Angeles (LA area)** on **October 20, 2026**: **1 nonstop**, **1 one‑stop**, and **1 two‑stop** (the **lowest price** is currently the **2‑stop** option). Some results arrive at **nearby LA-area airports (e.g., BUR/ONT/SNA)** rather than LAX.\n\nℹ️ If you want, I can narrow it to **LAX-only arrivals** and/or **nonstop only**.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Search for one-way flights from New York (NYC) to Los Angeles (LAX area / Los Angeles city) on October 20, 2026 for 1 adult in economy. Return available options with prices/times and any notable nonstop vs stops."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_dYYz8jWi8zYpyz4IJFHwBTsK",
+          "tool": "flight_search",
+          "input": {
+            "onds": [
+              {
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "origin_iata": "NYC",
+                "destination_iata": "LAX",
+                "origin_airport_name": null,
+                "destination_airport_name": null,
+                "outbound_date": "2026-10-20",
+                "return_date": null
+              }
+            ],
+            "trip_type": "oneway",
+            "passengers": {
+              "adults": 1,
+              "children": 0,
+              "infants": 0
+            },
+            "cabin_class": "economy"
+          },
+          "completed": true,
+          "output": {
+            "source": "dummy",
+            "message": "Sample flight results only. No live API was called.",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "New York",
+                  "destination": "Los Angeles",
+                  "origin_iata": "NYC",
+                  "destination_iata": "LAX",
+                  "origin_airport_name": null,
+                  "destination_airport_name": null,
+                  "outbound_date": "2026-10-20",
+                  "return_date": null
+                }
+              ],
+              "trip_type": "oneway",
+              "passengers": {
+                "adults": 1,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "economy"
+            },
+            "summary": {
+              "route": "New York to Los Angeles",
+              "passengerCount": 1,
+              "optionCount": 3
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_hours": 7.92,
+                "total_duration_minutes": 475,
+                "layover_duration_hours": 2.25,
+                "layover_duration_minutes": 135,
+                "layover_airport_codes": [
+                  "DXB",
+                  "DOH"
+                ],
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ],
+            "UID": "demo-user",
+            "searchKey": "search_demo-user_1791360131558",
+            "airlineFilterOptions": [
+              {
+                "Code": "AC",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "AC+",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "CA",
+                "Text": "Air China",
+                "Name": "Air China",
+                "IsDisabled": false
+              },
+              {
+                "Code": "EK",
+                "Text": "Emirates",
+                "Name": "Emirates",
+                "IsDisabled": false
+              },
+              {
+                "Code": "QR",
+                "Text": "Qatar Airways",
+                "Name": "Qatar Airways",
+                "IsDisabled": false
+              },
+              {
+                "Code": "6E",
+                "Text": "IndiGo",
+                "Name": "IndiGo",
+                "IsDisabled": true
+              },
+              {
+                "Code": "UA",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              },
+              {
+                "Code": "UA+",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              }
+            ],
+            "layoverAirportFilterOptions": [
+              {
+                "Code": "AMS",
+                "Text": "Amsterdam Schiphol",
+                "Name": null,
+                "AirportCityName": "Amsterdam",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DXB",
+                "Text": "Dubai",
+                "Name": null,
+                "AirportCityName": "Dubai",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DOH",
+                "Text": "Doha Hamad International Airport",
+                "Name": null,
+                "AirportCityName": "Doha",
+                "IsDisabled": false
+              },
+              {
+                "Code": "FRA",
+                "Text": "Frankfurt Airport",
+                "Name": null,
+                "AirportCityName": "Frankfurt",
+                "IsDisabled": false
+              },
+              {
+                "Code": "SIN",
+                "Text": "Singapore Changi",
+                "Name": null,
+                "AirportCityName": "Singapore",
+                "IsDisabled": true
+              }
+            ],
+            "DepartAirports": [
+              {
+                "Code": "JFK",
+                "Price": 520.1,
+                "Text": "John F Kennedy Intl",
+                "Name": null,
+                "Count": 210,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              },
+              {
+                "Code": "EWR",
+                "Price": 498.4,
+                "Text": "Newark Liberty Intl",
+                "Name": null,
+                "Count": 178,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "Newark"
+              },
+              {
+                "Code": "LGA",
+                "Price": 530.2,
+                "Text": "LaGuardia",
+                "Name": null,
+                "Count": 96,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              }
+            ],
+            "DepLandAirports": [
+              {
+                "Code": "LAX",
+                "Price": 341.23,
+                "Text": "Los Angeles Intl",
+                "Name": null,
+                "Count": 241,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "BUR",
+                "Price": 420.6,
+                "Text": "Burbank Bob Hope Airport",
+                "Name": null,
+                "Count": 161,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "ONT",
+                "Price": 316.4,
+                "Text": "Ontario",
+                "Name": null,
+                "Count": 97,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "SNA",
+                "Price": 399.40002,
+                "Text": "Santa Ana John Wayne",
+                "Name": null,
+                "Count": 86,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_u71m266f1t9sO9aGS4sGzX2U",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Use JFK departures only"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Use JFK departures only"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [],
+        "outbound_date": null,
+        "return_date": null,
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [],
+      "observedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Search completed for New York (NYC) to Los Angeles (LAX area) on Oct 20, 2026 (one-way, 1 adult, economy). 3 options are available, including 1 nonstop and multiple stop options with longer total travel time.",
+          "completedTask": "Ran a one-way flight search for NYC → Los Angeles (LAX area) on 2026-10-20 for 1 adult in economy and returned the available options, including nonstop vs stop details.",
+          "findings": [
+            "Search used: one-way NYC → Los Angeles (LAX area), outbound 2026-10-20, 1 adult, economy.",
+            "Result count: 3 flight options currently available to display.",
+            "Nonstop vs stops: 1 nonstop option (shortest total duration); 1 one-stop option; 1 two-stop option (longest total duration).",
+            "Pricing snapshot across available options: lowest-priced option is a 2-stop itinerary; nonstop is higher priced than the lowest fare in this set.",
+            "Some options use nearby LA-area airports (e.g., BUR/ONT/SNA) rather than LAX, so arrival airport differs by option."
+          ],
+          "limitations": [
+            "I did not apply any filters (e.g., nonstop-only or LAX-only); results include nearby LA-area airports and itineraries with stops.",
+            "Notable data quality issue in the returned set: at least one option shows inconsistent airport coding for a NYC → LA route (e.g., departure/arrival airport fields not aligning cleanly with the stated endpoints), so airport-level details should be verified per card."
+          ],
+          "nextStep": "If you want only Los Angeles Intl (LAX) arrivals (excluding BUR/ONT/SNA), tell me and I can filter to LAX-only; or say “nonstop only” to keep just the nonstop option.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": null,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "",
+      "searchKeyAfter": "search_demo-user_1791360131558",
+      "activeFilterTypes": [],
+      "suggestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Use JFK departures only"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 54239,
+      "outputTokens": 842,
+      "modelCalls": 5,
+      "latencyMs": 24706,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 2,
+      "traceId": "trace_41a8ee82261c4e9383270476690d8fdf",
+      "user": "Show only nonstop morning departures under $220 with carry-on baggage.",
+      "expectedIntent": "Apply four constraints to the current result set in one mutation.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Stops, departure time, maximum price, and baggage are supported filters and do not change the search inputs.",
+      "expectedStateChange": "Keep the search key and activate stops, departureTime, price, and baggage filters.",
+      "validates": "One compound apply_filter call, no unnecessary re-search, and complete filter stacking.",
+      "output": "✅ I’ve filtered your results to **nonstop + morning departures + under $220 + includes carry-on baggage**. **1 flight matches** (arrives at **LAX**).",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current one-way search NYC → Los Angeles (LA area) for 2026-10-20, 1 adult economy: apply filters to show ONLY (1) nonstop, (2) morning departures, (3) price under $220, and (4) options that include carry-on baggage (baggage-included filter). Preserve any existing scope (LA area airports unless filtered out by the user). Report if no options match under these filters."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_XQOe5rkdkEKAO1flViOSyMiZ",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "show ONLY nonstop"
+              },
+              {
+                "filterType": "departureTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "show ONLY morning departures"
+              },
+              {
+                "filterType": "price",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": 220,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "price under $220"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": "1",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "options that include carry-on baggage"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791360131558",
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "show ONLY nonstop"
+              },
+              {
+                "filterType": "departureTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "show ONLY morning departures"
+              },
+              {
+                "filterType": "price",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": 0,
+                "maxPrice": 220,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "price under $220"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": "1",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "options that include carry-on baggage"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "stop",
+                "Values": [
+                  "0"
+                ]
+              },
+              {
+                "filterType": "departtimeslotfilter",
+                "Values": [
+                  "MORNING"
+                ]
+              },
+              {
+                "filterType": "baggage",
+                "Values": [
+                  "1"
+                ]
+              },
+              {
+                "filterType": "price",
+                "Values": [
+                  0,
+                  220
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791360131558",
+              "filters": [
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "0"
+                  ]
+                },
+                {
+                  "filterType": "departtimeslotfilter",
+                  "Values": [
+                    "MORNING"
+                  ]
+                },
+                {
+                  "filterType": "baggage",
+                  "Values": [
+                    "1"
+                  ]
+                },
+                {
+                  "filterType": "price",
+                  "Values": [
+                    0,
+                    220
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 1
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_Dh7fBEM8AowWUUEcqLp18w1V",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show United flights only",
+              "Show flights into Burbank (BUR)",
+              "Which option is fastest?"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show United flights only",
+              "Show flights into Burbank (BUR)",
+              "Which option is fastest?"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "stops",
+          "filterCode": "0",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "show ONLY nonstop"
+        },
+        {
+          "filterType": "departureTime",
+          "filterCode": "MORNING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "show ONLY morning departures"
+        },
+        {
+          "filterType": "price",
+          "filterCode": null,
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": 0,
+          "maxPrice": 220,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "price under $220"
+        },
+        {
+          "filterType": "baggage",
+          "filterCode": "1",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "options that include carry-on baggage"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "All four requested filters were applied; 1 option matches under these constraints.",
+          "completedTask": "Applied the requested filters to the current NYC → Los Angeles (LA area) one-way search for 2026-10-20 (1 adult, economy) and checked whether any options remain.",
+          "findings": [
+            "Trip context preserved: one-way NYC → Los Angeles (LA area), outbound 2026-10-20, 1 adult, economy.",
+            "Applied filters: nonstop only; morning departures only; price max $220; must include carry-on baggage.",
+            "Result count after filtering: 1 matching option (from 3 before filtering).",
+            "No arrival-airport filter was applied, so LA-area scope is preserved unless excluded implicitly by the above constraints. (The remaining match arrives at LAX.)"
+          ],
+          "limitations": [],
+          "nextStep": null,
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791360131558",
+      "searchKeyAfter": "search_demo-user_1791360131558",
+      "activeFilterTypes": [
+        "stops",
+        "departureTime",
+        "price",
+        "baggage"
+      ],
+      "suggestions": [
+        "Show United flights only",
+        "Show flights into Burbank (BUR)",
+        "Which option is fastest?"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 54908,
+      "outputTokens": 783,
+      "modelCalls": 5,
+      "latencyMs": 20973,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 3,
+      "traceId": "trace_bb5594f3b5424afea730082acaaaffa3",
+      "user": "Make it evening instead, drop the price cap, and remove the carry-on requirement.",
+      "expectedIntent": "Replace one active filter and remove two others while preserving nonstop.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "This is an in-place filter update: evening replaces morning, while price and baggage are removed.",
+      "expectedStateChange": "Keep the search key with only stops and evening departure active.",
+      "validates": "Indirect replacement wording and multi-filter removal without losing unrelated state.",
+      "output": "There are **no flights** matching your updated filters: **nonstop only + evening departures** (with **no price cap** and **no carry-on requirement**) for **NYC → Los Angeles (LA area)** on **Oct 20, 2026**.\n\n🔄 If you want results, should I **allow 1 stop** while keeping **evening departures**, or keep **nonstop** and drop the **evening** filter?",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current one-way NYC → Los Angeles (LA area) search for 2026-10-20, 1 adult economy: change the time-of-day filter from morning to evening departures; remove the price cap (no max price); and remove the carry-on-baggage-included requirement. Keep nonstop-only as currently applied, and preserve all other existing filters/scope."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_C2eLMGS93Hmm4skE9Dktoikc",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "departureTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "change the time-of-day filter from morning to evening departures"
+              },
+              {
+                "filterType": "price",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "remove the price cap (no max price)"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": "1",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "remove the carry-on-baggage-included requirement"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791360131558",
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "show ONLY nonstop"
+              },
+              {
+                "filterType": "departureTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "change the time-of-day filter from morning to evening departures"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "stop",
+                "Values": [
+                  "0"
+                ]
+              },
+              {
+                "filterType": "departtimeslotfilter",
+                "Values": [
+                  "EVENING"
+                ]
+              },
+              {
+                "filterType": "baggage",
+                "Values": []
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791360131558",
+              "filters": [
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "0"
+                  ]
+                },
+                {
+                  "filterType": "departtimeslotfilter",
+                  "Values": [
+                    "EVENING"
+                  ]
+                },
+                {
+                  "filterType": "baggage",
+                  "Values": []
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 0
+            },
+            "flights": []
+          }
+        },
+        {
+          "callId": "call_gxkAzzz4TR5dy6apXse3rjcA",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Remove the evening departure filter",
+              "Allow one stop flights",
+              "Show all airlines again"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Remove the evening departure filter",
+              "Allow one stop flights",
+              "Show all airlines again"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "stops",
+          "filterCode": "0",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "show ONLY nonstop"
+        },
+        {
+          "filterType": "departureTime",
+          "filterCode": "EVENING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "change the time-of-day filter from morning to evening departures"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Time-of-day was set to evening departures, the max-price cap was removed, and the carry-on-included requirement was removed; with nonstop + evening applied, the current results now show 0 matching options.",
+          "completedTask": "Applied the requested filter updates on the current NYC → Los Angeles (LA area) one-way search for 2026-10-20 (1 adult, economy), preserving nonstop-only and the existing scope.",
+          "findings": [
+            "Search scope preserved: one-way NYC → LAX (LA area) on 2026-10-20, 1 adult, economy.",
+            "Active filters after the change: nonstop-only + evening departures.",
+            "Requested removals applied: no max price constraint; no carry-on-included requirement.",
+            "Result count after applying filters: 0 (no matching flights under nonstop + evening)."
+          ],
+          "limitations": [
+            "No flights match the current filter combination (nonstop + evening) in the current result set."
+          ],
+          "nextStep": "If the traveler wants results, the most direct relaxation is to remove the evening-departure filter (or allow 1 stop while keeping evening).",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791360131558",
+      "searchKeyAfter": "search_demo-user_1791360131558",
+      "activeFilterTypes": [
+        "stops",
+        "departureTime"
+      ],
+      "suggestions": [
+        "Remove the evening departure filter",
+        "Allow one stop flights",
+        "Show all airlines again"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 54910,
+      "outputTokens": 850,
+      "modelCalls": 5,
+      "latencyMs": 22325,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 4,
+      "traceId": "trace_591022449db74f2ca4e33c79192ab5ce",
+      "user": "Remove the nonstop filter, show only Air China, and keep total trip duration under four hours.",
+      "expectedIntent": "Remove stops and add airline plus total-duration constraints.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "All requested changes operate on the existing cards; evening departure remains unchanged because it was not removed.",
+      "expectedStateChange": "Keep the search key with evening departure, Air China, and maximum total duration active.",
+      "validates": "Targeted removal, named-airline resolution, duration filtering, and preservation of an unmentioned active filter.",
+      "output": "No flights match your filters for **NYC → Los Angeles (LA area)** on **Oct 20, 2026** when set to **evening departures + Air China only + total duration under 4 hours** (nonstop filter removed).",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current one-way NYC → Los Angeles (LA area) search for 2026-10-20, 1 adult economy: remove the nonstop-only filter; apply airline filter to show ONLY Air China; and apply total trip duration filter to show itineraries under 4 hours. Preserve other currently active filters/scope (evening departures is currently active) unless this request implicitly replaces them—do not remove evening unless necessary; report if 0 options match."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_5jUqLqD23iStEOelFYITmE33",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "remove the nonstop-only filter"
+              },
+              {
+                "filterType": "airline",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air China"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply airline filter to show ONLY Air China"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 240,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply total trip duration filter to show itineraries under 4 hours"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791360131558",
+            "filters": [
+              {
+                "filterType": "departureTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "change the time-of-day filter from morning to evening departures"
+              },
+              {
+                "filterType": "airline",
+                "filterCode": "CA",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air China"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply airline filter to show ONLY Air China"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 240,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply total trip duration filter to show itineraries under 4 hours"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "departtimeslotfilter",
+                "Values": [
+                  "EVENING"
+                ]
+              },
+              {
+                "filterType": "airline",
+                "Values": [
+                  "CA"
+                ]
+              },
+              {
+                "filterType": "departdurationfilter",
+                "Values": [
+                  0,
+                  240
+                ]
+              },
+              {
+                "filterType": "stop",
+                "Values": [
+                  "all"
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791360131558",
+              "filters": [
+                {
+                  "filterType": "departtimeslotfilter",
+                  "Values": [
+                    "EVENING"
+                  ]
+                },
+                {
+                  "filterType": "airline",
+                  "Values": [
+                    "CA"
+                  ]
+                },
+                {
+                  "filterType": "departdurationfilter",
+                  "Values": [
+                    0,
+                    240
+                  ]
+                },
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "all"
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 0
+            },
+            "flights": []
+          }
+        },
+        {
+          "callId": "call_yWqdhbUksfAHhiKSlpd7oief",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Remove the 4-hour duration limit",
+              "Remove the Air China filter",
+              "Show all departure times"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Remove the 4-hour duration limit",
+              "Remove the Air China filter",
+              "Show all departure times"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "departureTime",
+          "filterCode": "EVENING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "change the time-of-day filter from morning to evening departures"
+        },
+        {
+          "filterType": "airline",
+          "filterCode": "CA",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": [
+            "Air China"
+          ],
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "apply airline filter to show ONLY Air China"
+        },
+        {
+          "filterType": "totalDuration",
+          "filterCode": null,
+          "minDurationMinutes": 0,
+          "maxDurationMinutes": 240,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "apply total trip duration filter to show itineraries under 4 hours"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Evening departures was preserved; nonstop-only was removed; Air China-only and <4h total duration were applied. With these combined filters, there are 0 matching options in the current results set.",
+          "completedTask": "Updated filters on the existing one-way NYC → Los Angeles-area search for 2026-10-20 (1 adult, economy) by removing the nonstop-only constraint and applying Air China-only plus a total-duration cap under 4 hours, while preserving the existing evening-departure scope.",
+          "findings": [
+            "Trip context held constant: one-way NYC → LAX-area on 2026-10-20, 1 adult, economy.",
+            "Active time-of-day filter remains: evening departures.",
+            "Nonstop-only constraint removed (stops now allowed).",
+            "New/confirmed filters applied: airline = Air China only; total trip duration < 4 hours.",
+            "Result after filters: 0 options (filteredCount=0 from originalCount=3)."
+          ],
+          "limitations": [
+            "No current itineraries match the combined constraints (evening + Air China only + under 4 hours)."
+          ],
+          "nextStep": "If you want to see options, relax one constraint (most likely the 4-hour duration cap or the Air China-only filter) while keeping evening departures.",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791360131558",
+      "searchKeyAfter": "search_demo-user_1791360131558",
+      "activeFilterTypes": [
+        "departureTime",
+        "airline",
+        "totalDuration"
+      ],
+      "suggestions": [
+        "Remove the 4-hour duration limit",
+        "Remove the Air China filter",
+        "Show all departure times"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 56123,
+      "outputTokens": 800,
+      "modelCalls": 5,
+      "latencyMs": 21962,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 5,
+      "traceId": "trace_8324f895fa484b6786e0c53262a2984a",
+      "user": "Which current option is cheapest, and why?",
+      "expectedIntent": "Reason over current generated options without changing visibility or search state.",
+      "expectedTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "why": "A current-option ranking requires fresh contract evidence, not a new search or another filter.",
+      "expectedStateChange": "Keep the search key and all active filters unchanged.",
+      "validates": "Fresh contract retrieval, context reuse, and no state mutation for option reasoning.",
+      "output": "There isn’t a “cheapest current option” right now because **no flights match your current filters** (**evening only + Air China only + total duration < 4 hours**).\n\nIf you tell me which constraint to relax (Air China-only, evening-only, or the <4h limit), I can then show the cheapest available option and explain why it’s cheapest.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Inspect the current flight results for the existing search (NYC → Los Angeles area, one-way 2026-10-20, 1 adult economy) with the currently active filters preserved (evening departures + Air China only + total duration <4h). Report whether any current options exist; if none, state that and (only if none) summarize which filter(s) are preventing results. The user asked: 'Which current option is cheapest, and why?'"
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_Ynk5blyLT3mfK5ecdN0CRZe2",
+          "tool": "getGeneratedContractsContext",
+          "input": {
+            "mode": "read",
+            "indexes": null
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "resultSource": "searchResults",
+            "message": "The current result set has zero options. Preserve the active search and filters; report no matching options rather than starting a new search or removing filters.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791360131558",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "New York",
+                  "destination": "Los Angeles",
+                  "outbound_date": "2026-10-20",
+                  "return_date": null,
+                  "origin_iata": "NYC",
+                  "origin_airport_name": null,
+                  "destination_iata": "LAX",
+                  "destination_airport_name": null
+                }
+              ],
+              "trip_type": "oneway",
+              "passengers": {
+                "adults": 1,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "economy"
+            },
+            "resultState": "empty",
+            "filters": [
+              {
+                "filterType": "departureTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "change the time-of-day filter from morning to evening departures"
+              },
+              {
+                "filterType": "airline",
+                "filterCode": "CA",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air China"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply airline filter to show ONLY Air China"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 240,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply total trip duration filter to show itineraries under 4 hours"
+              }
+            ],
+            "originalCount": 3,
+            "selectedIndexes": [],
+            "visibleIndexes": [],
+            "visibleCount": 0,
+            "requestedIndexes": null,
+            "contracts": [],
+            "summary": {
+              "totalAvailable": 0,
+              "cheapestOption": null,
+              "shortestDurationOption": null,
+              "bestValueOption": null
+            }
+          }
+        },
+        {
+          "callId": "call_moJtmr77VNPtZMT6YTlKJbxC",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Remove the 4-hour duration limit",
+              "Remove the Air China filter",
+              "Show all departure times"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": false,
+            "code": "INVALID_SUGGESTED_QUESTIONS",
+            "message": "Nothing was stored. Fix only the listed issues and call this tool once more.",
+            "recovery": {
+              "kind": "input",
+              "retrySafe": true,
+              "stateChanged": false,
+              "fieldIssues": [
+                {
+                  "path": "suggestedQuestions",
+                  "problem": "Identical to the suggestions already shown; replace at least one with a different intent."
+                }
+              ]
+            }
+          }
+        },
+        {
+          "callId": "call_udfM7MNeoJp2Fspl36HVzGXA",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Allow any airline",
+              "Show departures any time",
+              "Raise max trip duration"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Allow any airline",
+              "Show departures any time",
+              "Raise max trip duration"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "departureTime",
+          "filterCode": "EVENING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "change the time-of-day filter from morning to evening departures"
+        },
+        {
+          "filterType": "airline",
+          "filterCode": "CA",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": [
+            "Air China"
+          ],
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "apply airline filter to show ONLY Air China"
+        },
+        {
+          "filterType": "totalDuration",
+          "filterCode": null,
+          "minDurationMinutes": 0,
+          "maxDurationMinutes": 240,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "apply total trip duration filter to show itineraries under 4 hours"
+        }
+      ],
+      "observedFlightTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "There are currently zero matching options under the active filters, so there is no “cheapest current option” to report.",
+          "completedTask": "Inspected the current NYC → Los Angeles one-way results for 2026-10-20 under the existing active filters and checked whether a cheapest option can be identified.",
+          "findings": [
+            "Search context inspected: NYC → LAX (Los Angeles area), one-way, 2026-10-20, 1 adult, economy.",
+            "Active filters preserved during inspection: evening departures only + airline limited to Air China + total trip duration < 4 hours (240 minutes).",
+            "Current filtered result set contains 0 visible options (0 total available under the active filters), so no cheapest option exists in the current set."
+          ],
+          "limitations": [
+            "Because no options match the current filters, we cannot determine a cheapest option or explain why it’s cheapest based on itinerary/price attributes.",
+            "Filter-level attribution is not uniquely determinable from the current read alone (it indicates the combination yields zero results, but not which single filter is solely responsible)."
+          ],
+          "nextStep": "If the traveler wants options to compare for “cheapest,” relax at least one constraint (Air China-only, evening-only, or <4h total duration) and then re-check the cheapest in the updated result set.",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": false,
+          "code": "INVALID_SUGGESTED_QUESTIONS",
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791360131558",
+      "searchKeyAfter": "search_demo-user_1791360131558",
+      "activeFilterTypes": [
+        "departureTime",
+        "airline",
+        "totalDuration"
+      ],
+      "suggestions": [
+        "Allow any airline",
+        "Show departures any time",
+        "Raise max trip duration"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 71841,
+      "outputTokens": 850,
+      "modelCalls": 6,
+      "latencyMs": 25698,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 6,
+      "traceId": "trace_db9ed8c2fac04152a672410a058b875e",
+      "user": "Check for better travel dates between October 21 and October 28, then show flights on the strongest date with Air China still applied.",
+      "expectedIntent": "Evaluate a flexible date window, search the strongest or bounded fallback date, then reapply the explicitly retained airline.",
+      "expectedTools": [
+        "price_prediction_tool",
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "The flexible bracket requires prediction before the requested search; the new search clears old filters, so only the explicitly retained Air China filter is reapplied.",
+      "expectedStateChange": "Create a new search key on an in-window date and leave only the Air China filter active.",
+      "validates": "Prediction-to-search-to-filter ordering, bounded failure fallback, and selective filter carry-forward.",
+      "output": "🗓️ I can’t verify the “strongest” (best-priced/best) date between **Oct 21–Oct 28, 2026** from the available date-intelligence right now.\n\n✈️ To still show flights with **Air China** applied, I searched the **earliest date in your range (Oct 21, 2026)** and filtered to **Air China only**: **1 option** is available.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "For one-way flights NYC → Los Angeles (LA area) for 1 adult in economy: evaluate which outbound date between 2026-10-21 and 2026-10-28 is the strongest/best (i.e., better travel date) using available price/date intelligence. Then run a flight search on that single best date and apply airline filter = Air China only. Return the resulting options (or report none)."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_4ffAxCmXXJb7ccV2ydvZu2Ac",
+          "tool": "price_prediction_tool",
+          "input": {
+            "originCity": "NYC",
+            "destinationCity": "LAX",
+            "startDate": "2026-10-21",
+            "endDate": "2026-10-28",
+            "tripType": "oneway",
+            "returnStartDate": null,
+            "returnEndDate": null,
+            "tripDuration": null,
+            "tripDurationFlexibility": null
+          },
+          "completed": true,
+          "output": {
+            "ok": false,
+            "status": "NO_PREDICTIONS",
+            "source": "clickhouse",
+            "route": {
+              "originCity": "NYC",
+              "destinationCity": "LAX"
+            },
+            "tripType": "oneway",
+            "searchedDateRange": {
+              "startDate": "2026-10-21",
+              "endDate": "2026-10-28",
+              "returnStartDate": null,
+              "returnEndDate": null
+            },
+            "predictionWindow": {
+              "today": "2026-10-05",
+              "maxDate": "2027-01-02",
+              "daysAhead": 89
+            },
+            "predictions": [],
+            "cheapestDates": [],
+            "cheapestCombinations": [],
+            "priceRangeSummary": null,
+            "recommendation": "Price prediction is unavailable for this route and date range. I can still search your preferred dates.",
+            "formattedResponse": "Price prediction is unavailable for this route and date range. I can still search your preferred dates.",
+            "message": "Price prediction is unavailable for this route and date range. I can still search your preferred dates.",
+            "recovery": {
+              "kind": "unavailable",
+              "retrySafe": false,
+              "stateChanged": false
+            }
+          }
+        },
+        {
+          "callId": "call_axoG9F3iQ1HD7WF28CKuVySQ",
+          "tool": "flight_search",
+          "input": {
+            "onds": [
+              {
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "origin_iata": "NYC",
+                "destination_iata": "LAX",
+                "origin_airport_name": null,
+                "destination_airport_name": null,
+                "outbound_date": "2026-10-21",
+                "return_date": null
+              }
+            ],
+            "trip_type": "oneway",
+            "passengers": {
+              "adults": 1,
+              "children": 0,
+              "infants": 0
+            },
+            "cabin_class": "economy"
+          },
+          "completed": true,
+          "output": {
+            "source": "dummy",
+            "message": "Sample flight results only. No live API was called.",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "New York",
+                  "destination": "Los Angeles",
+                  "origin_iata": "NYC",
+                  "destination_iata": "LAX",
+                  "origin_airport_name": null,
+                  "destination_airport_name": null,
+                  "outbound_date": "2026-10-21",
+                  "return_date": null
+                }
+              ],
+              "trip_type": "oneway",
+              "passengers": {
+                "adults": 1,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "economy"
+            },
+            "summary": {
+              "route": "New York to Los Angeles",
+              "passengerCount": 1,
+              "optionCount": 3
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_hours": 7.92,
+                "total_duration_minutes": 475,
+                "layover_duration_hours": 2.25,
+                "layover_duration_minutes": 135,
+                "layover_airport_codes": [
+                  "DXB",
+                  "DOH"
+                ],
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ],
+            "UID": "demo-user",
+            "searchKey": "search_demo-user_1791360250236",
+            "airlineFilterOptions": [
+              {
+                "Code": "AC",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "AC+",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "CA",
+                "Text": "Air China",
+                "Name": "Air China",
+                "IsDisabled": false
+              },
+              {
+                "Code": "EK",
+                "Text": "Emirates",
+                "Name": "Emirates",
+                "IsDisabled": false
+              },
+              {
+                "Code": "QR",
+                "Text": "Qatar Airways",
+                "Name": "Qatar Airways",
+                "IsDisabled": false
+              },
+              {
+                "Code": "6E",
+                "Text": "IndiGo",
+                "Name": "IndiGo",
+                "IsDisabled": true
+              },
+              {
+                "Code": "UA",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              },
+              {
+                "Code": "UA+",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              }
+            ],
+            "layoverAirportFilterOptions": [
+              {
+                "Code": "AMS",
+                "Text": "Amsterdam Schiphol",
+                "Name": null,
+                "AirportCityName": "Amsterdam",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DXB",
+                "Text": "Dubai",
+                "Name": null,
+                "AirportCityName": "Dubai",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DOH",
+                "Text": "Doha Hamad International Airport",
+                "Name": null,
+                "AirportCityName": "Doha",
+                "IsDisabled": false
+              },
+              {
+                "Code": "FRA",
+                "Text": "Frankfurt Airport",
+                "Name": null,
+                "AirportCityName": "Frankfurt",
+                "IsDisabled": false
+              },
+              {
+                "Code": "SIN",
+                "Text": "Singapore Changi",
+                "Name": null,
+                "AirportCityName": "Singapore",
+                "IsDisabled": true
+              }
+            ],
+            "DepartAirports": [
+              {
+                "Code": "JFK",
+                "Price": 520.1,
+                "Text": "John F Kennedy Intl",
+                "Name": null,
+                "Count": 210,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              },
+              {
+                "Code": "EWR",
+                "Price": 498.4,
+                "Text": "Newark Liberty Intl",
+                "Name": null,
+                "Count": 178,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "Newark"
+              },
+              {
+                "Code": "LGA",
+                "Price": 530.2,
+                "Text": "LaGuardia",
+                "Name": null,
+                "Count": 96,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              }
+            ],
+            "DepLandAirports": [
+              {
+                "Code": "LAX",
+                "Price": 341.23,
+                "Text": "Los Angeles Intl",
+                "Name": null,
+                "Count": 241,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "BUR",
+                "Price": 420.6,
+                "Text": "Burbank Bob Hope Airport",
+                "Name": null,
+                "Count": 161,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "ONT",
+                "Price": 316.4,
+                "Text": "Ontario",
+                "Name": null,
+                "Count": 97,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "SNA",
+                "Price": 399.40002,
+                "Text": "Santa Ana John Wayne",
+                "Name": null,
+                "Count": 86,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_XzWzaXpbsEOA7AuAR9I2XfSZ",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "airline",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air China"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply airline filter = Air China only"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791360250236",
+            "filters": [
+              {
+                "filterType": "airline",
+                "filterCode": "CA",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air China"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply airline filter = Air China only"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "airline",
+                "Values": [
+                  "CA"
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791360250236",
+              "filters": [
+                {
+                  "filterType": "airline",
+                  "Values": [
+                    "CA"
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 1
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "New York",
+                "destination": "Los Angeles",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_SA60oOeiGqXBIUqRQ74hG86S",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Any JFK departures only?",
+              "Which option is fastest?"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Any JFK departures only?",
+              "Which option is fastest?"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-21",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-21",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "airline",
+          "filterCode": "CA",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": [
+            "Air China"
+          ],
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "apply airline filter = Air China only"
+        }
+      ],
+      "observedFlightTools": [
+        "price_prediction_tool",
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "price_prediction_tool",
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "partial",
+          "summary": "Price/date intelligence was unavailable for the requested date window, so the “best” outbound date could not be verified. Per request to still return flight options, I searched the earliest date in-range (2026-10-21) and filtered to Air China only, yielding 1 matching option.",
+          "completedTask": "Tried to identify the strongest outbound date (2026-10-21 to 2026-10-28) via price/date intelligence, then ran a one-way NYC→LAX-area search for 1 adult in economy on a single fallback date and applied an Air China–only airline filter.",
+          "findings": [
+            "Route searched: New York (NYC) → Los Angeles area (LAX metro), one-way, 1 adult, economy.",
+            "Outbound date window requested for evaluation: 2026-10-21 through 2026-10-28.",
+            "Price/date intelligence could not provide a strongest/best date for that window.",
+            "Fallback action taken to still provide results: searched outbound date 2026-10-21 (earliest date in the requested range).",
+            "Airline filter applied on the 2026-10-21 results: Air China only.",
+            "Post-filter result count: 1 option visible (out of 3 pre-filter)."
+          ],
+          "limitations": [
+            "Unable to verify a strongest/best outbound date within 2026-10-21 to 2026-10-28 using price/date intelligence for this route/window; the returned 2026-10-21 results are not evidence of the best date in that range."
+          ],
+          "nextStep": null,
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "price_prediction_tool",
+          "ok": false,
+          "code": "NO_PREDICTIONS",
+          "affectedFields": []
+        },
+        {
+          "tool": "flight_search",
+          "ok": null,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "searchKeyBefore": "search_demo-user_1791360131558",
+      "searchKeyAfter": "search_demo-user_1791360250236",
+      "activeFilterTypes": [
+        "airline"
+      ],
+      "suggestions": [
+        "Show nonstop flights only",
+        "Any JFK departures only?",
+        "Which option is fastest?"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 1,
+      "inputTokens": 91559,
+      "outputTokens": 1086,
+      "modelCalls": 7,
+      "latencyMs": 30585,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 7,
+      "traceId": "trace_6161cbe844f24608923e19a8fa8999be",
+      "user": "Start the trip in Newark instead of New York, using the same date, passengers, and cabin. Keep Air China and remove every other filter.",
+      "expectedIntent": "Change the departure endpoint, run a new search, and reapply only the requested airline filter.",
+      "expectedTools": [
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Starting in Newark changes the search route; it is not merely a departure-airport filter on the old New York search.",
+      "expectedStateChange": "Create a new search key for Newark to Los Angeles and keep only Air China active.",
+      "validates": "Filter-looking route changes, reuse of prior date/passengers/cabin, and removal of stale filters after re-search.",
+      "output": "✈️ Updated your search to **Newark (EWR) → Los Angeles (LA area)** on **Oct 21, 2026** for **1 adult, economy**, and kept **only** the **Air China** filter (all other filters removed). **1 flight option** is available.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Start a new one-way flight search from Newark (EWR) to Los Angeles (LA area) on 2026-10-21 for 1 adult in economy (same date/passengers/cabin as current). After the new search, apply ONLY the airline filter: Air China. Remove/ensure no other filters are active (e.g., no time-of-day, stops, duration, price cap, baggage). Return available options (or none)."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_XJGV8wlTQd9C93IyaoVANvw6",
+          "tool": "flight_search",
+          "input": {
+            "onds": [
+              {
+                "origin": "Newark",
+                "destination": "Los Angeles",
+                "origin_iata": "EWR",
+                "destination_iata": "LAX",
+                "origin_airport_name": "Newark Liberty Intl",
+                "destination_airport_name": null,
+                "outbound_date": "2026-10-21",
+                "return_date": null
+              }
+            ],
+            "trip_type": "oneway",
+            "passengers": {
+              "adults": 1,
+              "children": 0,
+              "infants": 0
+            },
+            "cabin_class": "economy"
+          },
+          "completed": true,
+          "output": {
+            "source": "dummy",
+            "message": "Sample flight results only. No live API was called.",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Newark",
+                  "destination": "Los Angeles",
+                  "origin_iata": "EWR",
+                  "destination_iata": "LAX",
+                  "origin_airport_name": "Newark Liberty Intl",
+                  "destination_airport_name": null,
+                  "outbound_date": "2026-10-21",
+                  "return_date": null
+                }
+              ],
+              "trip_type": "oneway",
+              "passengers": {
+                "adults": 1,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "economy"
+            },
+            "summary": {
+              "route": "Newark to Los Angeles",
+              "passengerCount": 1,
+              "optionCount": 3
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Newark",
+                "destination": "Los Angeles",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Newark",
+                "destination": "Los Angeles",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Newark",
+                "destination": "Los Angeles",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_hours": 7.92,
+                "total_duration_minutes": 475,
+                "layover_duration_hours": 2.25,
+                "layover_duration_minutes": 135,
+                "layover_airport_codes": [
+                  "DXB",
+                  "DOH"
+                ],
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ],
+            "UID": "demo-user",
+            "searchKey": "search_demo-user_1791360278120",
+            "airlineFilterOptions": [
+              {
+                "Code": "AC",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "AC+",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "CA",
+                "Text": "Air China",
+                "Name": "Air China",
+                "IsDisabled": false
+              },
+              {
+                "Code": "EK",
+                "Text": "Emirates",
+                "Name": "Emirates",
+                "IsDisabled": false
+              },
+              {
+                "Code": "QR",
+                "Text": "Qatar Airways",
+                "Name": "Qatar Airways",
+                "IsDisabled": false
+              },
+              {
+                "Code": "6E",
+                "Text": "IndiGo",
+                "Name": "IndiGo",
+                "IsDisabled": true
+              },
+              {
+                "Code": "UA",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              },
+              {
+                "Code": "UA+",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              }
+            ],
+            "layoverAirportFilterOptions": [
+              {
+                "Code": "AMS",
+                "Text": "Amsterdam Schiphol",
+                "Name": null,
+                "AirportCityName": "Amsterdam",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DXB",
+                "Text": "Dubai",
+                "Name": null,
+                "AirportCityName": "Dubai",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DOH",
+                "Text": "Doha Hamad International Airport",
+                "Name": null,
+                "AirportCityName": "Doha",
+                "IsDisabled": false
+              },
+              {
+                "Code": "FRA",
+                "Text": "Frankfurt Airport",
+                "Name": null,
+                "AirportCityName": "Frankfurt",
+                "IsDisabled": false
+              },
+              {
+                "Code": "SIN",
+                "Text": "Singapore Changi",
+                "Name": null,
+                "AirportCityName": "Singapore",
+                "IsDisabled": true
+              }
+            ],
+            "DepartAirports": [
+              {
+                "Code": "JFK",
+                "Price": 520.1,
+                "Text": "John F Kennedy Intl",
+                "Name": null,
+                "Count": 210,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              },
+              {
+                "Code": "EWR",
+                "Price": 498.4,
+                "Text": "Newark Liberty Intl",
+                "Name": null,
+                "Count": 178,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "Newark"
+              },
+              {
+                "Code": "LGA",
+                "Price": 530.2,
+                "Text": "LaGuardia",
+                "Name": null,
+                "Count": 96,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              }
+            ],
+            "DepLandAirports": [
+              {
+                "Code": "LAX",
+                "Price": 341.23,
+                "Text": "Los Angeles Intl",
+                "Name": null,
+                "Count": 241,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "BUR",
+                "Price": 420.6,
+                "Text": "Burbank Bob Hope Airport",
+                "Name": null,
+                "Count": 161,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "ONT",
+                "Price": 316.4,
+                "Text": "Ontario",
+                "Name": null,
+                "Count": 97,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "SNA",
+                "Price": 399.40002,
+                "Text": "Santa Ana John Wayne",
+                "Name": null,
+                "Count": 86,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_9uadMNliltp1vgdgviGaJl2C",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "reset",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply ONLY the airline filter: Air China. Remove/ensure no other filters are active"
+              },
+              {
+                "filterType": "airline",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air China"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply ONLY the airline filter: Air China"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791360278120",
+            "filters": [
+              {
+                "filterType": "airline",
+                "filterCode": "CA",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air China"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "apply ONLY the airline filter: Air China"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "reset",
+                "Values": []
+              },
+              {
+                "filterType": "airline",
+                "Values": [
+                  "CA"
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791360278120",
+              "filters": [
+                {
+                  "filterType": "reset",
+                  "Values": []
+                },
+                {
+                  "filterType": "airline",
+                  "Values": [
+                    "CA"
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 1
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Newark",
+                "destination": "Los Angeles",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_VVH1t5zNsKs3jyiyej1KuiIW",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show only nonstop flights",
+              "Filter to LAX airport only",
+              "Which option is cheapest?"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show only nonstop flights",
+              "Filter to LAX airport only",
+              "Which option is cheapest?"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "New York",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-21",
+            "return_date": null,
+            "origin_iata": "NYC",
+            "origin_airport_name": null,
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-21",
+        "return_date": null,
+        "origin_iata": "NYC",
+        "origin_airport_name": null,
+        "origin": "New York",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Newark",
+            "destination": "Los Angeles",
+            "outbound_date": "2026-10-21",
+            "return_date": null,
+            "origin_iata": "EWR",
+            "origin_airport_name": "Newark Liberty Intl",
+            "destination_iata": "LAX",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-21",
+        "return_date": null,
+        "origin_iata": "EWR",
+        "origin_airport_name": "Newark Liberty Intl",
+        "origin": "Newark",
+        "destination_iata": "LAX",
+        "destination_airport_name": null,
+        "destination": "Los Angeles",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "airline",
+          "filterCode": "CA",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": [
+            "Air China"
+          ],
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "apply ONLY the airline filter: Air China"
+        }
+      ],
+      "observedFlightTools": [
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "New search returned 3 options; after resetting filters and applying Air China only, 1 option remains visible.",
+          "completedTask": "Ran a new one-way search EWR → Los Angeles (LA area) for 2026-10-21 (1 adult, economy) and then cleared all filters and applied only the airline filter: Air China.",
+          "findings": [
+            "Search executed: one-way Newark (EWR) → Los Angeles area (LAX metro), outbound 2026-10-21; passengers: 1 adult; cabin: economy.",
+            "Post-search filters: airline = Air China only; reset applied to ensure no other filters (time/stops/duration/price/baggage/airports) are active.",
+            "Results: 3 options before filtering; 1 option after Air China-only filter."
+          ],
+          "limitations": [],
+          "nextStep": null,
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": null,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "searchKeyBefore": "search_demo-user_1791360250236",
+      "searchKeyAfter": "search_demo-user_1791360278120",
+      "activeFilterTypes": [
+        "airline"
+      ],
+      "suggestions": [
+        "Show only nonstop flights",
+        "Filter to LAX airport only",
+        "Which option is cheapest?"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 1,
+      "inputTokens": 77558,
+      "outputTokens": 936,
+      "modelCalls": 6,
+      "latencyMs": 24901,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    }
+  ]
+}

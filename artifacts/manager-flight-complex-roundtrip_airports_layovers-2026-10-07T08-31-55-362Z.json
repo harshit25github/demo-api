@@ -1,0 +1,4319 @@
+{
+  "fixedNow": "2026-10-05T10:00:00.000Z",
+  "models": {
+    "manager": "gpt-5.2",
+    "flight": "gpt-5.2",
+    "tripPlanner": "gpt-5.2"
+  },
+  "reasoningEffort": "low",
+  "registeredFlightTools": [
+    "flight_search",
+    "getGeneratedContractsContext",
+    "apply_filter",
+    "price_prediction_tool",
+    "update_flight_suggested_questions"
+  ],
+  "scenario": {
+    "id": "roundtrip_airports_layovers",
+    "title": "Round-trip airport, layover, duration, and destination changes",
+    "focus": "Round-trip context retention, airport and layover filters, compound removals, filter-then-read sequencing, flexible-date search, and destination changes.",
+    "turns": [
+      {
+        "user": "Find round-trip business-class flights from Los Angeles to New York, leaving October 30, 2026 and returning November 6, 2026, for two adults.",
+        "expectedIntent": "Start a complete exact-date round-trip search.",
+        "expectedTools": [
+          "flight_search",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Both route endpoints, both dates, passenger count, trip type, and cabin are known.",
+        "expectedStateChange": "Create a round-trip search with no active filters.",
+        "validates": "Round-trip payload assembly and Manager-to-Flight context handoff.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": []
+      },
+      {
+        "user": "Use Burbank departures, arrive at Newark, allow one stop, require checked baggage, and keep layovers under two hours.",
+        "expectedIntent": "Apply departure airport, arrival airport, stops, baggage, and layover-duration filters together.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "These constrain existing results and should be one filter call even if the combination has no matches.",
+        "expectedStateChange": "Keep the search key and activate five filter categories.",
+        "validates": "Full compound airport/filter payload and correct zero-result state retention.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "departureAirport",
+          "arrivalAirport",
+          "stops",
+          "baggage",
+          "layoverDuration"
+        ]
+      },
+      {
+        "user": "Remove Newark and checked baggage. Allow any Los Angeles-area departure airport, require a Dubai or Amsterdam layover, and arrive in the evening.",
+        "expectedIntent": "Remove two filters, broaden one airport filter, and add layover-airport plus arrival-time constraints.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The search inputs are unchanged; all operations belong in one state-aware filter update.",
+        "expectedStateChange": "Preserve one stop and layover duration, replace departure-airport scope, remove arrival airport and baggage, and add layover airport plus evening arrival.",
+        "validates": "Multiple removals/additions, named airport-group resolution, alternative layover airports, and active-filter preservation.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "departureAirport",
+          "stops",
+          "layoverDuration",
+          "layoverAirport",
+          "arrivalTime"
+        ]
+      },
+      {
+        "user": "Make arrival morning instead, cap total duration at three hours, and remove both the layover-airport restriction and the layover-duration limit.",
+        "expectedIntent": "Replace arrival time, add total duration, and remove two layover filters.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "This changes only filters and must preserve the departure-airport and one-stop constraints.",
+        "expectedStateChange": "Keep departureAirport, stops, morning arrival, and totalDuration filters.",
+        "validates": "Changing an applied filter and removing multiple related filters in one call.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "departureAirport",
+          "stops",
+          "arrivalTime",
+          "totalDuration"
+        ]
+      },
+      {
+        "user": "Remove the one-stop filter too. Which options remain, and which is shortest?",
+        "expectedIntent": "Remove stops, then inspect the newly filtered current result set.",
+        "expectedTools": [
+          "apply_filter",
+          "getGeneratedContractsContext",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The filter mutation must finish before current-option facts and ranking are read.",
+        "expectedStateChange": "Keep the same search key with departureAirport, morning arrival, and total duration active.",
+        "validates": "Filter-then-read sequencing and no re-search for current-result reasoning.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "departureAirport",
+          "arrivalTime",
+          "totalDuration"
+        ]
+      },
+      {
+        "user": "Find stronger round-trip departure dates between November 1 and November 5, returning exactly seven days later, then show flights for the strongest date. Keep only morning arrival and total duration under three hours.",
+        "expectedIntent": "Predict within a bounded round-trip window, search the strongest or fallback pair, then apply only two carried filters.",
+        "expectedTools": [
+          "price_prediction_tool",
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Flexible outbound timing plus a fixed stay requires round-trip prediction before search, and the new result set must be filtered afterward.",
+        "expectedStateChange": "Create a new search key and retain only arrivalTime and totalDuration filters.",
+        "validates": "Round-trip prediction bounds/duration, serial dependency handling, and explicit filter carry-forward.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "arrivalTime",
+          "totalDuration"
+        ]
+      },
+      {
+        "user": "Keep those dates, passengers, and cabin, but fly to Boston instead. Do not keep any filters.",
+        "expectedIntent": "Change the destination and run a clean new search using all other established search inputs.",
+        "expectedTools": [
+          "flight_search",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Destination is a core search field; the explicit no-filters instruction means no apply_filter call is needed after the new search clears state.",
+        "expectedStateChange": "Create a Boston search key with no active filters.",
+        "validates": "Route update versus filtering, round-trip context reuse, and clean filter reset through new-search semantics.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": []
+      }
+    ]
+  },
+  "coverage": {
+    "flight_search": true,
+    "getGeneratedContractsContext": true,
+    "apply_filter": true,
+    "price_prediction_tool": true,
+    "update_flight_suggested_questions": true
+  },
+  "turns": [
+    {
+      "chat": "roundtrip_airports_layovers",
+      "turn": 1,
+      "traceId": "trace_987a70f436e84f15a26501aba40a7e1c",
+      "user": "Find round-trip business-class flights from Los Angeles to New York, leaving October 30, 2026 and returning November 6, 2026, for two adults.",
+      "expectedIntent": "Start a complete exact-date round-trip search.",
+      "expectedTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Both route endpoints, both dates, passenger count, trip type, and cabin are known.",
+      "expectedStateChange": "Create a round-trip search with no active filters.",
+      "validates": "Round-trip payload assembly and Manager-to-Flight context handoff.",
+      "output": "✈️ I found **3 round-trip business-class options** for **2 adults** from **Los Angeles (LAX) ⇄ New York City (NYC)** departing **Oct 30, 2026** and returning **Nov 6, 2026**—they’re shown on your screen with times, stops, airports, duration, and total price.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Search for round-trip business-class flights for 2 adults from Los Angeles (LAX or all LA-area airports if supported—otherwise LAX) to New York City (NYC area airports) departing 2026-10-30 and returning 2026-11-06. Show available options and key details (times, stops, airlines, airports, duration, price)."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_EFULWFDKwtHbyuDE9oDDlxZY",
+          "tool": "flight_search",
+          "input": {
+            "onds": [
+              {
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "origin_iata": "LAX",
+                "destination_iata": "NYC",
+                "origin_airport_name": null,
+                "destination_airport_name": null,
+                "outbound_date": "2026-10-30",
+                "return_date": "2026-11-06"
+              }
+            ],
+            "trip_type": "roundtrip",
+            "passengers": {
+              "adults": 2,
+              "children": 0,
+              "infants": 0
+            },
+            "cabin_class": "business"
+          },
+          "completed": true,
+          "output": {
+            "source": "dummy",
+            "message": "Sample flight results only. No live API was called.",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Los Angeles",
+                  "destination": "New York City",
+                  "origin_iata": "LAX",
+                  "destination_iata": "NYC",
+                  "origin_airport_name": null,
+                  "destination_airport_name": null,
+                  "outbound_date": "2026-10-30",
+                  "return_date": "2026-11-06"
+                }
+              ],
+              "trip_type": "roundtrip",
+              "passengers": {
+                "adults": 2,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "business"
+            },
+            "summary": {
+              "route": "Los Angeles to New York City",
+              "passengerCount": 2,
+              "optionCount": 3
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_hours": 7.92,
+                "total_duration_minutes": 475,
+                "layover_duration_hours": 2.25,
+                "layover_duration_minutes": 135,
+                "layover_airport_codes": [
+                  "DXB",
+                  "DOH"
+                ],
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ],
+            "UID": "demo-user",
+            "searchKey": "search_demo-user_1791361925318",
+            "airlineFilterOptions": [
+              {
+                "Code": "AC",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "AC+",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "CA",
+                "Text": "Air China",
+                "Name": "Air China",
+                "IsDisabled": false
+              },
+              {
+                "Code": "EK",
+                "Text": "Emirates",
+                "Name": "Emirates",
+                "IsDisabled": false
+              },
+              {
+                "Code": "QR",
+                "Text": "Qatar Airways",
+                "Name": "Qatar Airways",
+                "IsDisabled": false
+              },
+              {
+                "Code": "6E",
+                "Text": "IndiGo",
+                "Name": "IndiGo",
+                "IsDisabled": true
+              },
+              {
+                "Code": "UA",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              },
+              {
+                "Code": "UA+",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              }
+            ],
+            "layoverAirportFilterOptions": [
+              {
+                "Code": "AMS",
+                "Text": "Amsterdam Schiphol",
+                "Name": null,
+                "AirportCityName": "Amsterdam",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DXB",
+                "Text": "Dubai",
+                "Name": null,
+                "AirportCityName": "Dubai",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DOH",
+                "Text": "Doha Hamad International Airport",
+                "Name": null,
+                "AirportCityName": "Doha",
+                "IsDisabled": false
+              },
+              {
+                "Code": "FRA",
+                "Text": "Frankfurt Airport",
+                "Name": null,
+                "AirportCityName": "Frankfurt",
+                "IsDisabled": false
+              },
+              {
+                "Code": "SIN",
+                "Text": "Singapore Changi",
+                "Name": null,
+                "AirportCityName": "Singapore",
+                "IsDisabled": true
+              }
+            ],
+            "DepartAirports": [
+              {
+                "Code": "LAX",
+                "Price": 341.23,
+                "Text": "Los Angeles Intl",
+                "Name": null,
+                "Count": 241,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "BUR",
+                "Price": 420.6,
+                "Text": "Burbank Bob Hope Airport",
+                "Name": null,
+                "Count": 161,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "ONT",
+                "Price": 316.4,
+                "Text": "Ontario",
+                "Name": null,
+                "Count": 97,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "SNA",
+                "Price": 399.40002,
+                "Text": "Santa Ana John Wayne",
+                "Name": null,
+                "Count": 86,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              }
+            ],
+            "DepLandAirports": [
+              {
+                "Code": "JFK",
+                "Price": 520.1,
+                "Text": "John F Kennedy Intl",
+                "Name": null,
+                "Count": 210,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              },
+              {
+                "Code": "EWR",
+                "Price": 498.4,
+                "Text": "Newark Liberty Intl",
+                "Name": null,
+                "Count": 178,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "Newark"
+              },
+              {
+                "Code": "LGA",
+                "Price": 530.2,
+                "Text": "LaGuardia",
+                "Name": null,
+                "Count": 96,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_xs7Xuy5XgoVScmNa3VKfgWHJ",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Filter to JFK arrivals only"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Filter to JFK arrivals only"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [],
+        "outbound_date": null,
+        "return_date": null,
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "activeFilters": [],
+      "observedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Search completed for LAX↔NYC, 2026-10-30 to 2026-11-06, 2 adults, business class; 3 options are available to show with key details on the cards.",
+          "completedTask": "Ran a round-trip flight search in business class for 2 adults from Los Angeles (LAX) to New York City (NYC) departing 2026-10-30 and returning 2026-11-06, and produced available options for display.",
+          "findings": [
+            "Search used: Los Angeles (LAX) ↔ New York City (NYC), round trip, depart 2026-10-30 / return 2026-11-06, 2 adults, business cabin.",
+            "Result set contains 3 available options ready to be displayed with times, stops, airlines, airports, duration, and price.",
+            "NYC-area arrival airport options supported in this result set include JFK/EWR/LGA (availability varies by option).",
+            "LA-area departure airports are present in source options (LAX plus nearby BUR/ONT/SNA); this search was run with LAX as the endpoint code, with nearby airports available to filter in/out if desired."
+          ],
+          "limitations": [
+            "The user requested “key details” to be shown; those will be presented via the flight cards rather than enumerated in this internal summary."
+          ],
+          "nextStep": "If the traveler wants to force all LA-area departure airports (BUR/ONT/SNA/LAX) or a specific NYC airport (JFK/EWR/LGA), apply an airport filter to refine these results.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": null,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "",
+      "searchKeyAfter": "search_demo-user_1791361925318",
+      "activeFilterTypes": [],
+      "suggestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Filter to JFK arrivals only"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 54732,
+      "outputTokens": 759,
+      "modelCalls": 5,
+      "latencyMs": 27627,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "roundtrip_airports_layovers",
+      "turn": 2,
+      "traceId": "trace_267d01a022cf47b3bd21c50495a57175",
+      "user": "Use Burbank departures, arrive at Newark, allow one stop, require checked baggage, and keep layovers under two hours.",
+      "expectedIntent": "Apply departure airport, arrival airport, stops, baggage, and layover-duration filters together.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "These constrain existing results and should be one filter call even if the combination has no matches.",
+      "expectedStateChange": "Keep the search key and activate five filter categories.",
+      "validates": "Full compound airport/filter payload and correct zero-result state retention.",
+      "output": "No matches after applying your constraints (BUR departure, EWR arrival, 1 stop, checked baggage included, layovers < 2 hours).\n\nℹ️ Two snags in how the filters could be applied here:\n- The “1 stop” filter was treated as **exactly 1 stop** (so it can exclude nonstop, even if you meant “up to 1 stop”).\n- The airport filters didn’t fully enforce the return direction logic (EWR → LA-area) in this pass.\n\nWhich constraint should I relax first: **airports** (allow LAX/SNA/ONT), **arrival** (allow JFK/LGA), **layover limit** (e.g., <3–4 hours), or **stops** (include nonstop + 1 stop)?",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current LAX↔NYC round-trip business-class results (2 adults; depart 2026-10-30, return 2026-11-06), apply filters: departure airport BUR (Burbank) for outbound; arrival airport EWR (Newark) for outbound (and for return if applicable, i.e., depart from EWR back to BUR/LA area); allow up to 1 stop; require checked baggage included; and restrict all layovers to under 2 hours. Preserve any existing active filters; report how many options remain (or none)."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_BijRByMSg18m9M1BEM2I5KOK",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "departureAirport",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "BUR",
+                  "EWR"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "departure airport BUR (Burbank) for outbound; ... depart from EWR back to BUR/LA area"
+              },
+              {
+                "filterType": "arrivalAirport",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": [
+                  "EWR",
+                  "BUR",
+                  "LAX",
+                  "ONT",
+                  "SNA"
+                ],
+                "rawUserFilter": "arrival airport EWR (Newark) for outbound (and for return if applicable, i.e., arrive back to BUR/LA area)"
+              },
+              {
+                "filterType": "stops",
+                "filterCode": "2",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "allow up to 1 stop"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "require checked baggage included"
+              },
+              {
+                "filterType": "layoverDuration",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": 120,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "restrict all layovers to under 2 hours"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791361925318",
+            "filters": [
+              {
+                "filterType": "departureAirport",
+                "filterCode": "BUR",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Burbank Bob Hope Airport"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "departure airport BUR (Burbank) for outbound; ... depart from EWR back to BUR/LA area"
+              },
+              {
+                "filterType": "arrivalAirport",
+                "filterCode": "EWR",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": [
+                  "Newark"
+                ],
+                "rawUserFilter": "arrival airport EWR (Newark) for outbound (and for return if applicable, i.e., arrive back to BUR/LA area)"
+              },
+              {
+                "filterType": "stops",
+                "filterCode": "2",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "allow up to 1 stop"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "require checked baggage included"
+              },
+              {
+                "filterType": "layoverDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 120,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "restrict all layovers to under 2 hours"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "stop",
+                "Values": [
+                  "2"
+                ]
+              },
+              {
+                "filterType": "baggage",
+                "Values": [
+                  "0"
+                ]
+              },
+              {
+                "filterType": "outbounddepart",
+                "Values": [
+                  "BUR"
+                ]
+              },
+              {
+                "filterType": "outboundarrival",
+                "Values": [
+                  "EWR"
+                ]
+              },
+              {
+                "filterType": "departlayoverfilter",
+                "Values": [
+                  0,
+                  120
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791361925318",
+              "filters": [
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "2"
+                  ]
+                },
+                {
+                  "filterType": "baggage",
+                  "Values": [
+                    "0"
+                  ]
+                },
+                {
+                  "filterType": "outbounddepart",
+                  "Values": [
+                    "BUR"
+                  ]
+                },
+                {
+                  "filterType": "outboundarrival",
+                  "Values": [
+                    "EWR"
+                  ]
+                },
+                {
+                  "filterType": "departlayoverfilter",
+                  "Values": [
+                    0,
+                    120
+                  ]
+                }
+              ]
+            },
+            "feedback": [
+              "EWR was not available as a departure airport in the current results, so I applied filters for the available requested airports.",
+              "BUR, LAX, ONT, SNA was not available as a arrival airport in the current results, so I applied filters for the available requested airports."
+            ],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 0
+            },
+            "flights": []
+          }
+        },
+        {
+          "callId": "call_27FSzSqCGZHDUBVwa5u2qx8b",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Allow any LA-area departure airport",
+              "Remove the 2-hour layover limit",
+              "Clear all filters"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Allow any LA-area departure airport",
+              "Remove the 2-hour layover limit",
+              "Clear all filters"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "activeFilters": [
+        {
+          "filterType": "departureAirport",
+          "filterCode": "BUR",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Burbank Bob Hope Airport"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "departure airport BUR (Burbank) for outbound; ... depart from EWR back to BUR/LA area"
+        },
+        {
+          "filterType": "arrivalAirport",
+          "filterCode": "EWR",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": [
+            "Newark"
+          ],
+          "rawUserFilter": "arrival airport EWR (Newark) for outbound (and for return if applicable, i.e., arrive back to BUR/LA area)"
+        },
+        {
+          "filterType": "stops",
+          "filterCode": "2",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "allow up to 1 stop"
+        },
+        {
+          "filterType": "baggage",
+          "filterCode": "0",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "require checked baggage included"
+        },
+        {
+          "filterType": "layoverDuration",
+          "filterCode": null,
+          "minDurationMinutes": 0,
+          "maxDurationMinutes": 120,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "restrict all layovers to under 2 hours"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "After applying the requested constraints (as supported by the current result set), 0 options remain.",
+          "completedTask": "Applied the requested airport/stops/baggage/layover filters to the current LAX↔NYC round-trip business-class results and checked how many options remain.",
+          "findings": [
+            "Trip context used: LAX↔NYC round-trip, business class, 2 adults; depart 2026-10-30 and return 2026-11-06.",
+            "Filters applied in this step: outbound depart BUR; outbound arrive EWR; stops=1-stop (tool stop bucket used); checked baggage included; max layover duration 120 minutes.",
+            "Result count changed from 3 to 0 matching options."
+          ],
+          "limitations": [
+            "The airport constraints were only applied for the outbound segment by the filter system in this run; the requested directional return-airport logic (depart EWR and arrive back to the LA-area) was not fully enforceable here.",
+            "The system’s stop filter was applied using the “1 stop” bucket, which may exclude nonstop options even though “up to 1 stop” would normally include nonstop as well.",
+            "Some requested airport values could not be matched as-typed against the current results’ available airport facets, so only the airports recognized as available were actually applied (per system feedback)."
+          ],
+          "nextStep": "If you want results, the most direct relaxation is to widen airports (e.g., allow any LA-area departure airport on the outbound, and/or allow JFK/LGA on arrival) or loosen the layover limit; tell me which constraint to relax first.",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791361925318",
+      "searchKeyAfter": "search_demo-user_1791361925318",
+      "activeFilterTypes": [
+        "departureAirport",
+        "arrivalAirport",
+        "stops",
+        "baggage",
+        "layoverDuration"
+      ],
+      "suggestions": [
+        "Allow any LA-area departure airport",
+        "Remove the 2-hour layover limit",
+        "Clear all filters"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 57178,
+      "outputTokens": 1920,
+      "modelCalls": 5,
+      "latencyMs": 41285,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "roundtrip_airports_layovers",
+      "turn": 3,
+      "traceId": "trace_75a1cf1e18b54dc98d40d6f22117b7e4",
+      "user": "Remove Newark and checked baggage. Allow any Los Angeles-area departure airport, require a Dubai or Amsterdam layover, and arrive in the evening.",
+      "expectedIntent": "Remove two filters, broaden one airport filter, and add layover-airport plus arrival-time constraints.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "The search inputs are unchanged; all operations belong in one state-aware filter update.",
+      "expectedStateChange": "Preserve one stop and layover duration, replace departure-airport scope, remove arrival airport and baggage, and add layover airport plus evening arrival.",
+      "validates": "Multiple removals/additions, named airport-group resolution, alternative layover airports, and active-filter preservation.",
+      "output": "✈️ Updated your filters (removed **Newark** + **checked baggage**, allowed **any LA-area departure airport**, required a **DXB or AMS** connection, and **evening arrival**). **1 option** matches now.\n\nℹ️ The remaining option shows **inconsistent airport codes** in its details (e.g., an endpoint displaying as ONT), so please double-check the airports on the card before booking.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current round-trip business-class search for 2 adults (Los Angeles↔NYC, depart 2026-10-30 return 2026-11-06), update filters as follows: remove Newark/EWR arrival constraint and remove the checked-baggage-included requirement. Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available). Keep previously requested constraints unless explicitly removed: allow 1 stop, layovers under 2 hours. Add new constraints: layover/connection airport must be either Dubai (DXB) or Amsterdam (AMS) on the itinerary, and require evening arrival into NYC on the outbound (arrival-time filter = evening if supported). Report how many options remain (or none) and what constraint is blocking if zero."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_taxsRK8Y8ZXCjCUp9MQZZ5kL",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "arrivalAirport",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": [
+                  "EWR",
+                  "Newark",
+                  "Newark Liberty"
+                ],
+                "rawUserFilter": "remove Newark/EWR arrival constraint"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "remove the checked-baggage-included requirement"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "LAX",
+                  "BUR",
+                  "ONT",
+                  "SNA",
+                  "Los Angeles-area",
+                  "all LA-area departure airports"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "layoverAirport",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": [
+                  "Dubai",
+                  "DXB",
+                  "Amsterdam",
+                  "AMS"
+                ],
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "layover/connection airport must be either Dubai (DXB) or Amsterdam (AMS)"
+              },
+              {
+                "filterType": "arrivalTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "require evening arrival into NYC on the outbound"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791361925318",
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "2",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "allow up to 1 stop"
+              },
+              {
+                "filterType": "layoverDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 120,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "restrict all layovers to under 2 hours"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "LAX",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "BUR",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "ONT",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "SNA",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "layoverAirport",
+                "filterCode": "DXB",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": [
+                  "Dubai",
+                  "Amsterdam"
+                ],
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "layover/connection airport must be either Dubai (DXB) or Amsterdam (AMS)"
+              },
+              {
+                "filterType": "layoverAirport",
+                "filterCode": "AMS",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": [
+                  "Dubai",
+                  "Amsterdam"
+                ],
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "layover/connection airport must be either Dubai (DXB) or Amsterdam (AMS)"
+              },
+              {
+                "filterType": "arrivalTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "require evening arrival into NYC on the outbound"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "stop",
+                "Values": [
+                  "2"
+                ]
+              },
+              {
+                "filterType": "departlandtimeslotfilter",
+                "Values": [
+                  "EVENING"
+                ]
+              },
+              {
+                "filterType": "outboundlayover",
+                "Values": [
+                  "DXB,AMS"
+                ]
+              },
+              {
+                "filterType": "outbounddepart",
+                "Values": [
+                  "LAX,BUR,ONT,SNA"
+                ]
+              },
+              {
+                "filterType": "departlayoverfilter",
+                "Values": [
+                  0,
+                  120
+                ]
+              },
+              {
+                "filterType": "outboundarrival",
+                "Values": [
+                  "all"
+                ]
+              },
+              {
+                "filterType": "baggage",
+                "Values": []
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791361925318",
+              "filters": [
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "2"
+                  ]
+                },
+                {
+                  "filterType": "departlandtimeslotfilter",
+                  "Values": [
+                    "EVENING"
+                  ]
+                },
+                {
+                  "filterType": "outboundlayover",
+                  "Values": [
+                    "DXB,AMS"
+                  ]
+                },
+                {
+                  "filterType": "outbounddepart",
+                  "Values": [
+                    "LAX,BUR,ONT,SNA"
+                  ]
+                },
+                {
+                  "filterType": "departlayoverfilter",
+                  "Values": [
+                    0,
+                    120
+                  ]
+                },
+                {
+                  "filterType": "outboundarrival",
+                  "Values": [
+                    "all"
+                  ]
+                },
+                {
+                  "filterType": "baggage",
+                  "Values": []
+                }
+              ]
+            },
+            "feedback": [
+              "all LA-area departure airports was not available as a departure airport in the current results, so I applied filters for the available requested airports."
+            ],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 1
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_IngYihPWkvugDbxhFuKgUQnB",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show details for option 1",
+              "Remove the Dubai/Amsterdam layover filter",
+              "Allow 2+ stops"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show details for option 1",
+              "Remove the Dubai/Amsterdam layover filter",
+              "Allow 2+ stops"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "activeFilters": [
+        {
+          "filterType": "stops",
+          "filterCode": "2",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "allow up to 1 stop"
+        },
+        {
+          "filterType": "layoverDuration",
+          "filterCode": null,
+          "minDurationMinutes": 0,
+          "maxDurationMinutes": 120,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "restrict all layovers to under 2 hours"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "LAX",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "BUR",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "ONT",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "SNA",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "layoverAirport",
+          "filterCode": "DXB",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": [
+            "Dubai",
+            "Amsterdam"
+          ],
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "layover/connection airport must be either Dubai (DXB) or Amsterdam (AMS)"
+        },
+        {
+          "filterType": "layoverAirport",
+          "filterCode": "AMS",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": [
+            "Dubai",
+            "Amsterdam"
+          ],
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "layover/connection airport must be either Dubai (DXB) or Amsterdam (AMS)"
+        },
+        {
+          "filterType": "arrivalTime",
+          "filterCode": "EVENING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "require evening arrival into NYC on the outbound"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Filters were updated (EWR constraint removed; checked-baggage requirement removed; LA-area departures allowed; DXB/AMS connection + evening NYC arrival added). 1 option remains after filtering.",
+          "completedTask": "Applied the requested filter updates to the existing LAX↔NYC round-trip (business, 2 adults) search and checked how many options remain under the updated constraints.",
+          "findings": [
+            "Trip context used: round-trip business class for 2 adults, Los Angeles (LAX-area) ↔ New York City (NYC), depart 2026-10-30 return 2026-11-06.",
+            "Removed constraint: Newark/EWR arrival restriction (arrival airport set back to unrestricted within NYC metro).",
+            "Removed constraint: checked-baggage-included requirement (baggage constraint cleared).",
+            "Replaced BUR-only with allowing LA-area departure airports; applied the available set LAX/BUR/ONT/SNA.",
+            "Previously requested constraints preserved: up to 1 stop; layovers under 2 hours.",
+            "New constraints added: connection airport must be DXB or AMS; outbound arrival time window = EVENING.",
+            "Result count after updates: 1 option remains (down from 3 before these filter changes)."
+          ],
+          "limitations": [
+            "The remaining option data includes inconsistent endpoint airport codes (e.g., showing arrival as ONT), so airport-code details may not accurately reflect the LAX↔NYC route even though the search context is LAX↔NYC."
+          ],
+          "nextStep": "If you want more choices, the most likely blockers to relax are the DXB/AMS-connection-only rule or the evening-arrival requirement (or allow more stops).",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791361925318",
+      "searchKeyAfter": "search_demo-user_1791361925318",
+      "activeFilterTypes": [
+        "stops",
+        "layoverDuration",
+        "departureAirport",
+        "layoverAirport",
+        "arrivalTime"
+      ],
+      "suggestions": [
+        "Show details for option 1",
+        "Remove the Dubai/Amsterdam layover filter",
+        "Allow 2+ stops"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 59386,
+      "outputTokens": 1546,
+      "modelCalls": 5,
+      "latencyMs": 32627,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "roundtrip_airports_layovers",
+      "turn": 4,
+      "traceId": "trace_fb45d1e93f3d4df7aa858cf9eca14a42",
+      "user": "Make arrival morning instead, cap total duration at three hours, and remove both the layover-airport restriction and the layover-duration limit.",
+      "expectedIntent": "Replace arrival time, add total duration, and remove two layover filters.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "This changes only filters and must preserve the departure-airport and one-stop constraints.",
+      "expectedStateChange": "Keep departureAirport, stops, morning arrival, and totalDuration filters.",
+      "validates": "Changing an applied filter and removing multiple related filters in one call.",
+      "output": "No options match after switching to **morning arrival** and adding a **3-hour total-duration cap**, even with the DXB/AMS and layover-length limits removed.\n\nTo get results back, which should I relax: **raise/remove the 3-hour cap** (e.g., 6–7 hours), **drop morning-only**, or **allow more than 1 stop**?",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current filtered round-trip business-class results (2 adults; Los Angeles-area ↔ NYC; depart 2026-10-30 return 2026-11-06), change filters: set outbound arrival time window to MORNING (replacing evening). Add a maximum total trip duration filter of 3 hours (180 minutes) for the outbound (and apply to return too if the system supports per-itinerary total duration cap). Remove the layover-airport restriction (DXB/AMS) and remove the layover-duration limit (<2 hours). Preserve other active filters (LA-area departures allowed; up to 1 stop). Report how many options remain (or none)."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_Vy4wehI01yafyi1yMnKep9Bz",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "arrivalTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "set outbound arrival time window to MORNING (replacing evening)"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 180,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Add a maximum total trip duration filter of 3 hours (180 minutes) for the outbound (and apply to return too if supported)"
+              },
+              {
+                "filterType": "layoverAirport",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Remove the layover-airport restriction (DXB/AMS)"
+              },
+              {
+                "filterType": "layoverDuration",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "remove the layover-duration limit (<2 hours)"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791361925318",
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "2",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "allow up to 1 stop"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "LAX",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "BUR",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "ONT",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "SNA",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "arrivalTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "set outbound arrival time window to MORNING (replacing evening)"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 180,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Add a maximum total trip duration filter of 3 hours (180 minutes) for the outbound (and apply to return too if supported)"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "stop",
+                "Values": [
+                  "2"
+                ]
+              },
+              {
+                "filterType": "departlandtimeslotfilter",
+                "Values": [
+                  "MORNING"
+                ]
+              },
+              {
+                "filterType": "outbounddepart",
+                "Values": [
+                  "LAX,BUR,ONT,SNA"
+                ]
+              },
+              {
+                "filterType": "departdurationfilter",
+                "Values": [
+                  0,
+                  180
+                ]
+              },
+              {
+                "filterType": "outboundlayover",
+                "Values": [
+                  "all"
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791361925318",
+              "filters": [
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "2"
+                  ]
+                },
+                {
+                  "filterType": "departlandtimeslotfilter",
+                  "Values": [
+                    "MORNING"
+                  ]
+                },
+                {
+                  "filterType": "outbounddepart",
+                  "Values": [
+                    "LAX,BUR,ONT,SNA"
+                  ]
+                },
+                {
+                  "filterType": "departdurationfilter",
+                  "Values": [
+                    0,
+                    180
+                  ]
+                },
+                {
+                  "filterType": "outboundlayover",
+                  "Values": [
+                    "all"
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 0
+            },
+            "flights": []
+          }
+        },
+        {
+          "callId": "call_Vnl3Pg0HWlxltA3EmMnd9qqY",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Remove the 3-hour duration cap",
+              "Remove the morning arrival filter",
+              "Switch to economy class"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Remove the 3-hour duration cap",
+              "Remove the morning arrival filter",
+              "Switch to economy class"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "activeFilters": [
+        {
+          "filterType": "stops",
+          "filterCode": "2",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "allow up to 1 stop"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "LAX",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "BUR",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "ONT",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "SNA",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "arrivalTime",
+          "filterCode": "MORNING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "set outbound arrival time window to MORNING (replacing evening)"
+        },
+        {
+          "filterType": "totalDuration",
+          "filterCode": null,
+          "minDurationMinutes": 0,
+          "maxDurationMinutes": 180,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Add a maximum total trip duration filter of 3 hours (180 minutes) for the outbound (and apply to return too if supported)"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "After setting arrival-time to MORNING and capping total duration at 3 hours, while removing layover-airport and layover-duration restrictions, there are no matching options left under the remaining filters.",
+          "completedTask": "Applied the requested filter changes on the current LAX-area ↔ NYC round-trip business-class results and checked how many options remain.",
+          "findings": [
+            "Trip context preserved: round-trip business class, 2 adults, Los Angeles-area ↔ NYC, depart 2026-10-30 return 2026-11-06.",
+            "Filters applied/kept: up to 1 stop kept; Los Angeles-area departure airports kept (LAX/BUR/ONT/SNA).",
+            "Filter change applied: outbound arrival time window set to MORNING (replacing evening).",
+            "Filter added: maximum total trip duration set to 180 minutes (system applied as a duration cap in the filter payload).",
+            "Filters removed: layover-airport restriction removed; layover-duration (<2 hours) restriction removed.",
+            "Result: 0 options remain after filtering (original set size was 3; filtered set size is 0)."
+          ],
+          "limitations": [
+            "With the 3-hour total-duration cap active, no itineraries match; to see options, at least one constraint (duration cap and/or arrival-time window and/or stops) must be relaxed."
+          ],
+          "nextStep": "Most direct relaxation: remove or increase the 3-hour total-duration cap (transcon flights won’t fit in 180 minutes).",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791361925318",
+      "searchKeyAfter": "search_demo-user_1791361925318",
+      "activeFilterTypes": [
+        "stops",
+        "departureAirport",
+        "arrivalTime",
+        "totalDuration"
+      ],
+      "suggestions": [
+        "Remove the 3-hour duration cap",
+        "Remove the morning arrival filter",
+        "Switch to economy class"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 59836,
+      "outputTokens": 1393,
+      "modelCalls": 5,
+      "latencyMs": 29076,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "roundtrip_airports_layovers",
+      "turn": 5,
+      "traceId": "trace_8fd26d0a6dd9407cbcc4cfd61972d6a6",
+      "user": "Remove the one-stop filter too. Which options remain, and which is shortest?",
+      "expectedIntent": "Remove stops, then inspect the newly filtered current result set.",
+      "expectedTools": [
+        "apply_filter",
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "why": "The filter mutation must finish before current-option facts and ranking are read.",
+      "expectedStateChange": "Keep the same search key with departureAirport, morning arrival, and total duration active.",
+      "validates": "Filter-then-read sequencing and no re-search for current-result reasoning.",
+      "output": "✈️ With the **one-stop filter removed** (keeping **morning arrival** + **3-hour max duration**), **1 option** remains.\n\n✅ The **shortest** (and only) remaining option is **Option 1**, shown as **2h 10m (130 minutes)** total duration.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current round-trip business-class results (2 adults; Los Angeles-area ↔ NYC; depart 2026-10-30 return 2026-11-06) with filters currently including morning arrival and max total duration 3 hours, remove the stops filter entirely (no stop-count restriction). Then report how many options remain and identify which remaining option has the shortest total duration (outbound and/or itinerary total as shown). Preserve all other active filters."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_rG5UszjW9REUKxovQsHWUjSY",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "remove the stops filter entirely (no stop-count restriction)"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791361925318",
+            "filters": [
+              {
+                "filterType": "departureAirport",
+                "filterCode": "LAX",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "BUR",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "ONT",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "SNA",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "arrivalTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "set outbound arrival time window to MORNING (replacing evening)"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 180,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Add a maximum total trip duration filter of 3 hours (180 minutes) for the outbound (and apply to return too if supported)"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "departlandtimeslotfilter",
+                "Values": [
+                  "MORNING"
+                ]
+              },
+              {
+                "filterType": "outbounddepart",
+                "Values": [
+                  "LAX,BUR,ONT,SNA"
+                ]
+              },
+              {
+                "filterType": "departdurationfilter",
+                "Values": [
+                  0,
+                  180
+                ]
+              },
+              {
+                "filterType": "stop",
+                "Values": [
+                  "all"
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791361925318",
+              "filters": [
+                {
+                  "filterType": "departlandtimeslotfilter",
+                  "Values": [
+                    "MORNING"
+                  ]
+                },
+                {
+                  "filterType": "outbounddepart",
+                  "Values": [
+                    "LAX,BUR,ONT,SNA"
+                  ]
+                },
+                {
+                  "filterType": "departdurationfilter",
+                  "Values": [
+                    0,
+                    180
+                  ]
+                },
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "all"
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 1
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_0ZKtalqOimBXgfErZbOOhPzX",
+          "tool": "getGeneratedContractsContext",
+          "input": {
+            "mode": "read",
+            "indexes": null
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "resultSource": "searchResults",
+            "message": "Sample generated flight contract context only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791361925318",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Los Angeles",
+                  "destination": "New York City",
+                  "outbound_date": "2026-10-30",
+                  "return_date": "2026-11-06",
+                  "origin_iata": "LAX",
+                  "origin_airport_name": null,
+                  "destination_iata": "NYC",
+                  "destination_airport_name": null
+                }
+              ],
+              "trip_type": "roundtrip",
+              "passengers": {
+                "adults": 2,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "business"
+            },
+            "resultState": "available",
+            "filters": [
+              {
+                "filterType": "departureAirport",
+                "filterCode": "LAX",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "BUR",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "ONT",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "departureAirport",
+                "filterCode": "SNA",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": [
+                  "Los Angeles Intl",
+                  "Burbank Bob Hope Airport",
+                  "Ontario",
+                  "Santa Ana John Wayne"
+                ],
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+              },
+              {
+                "filterType": "arrivalTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "set outbound arrival time window to MORNING (replacing evening)"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 180,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "Add a maximum total trip duration filter of 3 hours (180 minutes) for the outbound (and apply to return too if supported)"
+              }
+            ],
+            "originalCount": 3,
+            "selectedIndexes": [],
+            "visibleIndexes": [
+              1
+            ],
+            "visibleCount": 1,
+            "requestedIndexes": null,
+            "contracts": [
+              {
+                "optionNumber": 1,
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_minutes": 130,
+                "layover_duration_minutes": 0,
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 199"
+              }
+            ],
+            "summary": {
+              "totalAvailable": 1,
+              "cheapestOption": {
+                "optionNumber": 1,
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_minutes": 130,
+                "layover_duration_minutes": 0,
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 199"
+              },
+              "shortestDurationOption": {
+                "optionNumber": 1,
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_minutes": 130,
+                "layover_duration_minutes": 0,
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 199"
+              },
+              "bestValueOption": {
+                "optionNumber": 1,
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_minutes": 130,
+                "layover_duration_minutes": 0,
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 199"
+              }
+            }
+          }
+        },
+        {
+          "callId": "call_pcHGQ3dTEUxNwiObbBYY5iK3",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show details for option 1",
+              "Clear all filters",
+              "Add a max price cap"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show details for option 1",
+              "Clear all filters",
+              "Add a max price cap"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "activeFilters": [
+        {
+          "filterType": "departureAirport",
+          "filterCode": "LAX",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "BUR",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "ONT",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "departureAirport",
+          "filterCode": "SNA",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": [
+            "Los Angeles Intl",
+            "Burbank Bob Hope Airport",
+            "Ontario",
+            "Santa Ana John Wayne"
+          ],
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Replace BUR-only with allow any Los Angeles-area departure airport (LAX/BUR/ONT/SNA if available)"
+        },
+        {
+          "filterType": "arrivalTime",
+          "filterCode": "MORNING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "set outbound arrival time window to MORNING (replacing evening)"
+        },
+        {
+          "filterType": "totalDuration",
+          "filterCode": null,
+          "minDurationMinutes": 0,
+          "maxDurationMinutes": 180,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "Add a maximum total trip duration filter of 3 hours (180 minutes) for the outbound (and apply to return too if supported)"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Stops restriction is now removed while keeping the morning-arrival and 3-hour max-duration filters; 1 option remains, and option 1 is the shortest-duration option among the remaining results.",
+          "completedTask": "Removed the stop-count restriction from the current filtered results, then checked the updated result set for remaining option count and shortest total duration.",
+          "findings": [
+            "Trip context preserved: round-trip business class, 2 adults, Los Angeles-area ↔ NYC, depart 2026-10-30 / return 2026-11-06.",
+            "Filter change applied: stop-count restriction removed (no stops filter).",
+            "Other active filters preserved: morning arrival window and max total duration 3 hours (180 min), plus Los Angeles-area departure-airport allowance.",
+            "Options remaining after change: 1 visible option.",
+            "Shortest total duration among remaining results: option 1 at 130 minutes (2h 10m) total duration as shown."
+          ],
+          "limitations": [],
+          "nextStep": null,
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791361925318",
+      "searchKeyAfter": "search_demo-user_1791361925318",
+      "activeFilterTypes": [
+        "departureAirport",
+        "arrivalTime",
+        "totalDuration"
+      ],
+      "suggestions": [
+        "Show details for option 1",
+        "Clear all filters",
+        "Add a max price cap"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 78038,
+      "outputTokens": 766,
+      "modelCalls": 6,
+      "latencyMs": 27341,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "roundtrip_airports_layovers",
+      "turn": 6,
+      "traceId": "trace_b843a4f8c6cc41579952b393126329dd",
+      "user": "Find stronger round-trip departure dates between November 1 and November 5, returning exactly seven days later, then show flights for the strongest date. Keep only morning arrival and total duration under three hours.",
+      "expectedIntent": "Predict within a bounded round-trip window, search the strongest or fallback pair, then apply only two carried filters.",
+      "expectedTools": [
+        "price_prediction_tool",
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Flexible outbound timing plus a fixed stay requires round-trip prediction before search, and the new result set must be filtered afterward.",
+      "expectedStateChange": "Create a new search key and retain only arrivalTime and totalDuration filters.",
+      "validates": "Round-trip prediction bounds/duration, serial dependency handling, and explicit filter carry-forward.",
+      "output": "I couldn’t verify which departure date between **Nov 1–Nov 5, 2026** (returning exactly **7 days later**) is the “strongest” under your constraints.\n\n✈️ As a fallback, I pulled flights for **Nov 1, 2026 → Nov 8, 2026** (2 adults, business) and kept only **morning arrival** + **total duration under 3 hours**. **1 option** matches and is shown.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "For the same trip (round-trip business class, 2 adults, Los Angeles-area ↔ NYC), find the strongest outbound departure date between 2026-11-01 and 2026-11-05 inclusive, with return exactly 7 days after outbound. Interpret “strongest” as best-priced/most-available under the constraints. Keep filters: outbound arrival time window = morning; total duration under 3 hours (180 minutes). Then, for the strongest date found, show the available flight options (cards) for that date pair."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_iBwF0zWzu0j70yhzGMtTgGE3",
+          "tool": "price_prediction_tool",
+          "input": {
+            "originCity": "LAX",
+            "destinationCity": "NYC",
+            "startDate": "2026-11-01",
+            "endDate": "2026-11-05",
+            "tripType": "roundtrip",
+            "returnStartDate": "2026-11-08",
+            "returnEndDate": "2026-11-12",
+            "tripDuration": 7,
+            "tripDurationFlexibility": 0
+          },
+          "completed": true,
+          "output": {
+            "ok": false,
+            "status": "NO_PREDICTIONS",
+            "source": "clickhouse",
+            "route": {
+              "originCity": "LAX",
+              "destinationCity": "NYC"
+            },
+            "tripType": "roundtrip",
+            "searchedDateRange": {
+              "startDate": "2026-11-01",
+              "endDate": "2026-11-05",
+              "returnStartDate": "2026-11-08",
+              "returnEndDate": "2026-11-12"
+            },
+            "predictionWindow": {
+              "today": "2026-10-05",
+              "maxDate": "2027-01-02",
+              "daysAhead": 89
+            },
+            "predictions": [],
+            "cheapestDates": [],
+            "cheapestCombinations": [],
+            "priceRangeSummary": null,
+            "recommendation": "Price prediction is unavailable for this route and date range. I can still search your preferred dates.",
+            "formattedResponse": "Price prediction is unavailable for this route and date range. I can still search your preferred dates.",
+            "message": "Price prediction is unavailable for this route and date range. I can still search your preferred dates.",
+            "recovery": {
+              "kind": "unavailable",
+              "retrySafe": false,
+              "stateChanged": false
+            }
+          }
+        },
+        {
+          "callId": "call_EGjq8GaptXjN9jVulSjNdH8r",
+          "tool": "flight_search",
+          "input": {
+            "onds": [
+              {
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "origin_iata": "LAX",
+                "destination_iata": "NYC",
+                "origin_airport_name": null,
+                "destination_airport_name": null,
+                "outbound_date": "2026-11-01",
+                "return_date": "2026-11-08"
+              }
+            ],
+            "trip_type": "roundtrip",
+            "passengers": {
+              "adults": 2,
+              "children": 0,
+              "infants": 0
+            },
+            "cabin_class": "business"
+          },
+          "completed": true,
+          "output": {
+            "source": "dummy",
+            "message": "Sample flight results only. No live API was called.",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Los Angeles",
+                  "destination": "New York City",
+                  "origin_iata": "LAX",
+                  "destination_iata": "NYC",
+                  "origin_airport_name": null,
+                  "destination_airport_name": null,
+                  "outbound_date": "2026-11-01",
+                  "return_date": "2026-11-08"
+                }
+              ],
+              "trip_type": "roundtrip",
+              "passengers": {
+                "adults": 2,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "business"
+            },
+            "summary": {
+              "route": "Los Angeles to New York City",
+              "passengerCount": 2,
+              "optionCount": 3
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_hours": 7.92,
+                "total_duration_minutes": 475,
+                "layover_duration_hours": 2.25,
+                "layover_duration_minutes": 135,
+                "layover_airport_codes": [
+                  "DXB",
+                  "DOH"
+                ],
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ],
+            "UID": "demo-user",
+            "searchKey": "search_demo-user_1791362087076",
+            "airlineFilterOptions": [
+              {
+                "Code": "AC",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "AC+",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "CA",
+                "Text": "Air China",
+                "Name": "Air China",
+                "IsDisabled": false
+              },
+              {
+                "Code": "EK",
+                "Text": "Emirates",
+                "Name": "Emirates",
+                "IsDisabled": false
+              },
+              {
+                "Code": "QR",
+                "Text": "Qatar Airways",
+                "Name": "Qatar Airways",
+                "IsDisabled": false
+              },
+              {
+                "Code": "6E",
+                "Text": "IndiGo",
+                "Name": "IndiGo",
+                "IsDisabled": true
+              },
+              {
+                "Code": "UA",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              },
+              {
+                "Code": "UA+",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              }
+            ],
+            "layoverAirportFilterOptions": [
+              {
+                "Code": "AMS",
+                "Text": "Amsterdam Schiphol",
+                "Name": null,
+                "AirportCityName": "Amsterdam",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DXB",
+                "Text": "Dubai",
+                "Name": null,
+                "AirportCityName": "Dubai",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DOH",
+                "Text": "Doha Hamad International Airport",
+                "Name": null,
+                "AirportCityName": "Doha",
+                "IsDisabled": false
+              },
+              {
+                "Code": "FRA",
+                "Text": "Frankfurt Airport",
+                "Name": null,
+                "AirportCityName": "Frankfurt",
+                "IsDisabled": false
+              },
+              {
+                "Code": "SIN",
+                "Text": "Singapore Changi",
+                "Name": null,
+                "AirportCityName": "Singapore",
+                "IsDisabled": true
+              }
+            ],
+            "DepartAirports": [
+              {
+                "Code": "LAX",
+                "Price": 341.23,
+                "Text": "Los Angeles Intl",
+                "Name": null,
+                "Count": 241,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "BUR",
+                "Price": 420.6,
+                "Text": "Burbank Bob Hope Airport",
+                "Name": null,
+                "Count": 161,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "ONT",
+                "Price": 316.4,
+                "Text": "Ontario",
+                "Name": null,
+                "Count": 97,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "SNA",
+                "Price": 399.40002,
+                "Text": "Santa Ana John Wayne",
+                "Name": null,
+                "Count": 86,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              }
+            ],
+            "DepLandAirports": [
+              {
+                "Code": "JFK",
+                "Price": 520.1,
+                "Text": "John F Kennedy Intl",
+                "Name": null,
+                "Count": 210,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              },
+              {
+                "Code": "EWR",
+                "Price": 498.4,
+                "Text": "Newark Liberty Intl",
+                "Name": null,
+                "Count": 178,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "Newark"
+              },
+              {
+                "Code": "LGA",
+                "Price": 530.2,
+                "Text": "LaGuardia",
+                "Name": null,
+                "Count": 96,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_lNOKE3s0zGY4h2e3CCAE5D23",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "arrivalTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "outbound arrival time window = morning"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": 180,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "total duration under 3 hours (180 minutes)"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791362087076",
+            "filters": [
+              {
+                "filterType": "arrivalTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "outbound arrival time window = morning"
+              },
+              {
+                "filterType": "totalDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 180,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "total duration under 3 hours (180 minutes)"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "departlandtimeslotfilter",
+                "Values": [
+                  "MORNING"
+                ]
+              },
+              {
+                "filterType": "departdurationfilter",
+                "Values": [
+                  0,
+                  180
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791362087076",
+              "filters": [
+                {
+                  "filterType": "departlandtimeslotfilter",
+                  "Values": [
+                    "MORNING"
+                  ]
+                },
+                {
+                  "filterType": "departdurationfilter",
+                  "Values": [
+                    0,
+                    180
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 1
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_KcsMU3MeUZ9txb4kGgKwpU1S",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Remove the morning arrival filter",
+              "Show baggage details for option 1"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Remove the morning arrival filter",
+              "Show baggage details for option 1"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-10-30",
+            "return_date": "2026-11-06",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-30",
+        "return_date": "2026-11-06",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-11-01",
+            "return_date": "2026-11-08",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-11-01",
+        "return_date": "2026-11-08",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "activeFilters": [
+        {
+          "filterType": "arrivalTime",
+          "filterCode": "MORNING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "outbound arrival time window = morning"
+        },
+        {
+          "filterType": "totalDuration",
+          "filterCode": null,
+          "minDurationMinutes": 0,
+          "maxDurationMinutes": 180,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "total duration under 3 hours (180 minutes)"
+        }
+      ],
+      "observedFlightTools": [
+        "price_prediction_tool",
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "price_prediction_tool",
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "partial",
+          "summary": "Date-strength (best-priced/most-available) could not be verified for 2026-11-01..2026-11-05. Proceeded with a fallback search on the earliest allowed date (2026-11-01 with return 2026-11-08) and kept the requested filters; 1 option remains after filtering and can be shown as cards.",
+          "completedTask": "Tried to identify the strongest outbound date within 2026-11-01 to 2026-11-05 (return +7 days), then searched flights for one in-range date pair and applied the requested filters; produced filtered flight options for that date pair.",
+          "findings": [
+            "Requested flexibility window: outbound 2026-11-01 to 2026-11-05 inclusive; return fixed at exactly 7 days after outbound (i.e., 2026-11-08 to 2026-11-12 depending on outbound).",
+            "Unable to verify/compare which outbound date in 2026-11-01..2026-11-05 is “strongest” under the constraints.",
+            "Fallback flight search executed for Los Angeles (LAX-area) ↔ New York City (NYC), round trip, business, 2 adults: 2026-11-01 to 2026-11-08.",
+            "Filters applied on these results as requested: outbound arrival time window = morning; total duration < 180 minutes.",
+            "Result counts: 3 options before filtering; 1 option after filtering (available to display as cards)."
+          ],
+          "limitations": [
+            "The strongest outbound date within 2026-11-01..2026-11-05 could not be validated; the shown results are for the fallback date pair (2026-11-01/2026-11-08) and are not confirmed as best-priced/most-available versus other dates in the window."
+          ],
+          "nextStep": null,
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "price_prediction_tool",
+          "ok": false,
+          "code": "NO_PREDICTIONS",
+          "affectedFields": []
+        },
+        {
+          "tool": "flight_search",
+          "ok": null,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "searchKeyBefore": "search_demo-user_1791361925318",
+      "searchKeyAfter": "search_demo-user_1791362087076",
+      "activeFilterTypes": [
+        "arrivalTime",
+        "totalDuration"
+      ],
+      "suggestions": [
+        "Show nonstop flights only",
+        "Remove the morning arrival filter",
+        "Show baggage details for option 1"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 1,
+      "inputTokens": 94400,
+      "outputTokens": 1531,
+      "modelCalls": 7,
+      "latencyMs": 34713,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    },
+    {
+      "chat": "roundtrip_airports_layovers",
+      "turn": 7,
+      "traceId": "trace_1da75443a19d461ea41e7ac713837d23",
+      "user": "Keep those dates, passengers, and cabin, but fly to Boston instead. Do not keep any filters.",
+      "expectedIntent": "Change the destination and run a clean new search using all other established search inputs.",
+      "expectedTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Destination is a core search field; the explicit no-filters instruction means no apply_filter call is needed after the new search clears state.",
+      "expectedStateChange": "Create a Boston search key with no active filters.",
+      "validates": "Route update versus filtering, round-trip context reuse, and clean filter reset through new-search semantics.",
+      "output": "✈️ Updated to a new search (no filters kept): **Los Angeles → Boston**, **round-trip business**, **2 adults**, **Nov 1, 2026 – Nov 8, 2026**. **3 options** are available and shown.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Start a NEW flight search (do not keep any prior filters) for round-trip business-class flights for 2 adults from Los Angeles to Boston, departing 2026-11-01 and returning 2026-11-08. Show available options with key details on the cards."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_8FUg2LzyeQUb6nHa9WHh7p2S",
+          "tool": "flight_search",
+          "input": {
+            "onds": [
+              {
+                "origin": "Los Angeles",
+                "destination": "Boston",
+                "origin_iata": "LAX",
+                "destination_iata": null,
+                "origin_airport_name": null,
+                "destination_airport_name": null,
+                "outbound_date": "2026-11-01",
+                "return_date": "2026-11-08"
+              }
+            ],
+            "trip_type": "roundtrip",
+            "passengers": {
+              "adults": 2,
+              "children": 0,
+              "infants": 0
+            },
+            "cabin_class": "business"
+          },
+          "completed": true,
+          "output": {
+            "source": "dummy",
+            "message": "Sample flight results only. No live API was called.",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Los Angeles",
+                  "destination": "Boston",
+                  "origin_iata": "LAX",
+                  "destination_iata": null,
+                  "origin_airport_name": null,
+                  "destination_airport_name": null,
+                  "outbound_date": "2026-11-01",
+                  "return_date": "2026-11-08"
+                }
+              ],
+              "trip_type": "roundtrip",
+              "passengers": {
+                "adults": 2,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "business"
+            },
+            "summary": {
+              "route": "Los Angeles to Boston",
+              "passengerCount": 2,
+              "optionCount": 3
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Los Angeles",
+                "destination": "Boston",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Los Angeles",
+                "destination": "Boston",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Los Angeles",
+                "destination": "Boston",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_hours": 7.92,
+                "total_duration_minutes": 475,
+                "layover_duration_hours": 2.25,
+                "layover_duration_minutes": 135,
+                "layover_airport_codes": [
+                  "DXB",
+                  "DOH"
+                ],
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "business",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ],
+            "UID": "demo-user",
+            "searchKey": "search_demo-user_1791362116570",
+            "airlineFilterOptions": [
+              {
+                "Code": "AC",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "AC+",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "CA",
+                "Text": "Air China",
+                "Name": "Air China",
+                "IsDisabled": false
+              },
+              {
+                "Code": "EK",
+                "Text": "Emirates",
+                "Name": "Emirates",
+                "IsDisabled": false
+              },
+              {
+                "Code": "QR",
+                "Text": "Qatar Airways",
+                "Name": "Qatar Airways",
+                "IsDisabled": false
+              },
+              {
+                "Code": "6E",
+                "Text": "IndiGo",
+                "Name": "IndiGo",
+                "IsDisabled": true
+              },
+              {
+                "Code": "UA",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              },
+              {
+                "Code": "UA+",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              }
+            ],
+            "layoverAirportFilterOptions": [
+              {
+                "Code": "AMS",
+                "Text": "Amsterdam Schiphol",
+                "Name": null,
+                "AirportCityName": "Amsterdam",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DXB",
+                "Text": "Dubai",
+                "Name": null,
+                "AirportCityName": "Dubai",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DOH",
+                "Text": "Doha Hamad International Airport",
+                "Name": null,
+                "AirportCityName": "Doha",
+                "IsDisabled": false
+              },
+              {
+                "Code": "FRA",
+                "Text": "Frankfurt Airport",
+                "Name": null,
+                "AirportCityName": "Frankfurt",
+                "IsDisabled": false
+              },
+              {
+                "Code": "SIN",
+                "Text": "Singapore Changi",
+                "Name": null,
+                "AirportCityName": "Singapore",
+                "IsDisabled": true
+              }
+            ],
+            "DepartAirports": [
+              {
+                "Code": "LAX",
+                "Price": 341.23,
+                "Text": "Los Angeles Intl",
+                "Name": null,
+                "Count": 241,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "BUR",
+                "Price": 420.6,
+                "Text": "Burbank Bob Hope Airport",
+                "Name": null,
+                "Count": 161,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "ONT",
+                "Price": 316.4,
+                "Text": "Ontario",
+                "Name": null,
+                "Count": 97,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              },
+              {
+                "Code": "SNA",
+                "Price": 399.40002,
+                "Text": "Santa Ana John Wayne",
+                "Name": null,
+                "Count": 86,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": null
+              }
+            ],
+            "DepLandAirports": [
+              {
+                "Code": "JFK",
+                "Price": 520.1,
+                "Text": "John F Kennedy Intl",
+                "Name": null,
+                "Count": 210,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              },
+              {
+                "Code": "EWR",
+                "Price": 498.4,
+                "Text": "Newark Liberty Intl",
+                "Name": null,
+                "Count": 178,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "Newark"
+              },
+              {
+                "Code": "LGA",
+                "Price": 530.2,
+                "Text": "LaGuardia",
+                "Name": null,
+                "Count": 96,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_fGUQqcMapbURQVDD4lVcWoPi",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Change to premium economy"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Change to premium economy"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "New York City",
+            "outbound_date": "2026-11-01",
+            "return_date": "2026-11-08",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-11-01",
+        "return_date": "2026-11-08",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Los Angeles",
+            "destination": "Boston",
+            "outbound_date": "2026-11-01",
+            "return_date": "2026-11-08",
+            "origin_iata": "LAX",
+            "origin_airport_name": null,
+            "destination_iata": null,
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-11-01",
+        "return_date": "2026-11-08",
+        "origin_iata": "LAX",
+        "origin_airport_name": null,
+        "origin": "Los Angeles",
+        "destination_iata": null,
+        "destination_airport_name": null,
+        "destination": "Boston",
+        "trip_type": "roundtrip",
+        "passengers": {
+          "adults": 2,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "business"
+      },
+      "activeFilters": [],
+      "observedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Search completed and returned 3 available options; results are ready to be shown on flight cards with key details.",
+          "completedTask": "Ran a new round-trip flight search for 2 adults in business class from Los Angeles to Boston for 2026-11-01 to 2026-11-08, with no prior filters carried over.",
+          "findings": [
+            "Search parameters used: round trip, business class, 2 adults; Los Angeles (LAX) → Boston; depart 2026-11-01, return 2026-11-08.",
+            "No filters applied (fresh search as requested).",
+            "3 flight options returned and visible to display."
+          ],
+          "limitations": [
+            "Boston airport was not constrained to a specific IATA code (e.g., BOS) in this search; results are based on the city-level destination as provided."
+          ],
+          "nextStep": null,
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": null,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": "NO_PREDICTIONS",
+      "searchKeyBefore": "search_demo-user_1791362087076",
+      "searchKeyAfter": "search_demo-user_1791362116570",
+      "activeFilterTypes": [],
+      "suggestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Change to premium economy"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 62051,
+      "outputTokens": 555,
+      "modelCalls": 5,
+      "latencyMs": 20264,
+      "classification": "stable",
+      "checks": [],
+      "acceptableDeviations": []
+    }
+  ]
+}

@@ -1,0 +1,839 @@
+{
+  "fixedNow": "2026-10-05T10:00:00.000Z",
+  "models": {
+    "manager": "gpt-5.2",
+    "flight": "gpt-5.2",
+    "tripPlanner": "gpt-5.2"
+  },
+  "reasoningEffort": "low",
+  "registeredFlightTools": [
+    "flight_search",
+    "getGeneratedContractsContext",
+    "apply_filter",
+    "price_prediction_tool",
+    "update_flight_suggested_questions"
+  ],
+  "scenario": {
+    "id": "normalization_fewshots",
+    "title": "Separated location payloads and stateful tool-intelligence replay",
+    "focus": "Actual Manager -> Flight payloads, all five tools, empty-state inspection, mixed reset/add, flexible-date fallback, and endpoint changes.",
+    "turns": [
+      {
+        "user": "Find one-way flights from Delhi DEL to New York NYC on October 20, 2026 for one adult in economy.",
+        "expectedIntent": "Search an exact date with city names and IATA constraints separated.",
+        "expectedTools": [
+          "flight_search",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Complete exact-date search inputs require one search, not prediction; code constraints belong in dedicated fields.",
+        "expectedStateChange": "Create a Delhi/DEL -> New York/NYC search without combined name values or active filters.",
+        "validates": "Live normalization, nullable airport names, Manager delegation, and no unnecessary prediction.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": []
+      },
+      {
+        "user": "Show only nonstop morning departures under $220 with carry-on baggage.",
+        "expectedIntent": "Apply four constraints in one mutation of the existing results.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Stops, departure time, maximum price, and baggage do not change core search inputs.",
+        "expectedStateChange": "Keep the search key with nonstop, morning, maximum price, and carry-on filters.",
+        "validates": "Compound filter payloads, stacking, and no redundant search.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime",
+          "price",
+          "baggage"
+        ]
+      },
+      {
+        "user": "Make it evening instead, drop the price cap, and remove the carry-on requirement.",
+        "expectedIntent": "Replace departure time and remove two filters while retaining nonstop.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Indirect wording changes the current filters, not the route or travel date.",
+        "expectedStateChange": "Preserve the search key with nonstop and evening only, leaving zero fixture matches.",
+        "validates": "Replacement rather than union, selective removal, and empty-result feedback.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime"
+        ]
+      },
+      {
+        "user": "Which current option is cheapest, and why?",
+        "expectedIntent": "Read the current empty filtered set without changing state.",
+        "expectedTools": [
+          "getGeneratedContractsContext",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Ranking requires fresh generated records; an empty result does not authorize removing filters.",
+        "expectedStateChange": "Keep core search, filters, and the empty set unchanged.",
+        "validates": "Read-only ranking, no unfiltered fallback, and no invented recommendation.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime"
+        ]
+      },
+      {
+        "user": "Clear all filters and use only Air Canada or Emirates, with a layover under 90 minutes.",
+        "expectedIntent": "Reset and add named-airline plus layover-duration constraints in one call.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The mixed reset/add request operates on existing inventory and requires both outcomes.",
+        "expectedStateChange": "Keep the search key with Air Canada/Emirates and maximum layover duration only.",
+        "validates": "Clause-local reset/add semantics, source-array name resolution, and duration units.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "airline",
+          "layoverDuration"
+        ]
+      },
+      {
+        "user": "Show the cheapest current option.",
+        "expectedIntent": "Read current contracts to identify the cheapest option without changing visibility.",
+        "expectedTools": [
+          "getGeneratedContractsContext",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Open-ended ranking requires fresh read evidence; no particular existing option index was requested for display.",
+        "expectedStateChange": "Preserve current visibility, search parameters, and filters while returning a grounded ranking.",
+        "validates": "Read-only open-ended ranking, current-result evidence, and no unnecessary selection.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "airline",
+          "layoverDuration"
+        ]
+      },
+      {
+        "user": "Find flights between October 21 and October 28, keeping only Air Canada.",
+        "expectedIntent": "Infer date intelligence from a flexible window, then search and retain the requested airline.",
+        "expectedTools": [
+          "price_prediction_tool",
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Implicit flexibility requires prediction first; after no-data feedback, requested results permit one disclosed in-window fallback search.",
+        "expectedStateChange": "Search October 21 with Delhi/DEL -> New York/NYC preserved and Air Canada only; drop unrequested old layover limit.",
+        "validates": "Implicit prediction intent, exact bounds, honest fallback, separated endpoint carry-forward, and serial search/filter sequencing.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "airline"
+        ]
+      },
+      {
+        "user": "Same date, passengers and cabin, but fly to London Heathrow Airport (LHR) instead; keep Air Canada.",
+        "expectedIntent": "Change destination and run a new search with separated city/code/airport name.",
+        "expectedTools": [
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The destination route changes; this is not an airport filter on the previous New York results.",
+        "expectedStateChange": "Create Delhi/DEL -> London/LHR search, retain October 21 and passenger/cabin values, and apply Air Canada.",
+        "validates": "Production airport-name example, clearing stale NYC metadata, contextual date reuse, and no unnecessary prediction.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "airline"
+        ]
+      }
+    ]
+  },
+  "coverage": {
+    "flight_search": true,
+    "getGeneratedContractsContext": true,
+    "apply_filter": false,
+    "price_prediction_tool": false,
+    "update_flight_suggested_questions": true
+  },
+  "turns": [
+    {
+      "chat": "normalization_fewshots",
+      "turn": 1,
+      "traceId": "trace_1e21e69b44a94429bab276bfb74499f4",
+      "user": "Find one-way flights from Delhi DEL to New York NYC on October 20, 2026 for one adult in economy.",
+      "expectedIntent": "Search an exact date with city names and IATA constraints separated.",
+      "expectedTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Complete exact-date search inputs require one search, not prediction; code constraints belong in dedicated fields.",
+      "expectedStateChange": "Create a Delhi/DEL -> New York/NYC search without combined name values or active filters.",
+      "validates": "Live normalization, nullable airport names, Manager delegation, and no unnecessary prediction.",
+      "output": "✈️ I found **3 one-way economy flights** for **DEL → NYC on Oct 20, 2026 (1 adult)**:\n\n- **Option 1 (Air Canada)**: **Nonstop**, **2h 10m**, dep **09:00** → arr **11:10**, **$199**\n- **Option 2 (Air China)**: **1 stop**, **2h 35m**, dep **14:30** → arr **17:05**, **$179**\n- **Option 3 (Emirates)**: **2 stops**, **7h 55m**, dep **05:45** → arr **13:40**, **$149**\n\nℹ️ The airport codes shown inside these options look inconsistent with a DEL→NYC search, so I wouldn’t rely on airport-level details until the listing is refreshed/verified.\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Search for one-way flights from Delhi (DEL) to New York City (NYC) on October 20, 2026 for 1 adult in economy. Return available options and key differences (stops, duration, departure/arrival times, airlines, price) for the current results."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_J90kmqwc4lEsjDQkNZRUhio3",
+          "tool": "flight_search",
+          "input": {
+            "onds": [
+              {
+                "origin": "Delhi",
+                "destination": "New York City",
+                "origin_iata": "DEL",
+                "destination_iata": "NYC",
+                "origin_airport_name": null,
+                "destination_airport_name": null,
+                "outbound_date": "2026-10-20",
+                "return_date": null
+              }
+            ],
+            "trip_type": "oneway",
+            "passengers": {
+              "adults": 1,
+              "children": 0,
+              "infants": 0
+            },
+            "cabin_class": "economy"
+          },
+          "completed": true,
+          "output": {
+            "source": "dummy",
+            "message": "Sample flight results only. No live API was called.",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Delhi",
+                  "destination": "New York City",
+                  "origin_iata": "DEL",
+                  "destination_iata": "NYC",
+                  "origin_airport_name": null,
+                  "destination_airport_name": null,
+                  "outbound_date": "2026-10-20",
+                  "return_date": null
+                }
+              ],
+              "trip_type": "oneway",
+              "passengers": {
+                "adults": 1,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "economy"
+            },
+            "summary": {
+              "route": "Delhi to New York City",
+              "passengerCount": 1,
+              "optionCount": 3
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_hours": 7.92,
+                "total_duration_minutes": 475,
+                "layover_duration_hours": 2.25,
+                "layover_duration_minutes": 135,
+                "layover_airport_codes": [
+                  "DXB",
+                  "DOH"
+                ],
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ],
+            "UID": "demo-user",
+            "searchKey": "search_demo-user_1791362434796",
+            "airlineFilterOptions": [
+              {
+                "Code": "AC",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "AC+",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "CA",
+                "Text": "Air China",
+                "Name": "Air China",
+                "IsDisabled": false
+              },
+              {
+                "Code": "EK",
+                "Text": "Emirates",
+                "Name": "Emirates",
+                "IsDisabled": false
+              },
+              {
+                "Code": "QR",
+                "Text": "Qatar Airways",
+                "Name": "Qatar Airways",
+                "IsDisabled": false
+              },
+              {
+                "Code": "6E",
+                "Text": "IndiGo",
+                "Name": "IndiGo",
+                "IsDisabled": true
+              },
+              {
+                "Code": "UA",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              },
+              {
+                "Code": "UA+",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              }
+            ],
+            "layoverAirportFilterOptions": [
+              {
+                "Code": "AMS",
+                "Text": "Amsterdam Schiphol",
+                "Name": null,
+                "AirportCityName": "Amsterdam",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DXB",
+                "Text": "Dubai",
+                "Name": null,
+                "AirportCityName": "Dubai",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DOH",
+                "Text": "Doha Hamad International Airport",
+                "Name": null,
+                "AirportCityName": "Doha",
+                "IsDisabled": false
+              },
+              {
+                "Code": "FRA",
+                "Text": "Frankfurt Airport",
+                "Name": null,
+                "AirportCityName": "Frankfurt",
+                "IsDisabled": false
+              },
+              {
+                "Code": "SIN",
+                "Text": "Singapore Changi",
+                "Name": null,
+                "AirportCityName": "Singapore",
+                "IsDisabled": true
+              }
+            ],
+            "DepartAirports": [
+              {
+                "Code": "DEL",
+                "Price": 730.15,
+                "Text": "Indira Gandhi International",
+                "Name": null,
+                "Count": 190,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "Delhi"
+              }
+            ],
+            "DepLandAirports": [
+              {
+                "Code": "JFK",
+                "Price": 520.1,
+                "Text": "John F Kennedy Intl",
+                "Name": null,
+                "Count": 210,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              },
+              {
+                "Code": "EWR",
+                "Price": 498.4,
+                "Text": "Newark Liberty Intl",
+                "Name": null,
+                "Count": 178,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "Newark"
+              },
+              {
+                "Code": "LGA",
+                "Price": 530.2,
+                "Text": "LaGuardia",
+                "Name": null,
+                "Count": 96,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_LbRJ5WEAm1K4QuBMQhAMjOG3",
+          "tool": "getGeneratedContractsContext",
+          "input": {
+            "mode": "read",
+            "indexes": null
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "resultSource": "searchResults",
+            "message": "Sample generated flight contract context only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791362434796",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Delhi",
+                  "destination": "New York City",
+                  "outbound_date": "2026-10-20",
+                  "return_date": null,
+                  "origin_iata": "DEL",
+                  "origin_airport_name": null,
+                  "destination_iata": "NYC",
+                  "destination_airport_name": null
+                }
+              ],
+              "trip_type": "oneway",
+              "passengers": {
+                "adults": 1,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "economy"
+            },
+            "resultState": "available",
+            "filters": [],
+            "originalCount": 3,
+            "selectedIndexes": [],
+            "visibleIndexes": [
+              1,
+              2,
+              3
+            ],
+            "visibleCount": 3,
+            "requestedIndexes": null,
+            "contracts": [
+              {
+                "optionNumber": 1,
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_minutes": 130,
+                "layover_duration_minutes": 0,
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 199"
+              },
+              {
+                "optionNumber": 2,
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_minutes": 155,
+                "layover_duration_minutes": 45,
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 179"
+              },
+              {
+                "optionNumber": 3,
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_minutes": 475,
+                "layover_duration_minutes": 135,
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 149"
+              }
+            ],
+            "summary": {
+              "totalAvailable": 3,
+              "cheapestOption": {
+                "optionNumber": 3,
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_minutes": 475,
+                "layover_duration_minutes": 135,
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 149"
+              },
+              "shortestDurationOption": {
+                "optionNumber": 1,
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_minutes": 130,
+                "layover_duration_minutes": 0,
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 199"
+              },
+              "bestValueOption": {
+                "optionNumber": 3,
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_minutes": 475,
+                "layover_duration_minutes": 135,
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "priceLabel": "USD 149"
+              }
+            }
+          }
+        },
+        {
+          "callId": "call_Ae1yHgYcAV4HPfLBJBE1qrEp",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Show flights to JFK only"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Show flights to JFK only"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [],
+        "outbound_date": null,
+        "return_date": null,
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [],
+      "observedFlightTools": [
+        "flight_search",
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "flight_search",
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Search returned 3 available one-way options. Key differences: prices span USD 149–199; stops range 0–2; durations range 2h10m–7h55m; departure times range early morning to afternoon.",
+          "completedTask": "Ran a one-way flight search for DEL → NYC on 2026-10-20 (1 adult, economy) and analyzed the current 3 returned options for key differences (stops, duration, times, airlines, price).",
+          "findings": [
+            "Search used: one-way Delhi (DEL) → New York City (NYC), depart 2026-10-20; 1 adult; economy.",
+            "3 options are currently visible (options 1–3); no filters are applied.",
+            "Stops: Option 1 is nonstop (0 stops); Option 2 has 1 stop; Option 3 has 2 stops.",
+            "Duration: shortest is Option 1 at 2h 10m; Option 2 is 2h 35m; longest is Option 3 at 7h 55m.",
+            "Departure/arrival times (local as shown): Option 3 departs earliest (05:45) and arrives 13:40; Option 1 departs 09:00 and arrives 11:10; Option 2 departs latest (14:30) and arrives 17:05.",
+            "Airlines: Option 1 Air Canada; Option 2 Air China; Option 3 Emirates.",
+            "Price: cheapest is Option 3 at USD 149; Option 2 is USD 179; most expensive is Option 1 at USD 199.",
+            "Tradeoffs: cheapest option (3) is also the longest and has the most stops; fastest option (1) is nonstop but costs more than options 2–3."
+          ],
+          "limitations": [
+            "The displayed airport codes inside the options appear inconsistent with the searched route (e.g., showing LAX/BUR/ONT/SNA on a DEL→NYC search), so airport-level details may not be reliable for decisioning without a refreshed/verified listing."
+          ],
+          "nextStep": null,
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": null,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "",
+      "searchKeyAfter": "search_demo-user_1791362434796",
+      "activeFilterTypes": [],
+      "suggestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Show flights to JFK only"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 72421,
+      "outputTokens": 1100,
+      "modelCalls": 6,
+      "latencyMs": 30662,
+      "classification": "unexpected_failure",
+      "checks": [
+        "expected tools flight_search -> update_flight_suggested_questions, got flight_search -> getGeneratedContractsContext -> update_flight_suggested_questions"
+      ],
+      "acceptableDeviations": []
+    }
+  ]
+}
