@@ -573,6 +573,11 @@ for (const [index, expectation] of scenario.turns.entries()) {
       resultCount,
     }));
     const successfulSearch = flightToolCalls.some((call) => call.tool === 'flight_search' && searchProducedResults(call));
+    const searchIndex = flightToolCalls.findIndex((call) => call.tool === 'flight_search' && searchProducedResults(call));
+    if (searchIndex >= 0 && flightToolCalls.slice(searchIndex + 1).some((call) =>
+      call.tool === 'apply_filter' && (call.input?.filters || []).some((filter: any) => filter?.filterType === 'reset'))) {
+      checks.push('apply_filter sent a reset entry after a new search, whose results start unfiltered');
+    }
     if (successfulSearch && resultCount > 0 && !renderFlightOptions) {
       checks.push('successful search did not leave visible client flight cards');
     }
