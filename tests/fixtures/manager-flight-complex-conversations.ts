@@ -231,10 +231,12 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedFilterTypes: [],
       },
       {
-        user: 'Does that same flight include a checked bag?',
-        expectedIntent: 'Answer a fact about the option just shown, without changing visibility.',
+        // Not baggage: the Manager's scope policy declines baggage or fare
+        // benefits of a selected/current option (observed 7 Oct, by design).
+        user: 'What time does that same flight leave, and how many stops does it have?',
+        expectedIntent: 'Answer facts about the option just shown, without changing visibility.',
         expectedTools: ['getGeneratedContractsContext', SUGGESTIONS],
-        why: '"That same flight" is the option displayed last turn; a baggage fact needs a fresh read of that index.',
+        why: '"That same flight" is the option displayed last turn; its departure time and stops need a fresh read of that index.',
         expectedStateChange: 'Keep the search, filters, and the single visible card unchanged.',
         validates: 'Reference chain across three turns, read-only fact lookup, and no re-search or filter.',
         expectedSearchKeyChange: 'same',
