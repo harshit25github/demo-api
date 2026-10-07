@@ -150,7 +150,7 @@ function firstArray(...values: unknown[]): any[] | undefined {
   return values.find(Array.isArray);
 }
 
-function resultCount(searchResults: unknown): number | null {
+export function resultCount(searchResults: unknown): number | null {
   if (Array.isArray(searchResults)) {
     return searchResults.length;
   }

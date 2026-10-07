@@ -338,6 +338,46 @@ test('validator accepts every kind of pre-search suggestion in the production st
   }
 });
 
+test('validator rejects ranking or comparing options when fewer than two current options exist', () => {
+  // Live runs 7 Oct offered "Which option is cheapest?" with one option four
+  // times, despite the prompt rule; the tool now turns that into one retry.
+  for (const [count, problem] of [[1, /only one current option/], [0, /no current option/]] as const) {
+    const issues = findSuggestedQuestionIssues(
+      ['Which option is cheapest?', 'Remove the morning filter', 'Switch to business class'], [], count,
+    );
+    assert.ok(
+      issues.some((issue) => issue.path === 'suggestedQuestions.0' && problem.test(issue.problem)),
+      JSON.stringify(issues),
+    );
+  }
+  assert.deepEqual(findSuggestedQuestionIssues(
+    ['Which option is cheapest?', 'Compare options 1 and 2', 'Switch to business class'], [], 2,
+  ), []);
+  // Price windows and date comparisons are not option rankings.
+  assert.deepEqual(findSuggestedQuestionIssues(
+    ['Cheapest this week', 'Compare the promising dates', 'Show details for option 1'], [], 1,
+  ), []);
+  // An unknown result count never rejects.
+  assert.deepEqual(findSuggestedQuestionIssues(
+    ['Which option is cheapest?', 'Compare current options', 'Switch to business class'],
+  ), []);
+});
+
+test('update rejects a ranking chip against a one-option result set', () => {
+  const context: any = {
+    flight: { searchKey: 'search-one-option', searchResults: [{ id: 'only-flight' }], suggestedQuestions: [] },
+  };
+  const output: any = updateFlightSuggestedQuestions({
+    currentFlightContext: context,
+    suggestedQuestions: ['Which option is fastest?', 'Remove the morning filter', 'Switch to business class'],
+    retrySafe: true,
+  });
+
+  assert.equal(output.ok, false);
+  assert.equal(output.code, 'INVALID_SUGGESTED_QUESTIONS');
+  assert.deepEqual(context.flight.suggestedQuestions, []);
+});
+
 test('the set shown before the turn cannot be resent, even reordered after a search cleared it', async () => {
   const context = activeSearchContext('anti-repeat-turn', [...FRESH]);
   beginFlightSuggestionTurn(context, { flightRan: true });

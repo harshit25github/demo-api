@@ -49,7 +49,8 @@ test('few-shot payloads execute all five tools through Manager and preserve mult
         filter('departureTime', { filterCode: 'MORNING', rawUserFilter: 'morning departures' }),
         filter('price', { maxPrice: 220, rawUserFilter: 'under $220' }),
         filter('baggage', { filterCode: '1', rawUserFilter: 'with carry-on baggage' }),
-      ] } }, suggestions(['Which option has shortest duration?', 'Show Air Canada flights only', 'Make this a round trip']),
+      // One option matches, so no ranking chip: the tool rejects those below two options.
+      ] } }, suggestions(['Show details for option 1', 'Show Air Canada flights only', 'Make this a round trip']),
     ], filters: { stops: ['0'], departureTime: ['MORNING'], price: [220], baggage: ['1'] } },
     { user: 'Make it evening instead, drop the price cap, and remove carry-on.', calls: [
       { tool: 'apply_filter', input: { filters: [
@@ -67,7 +68,7 @@ test('few-shot payloads execute all five tools through Manager and preserve mult
         filter('reset', { rawUserFilter: 'Clear all filters' }),
         filter('airline', { airlineNames: ['Air Canada', 'Emirates'], rawUserFilter: 'use only Air Canada or Emirates' }),
         filter('layoverDuration', { maxDurationMinutes: 90, rawUserFilter: 'a layover under 90 minutes' }),
-      ] } }, suggestions(['Show the cheapest current option', 'Add checked baggage requirement', 'Search nearby travel days']),
+      ] } }, suggestions(['Show details for option 1', 'Add checked baggage requirement', 'Search nearby travel days']),
     ], filters: { airline: ['AC', 'AC+', 'EK'], layoverDuration: [90] } },
     // Explicit indexed display retains select transport coverage; open-ended
     // cheapest-option ranking is read-only in the live normalization fixture.
