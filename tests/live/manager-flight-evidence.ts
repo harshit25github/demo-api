@@ -199,7 +199,8 @@ export function dateSweepPromiseIssues(feedback: string): string[] {
     String.raw`\bsearch\b.{0,160}\bto compare\b`,
     String.raw`\bsearch(?:es)?\s+(?:per|for each|for every)\s+(?:day|date)\b`,
     String.raw`\b(?:dates?|days?)\s+(?:individually|one by one|one at a time)\b`,
-    String.raw`\b(?:which|tell me|pick|choose|share|give me)\s+(?:\d+\s*[–-]\s*\d+|\d+|one or two|two or three|a few|a couple of|some|other|more|specific)\s+(?:(?:more|other|specific)\s+)?(?:dates?|days?)\b`,
+    String.raw`\b(?:which|tell me|pick|choose|share|give me)\s+(?:\d+\s*[–-]\s*\d+|\d+|one or two|two or three|one|a|an|another|a few|a couple of|some|other|more|specific)\s+(?:(?:more|other|specific|alternate)\s+)?(?:dates?|days?)\b`,
+    String.raw`\bseparate\s+(?:\w+\s+)?search(?:es)?\b`,
   ].join('|'), 'i');
   return sweep.test(feedback) ? ['failed prediction offered a date-by-date search sweep as a replacement comparison'] : [];
 }
@@ -214,7 +215,9 @@ export function subtaskEnrichmentIssues(user: string, subtasks: readonly string[
 
 export function failedPredictionCtaIssues(suggestions: string[]): string[] {
   const genericFailedLookup = /\b(?:cheaper|cheapest|better|best|strongest)\s+(?:(?:travel|departure|return|nearby)\s+)?dates?\b/i;
-  return suggestions.some((suggestion) => genericFailedLookup.test(suggestion))
+  // The prompt allows a different window after a failure ("Cheapest in the next 3 months").
+  const differentWindow = /\b(?:january|february|march|april|may|june|july|august|september|october|november|december|next month|next \d+ (?:weeks|months))\b/i;
+  return suggestions.some((suggestion) => genericFailedLookup.test(suggestion) && !differentWindow.test(suggestion))
     ? ['suggestions re-offered generic date intelligence after this turn could not verify it'] : [];
 }
 

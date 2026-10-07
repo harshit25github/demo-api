@@ -24,6 +24,8 @@ test('date-fallback evidence catches both observed sweep promises, not a bounded
     'Tell me 1–2 specific dates within 2026-10-21 to 2026-10-28 to check next (I can run a new search per date).',
     'I can’t confirm which of Oct 22–Oct 28 have Air China flights without running those dates individually.',
     'Which 1–2 dates in that window should I check next?',
+    // Observed 7 Oct, advice-only turn with no fallback search.
+    'If you tell me one specific date in that window (e.g., Nov 18), I can run a separate comparison search.',
   ]) assert.equal(dateSweepPromiseIssues(feedback).length, 1);
   assert.deepEqual(dateSweepPromiseIssues('Inspect the October 21 results; no cheapest day was verified.'), []);
   assert.deepEqual(dateSweepPromiseIssues('Want me to allow one stop or remove the evening filter?'), []);
@@ -67,6 +69,8 @@ test('place evidence flags cities the traveler never gave, not ones from their m
 
 test('failed-date CTA evidence rejects the observed repeated lookup, not current-option ranking', () => {
   assert.equal(failedPredictionCtaIssues(['Any cheaper dates nearby?']).length, 1);
+  // A different window is allowed after a failed lookup.
+  assert.deepEqual(failedPredictionCtaIssues(['Any cheaper dates in December?', 'Cheapest dates in the next 3 months']), []);
   assert.deepEqual(failedPredictionCtaIssues(['Which current option is cheapest?', 'Remove the Air China filter', 'Change to business class']), []);
 });
 
