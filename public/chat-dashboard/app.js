@@ -54,16 +54,6 @@ function clearFlightContracts() {
   elements.messages.querySelectorAll('.flight-results').forEach((element) => element.remove());
 }
 
-function isFlightAgent(agent) {
-  return /flight/i.test(String(agent || ''));
-}
-
-function shouldRenderFlightOptions(record) {
-  return typeof record.renderFlightOptions === 'boolean'
-    ? record.renderFlightOptions
-    : isFlightAgent(record.agent ?? record.finalAgent);
-}
-
 function showEmpty() {
   if (!elements.messages.children.length) {
     elements.messages.append(elements.emptyState);
@@ -127,18 +117,18 @@ async function loadChat(chatId) {
   localStorage.setItem('gatewayChatId', chat.chatId);
   elements.chatTitle.textContent = chat.title || 'New chat';
   clearMessages();
-  let latestFlightMessage = null;
+  let latestAssistantMessage = null;
   for (const message of chat.messages) {
     const rendered = appendMessage(message.role, message.content, {
       agent: message.agent,
       status: message.status === 'failed' ? 'failed' : 'completed',
     });
-    if (message.role === 'assistant' && shouldRenderFlightOptions(message)) {
-      latestFlightMessage = rendered;
+    if (message.role === 'assistant' && !['failed', 'aborted'].includes(message.status)) {
+      latestAssistantMessage = rendered;
     }
   }
-  if (latestFlightMessage) {
-    renderFlightContracts(latestFlightMessage.body, state.flightContext);
+  if (latestAssistantMessage) {
+    renderFlightContracts(latestAssistantMessage.body, state.flightContext);
   }
   showEmpty();
   updateDebug();
@@ -229,10 +219,10 @@ async function sendMessage(message) {
         state.summaryContext = data.summaryContext || {};
         state.flightContext = data.flightContext || {};
         state.conversationId = data.conversationId;
-        if (shouldRenderFlightOptions(data)) {
-          clearFlightContracts();
-          renderFlightContracts(draft.body, state.flightContext);
-        }
+        // Visibility comes exclusively from shared Flight flags/results. Clear
+        // prior cards even when the current state hides or empties the listing.
+        clearFlightContracts();
+        renderFlightContracts(draft.body, state.flightContext);
         setStatus(data.summaryStatus === 'completed' ? 'Ready' : 'Ready, context unchanged');
       } else if (event === 'error') {
         draft.article.classList.remove('streaming');

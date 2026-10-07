@@ -16,8 +16,6 @@ interface GatewayResult {
   finalAgentName: string | null;
   lastResponseId: string | null;
   context: FlightAppContext;
-  specialistsUsed?: string[];
-  renderFlightOptions?: boolean;
 }
 
 interface StreamChatTurnOptions {
@@ -144,10 +142,8 @@ export async function streamChatTurn({
     const appContext = hydrateGatewayContext(chat.runtimeContext, previousSummary);
     gatewayContext = appContext;
 
-    // One nonstream Manager run. The answer is only safe to show once every
-    // specialist result is composed in — render references resolved, scope and
-    // link filtering applied — so it is emitted as a single delta rather than
-    // token by token.
+    // The existing nonstream runner returns the Manager's final answer. Flight
+    // cards remain separate data in shared context, not markers in this text.
     const gatewayResult = await runGateway!({
       input: message,
       requestId,
@@ -166,7 +162,6 @@ export async function streamChatTurn({
       draftText = finalText;
       writer.send('delta', { chatId: chat.chatId, turnId, text: finalText });
     }
-    const renderFlightOptions = Boolean(gatewayResult.renderFlightOptions);
     writer.send('summary.started', { chatId: chat.chatId, turnId });
 
     let summaryContext = previousSummary;
@@ -195,8 +190,6 @@ export async function streamChatTurn({
         role: 'assistant',
         content: finalText,
         agent: gatewayResult.finalAgentName,
-        specialistsUsed: gatewayResult.specialistsUsed,
-        renderFlightOptions,
         status: 'completed',
         createdAt: completedAt,
         summaryContext: structuredClone(summaryContext),
@@ -207,8 +200,6 @@ export async function streamChatTurn({
         status: 'completed',
         lastResponseId: gatewayResult.lastResponseId,
         finalAgent: gatewayResult.finalAgentName,
-        specialistsUsed: gatewayResult.specialistsUsed,
-        renderFlightOptions,
         summaryStatus,
         completedAt,
       });
@@ -220,8 +211,6 @@ export async function streamChatTurn({
       turnId,
       conversationId,
       finalAgent: gatewayResult.finalAgentName,
-      specialistsUsed: gatewayResult.specialistsUsed,
-      renderFlightOptions,
       finalText,
       summaryContext,
       summaryStatus,

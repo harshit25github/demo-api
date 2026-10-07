@@ -1,12 +1,4 @@
-/**
- * The acceptance scenarios for the Manager refactor, end to end through a real
- * Runner with only the models stubbed.
- *
- * Covers the request shapes that exercise the seams the refactor moved: a
- * dependent Flight -> Trip request, a mixed in-scope/out-of-scope request,
- * filter clearing through the scoped tool input, a second turn over persisted
- * context, and terminal error handling for abort and Manager max turns.
- */
+/** Minimal Manager acceptance: native SDK delegation, shared state, persistence, and existing runner errors. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -15,440 +7,154 @@ process.env.OPENAI_API_KEY ||= 'test-key';
 process.env.FLIGHT_AGENT_LOG_LEVEL ||= 'error';
 
 const { MaxTurnsExceededError, RunContext, Runner, Usage } = await import('@openai/agents');
-const { createManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
+const { ManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
 const { buildGatewayContext } = await import('../../src/agents/manager-orchestrator/runner.js');
 const { runGatewayAgentTextStream } = await import('../../src/agents/manager-orchestrator/streaming.js');
-const {
-  createManagerTools,
-  createManagerTurnState,
-  finalizeManagerOutput,
-  GENERIC_SPECIALIST_FAILURE,
-} = await import('../../src/agents/manager/tools.js');
 const { FlightManagerAgent } = await import('../../src/agents/flight/agent.js');
 const { TripPlannerAgent } = await import('../../src/agents/trip-planner/agent.js');
 const { ApplyFilterTool: ApplyFilterToolDefinition } = await import('../../src/agents/flight/tools/index.js');
 const { createProdFlightContext } = await import('../../src/agents/flight/context/flight-context.js');
+const { snapshotGatewayContext, hydrateGatewayContext } = await import('../../src/api/chat/context-hydration.js');
 const { createRequestContext } = await import('../../src/shared/runtime/request-context.js');
 const { createRequestClock } = await import('../../src/shared/time/request-clock.js');
 
 const ApplyFilterTool: any = ApplyFilterToolDefinition;
-
-/** The tool returns either a JSON string or an object, depending on the path. */
-function parseToolResult(result: unknown): any {
-  return typeof result === 'string' ? JSON.parse(result) : result;
-}
-
 function makeContext(input: string, seed: Record<string, unknown> = {}) {
-  return buildGatewayContext({
-    context: seed,
-    input,
-    requestId: 'acceptance-request',
-    sessionId: 'acceptance-session',
-  });
+  return buildGatewayContext({ context: seed, input, requestId: 'acceptance-request', sessionId: 'acceptance-session' });
 }
-
-function sdkContext(appContext: unknown) {
-  return new RunContext(createRequestContext(
-    appContext as object,
-    createRequestClock({ now: new Date('2026-09-19T10:00:00Z'), timeZone: 'UTC' }),
-  ));
+function sdkContext(appContext: object) {
+  return new RunContext(createRequestContext(appContext,
+    createRequestClock({ now: new Date('2026-09-19T10:00:00Z'), timeZone: 'UTC' })));
 }
-
 function modelAnswer(text: string) {
-  return {
-    usage: new Usage(),
-    output: [{
-      type: 'message', role: 'assistant', status: 'completed',
-      content: [{ type: 'output_text', text }],
-    }],
-    responseId: 'resp_acceptance',
-  };
+  return { usage: new Usage(), output: [{ type: 'message', role: 'assistant', status: 'completed',
+    content: [{ type: 'output_text', text }] }], responseId: 'resp_acceptance' };
 }
-
-function flightStructuredAnswer(fields: Record<string, unknown> = {}) {
-  return modelAnswer(JSON.stringify({
-    status: 'success',
-    completedTask: 'Searched flights',
-    summary: 'Found options.',
-    findings: [],
-    limitations: [],
-    missingInformation: [],
-    nextStep: null,
-    presentation: null,
-    ...fields,
-  }));
+function flightAnswer(fields: Record<string, unknown> = {}) {
+  return modelAnswer(JSON.stringify({ status: 'success', completedTask: 'Searched flights', summary: 'Found options.',
+    findings: [], limitations: [], missingInformation: [], nextStep: null, presentation: null, ...fields }));
 }
-
-function toolCallResponse(calls: Array<{ name: string; input: string; callId: string }>) {
-  return {
-    usage: new Usage(),
-    output: calls.map(({ name, input, callId }) => ({
-      type: 'function_call', callId, name,
-      arguments: JSON.stringify({ input }), status: 'completed',
-    })),
-    responseId: `resp_manager_${calls[0].callId}`,
-  };
+function toolCall(name: string, input: string, callId: string) {
+  return { usage: new Usage(), output: [{ type: 'function_call', callId, name,
+    arguments: JSON.stringify({ input }), status: 'completed' }], responseId: `resp_${callId}` };
 }
-
-/**
- * Run one Manager turn with scripted specialist behavior.
- *
- * `script` returns, for each Manager model call, either the tool calls to make or
- * the final text. The specialist models are replaced for the duration.
- */
-async function runManagerTurn({
-  input,
-  seed = {},
-  script,
-  flight,
-  trip,
-  signal,
-}: {
-  input: string;
-  seed?: Record<string, unknown>;
-  script: (call: number, state: any) => any;
-  flight?: (appContext: any) => unknown;
-  trip?: (appContext: any) => unknown;
-  signal?: AbortSignal;
+async function runManagerTurn({ input, seed = {}, script, flight, trip }: {
+  input: string; seed?: Record<string, unknown>; script: (call: number) => any;
+  flight?: (appContext: any) => unknown; trip?: (appContext: any) => unknown;
 }) {
   const appContext = makeContext(input, seed);
-  const state = createManagerTurnState(appContext, 'acceptance-request');
-  const originalFlight = (FlightManagerAgent as any).model;
-  const originalTrip = (TripPlannerAgent as any).model;
-  const managerInputs: string[] = [];
-
+  const originalManager = ManagerAgent.model;
+  const originalFlight = FlightManagerAgent.model;
+  const originalTrip = TripPlannerAgent.model;
+  const inputs: any[][] = [];
+  const order: string[] = [];
   try {
-    if (flight) {
-      (FlightManagerAgent as any).model = {
-        async getResponse() { return flight(appContext); },
-      };
-    }
-    if (trip) {
-      (TripPlannerAgent as any).model = {
-        async getResponse() { return trip(appContext); },
-      };
-    }
-
-    let managerCalls = 0;
-    const managerModel: any = {
-      async getResponse(request: any) {
-        managerCalls += 1;
-        managerInputs.push(JSON.stringify(request.input));
-        return script(managerCalls, state);
-      },
-    };
-
-    const manager = createManagerAgent(createManagerTools(state)).clone({ model: managerModel });
-    const result = await new Runner({
-      model: managerModel,
-      tracingDisabled: true,
-      toolExecution: { maxFunctionToolConcurrency: 1 },
-    }).run(manager, input, { context: sdkContext(appContext), maxTurns: 8, signal });
-
-    const toolResults = managerInputs.flatMap((raw) => {
-      try {
-        return JSON.parse(raw).filter((item: any) => item.type === 'function_call_result');
-      } catch { return []; }
-    });
-
-    return {
-      state,
-      appContext,
-      managerInputs,
-      toolResults: toolResults.map((item: any) => String(item.output?.text ?? '')),
-      composed: finalizeManagerOutput(String(result.finalOutput), state),
-    };
-  } finally {
-    (FlightManagerAgent as any).model = originalFlight;
-    (TripPlannerAgent as any).model = originalTrip;
-  }
+    if (flight) FlightManagerAgent.model = { async getResponse() { order.push('flight_agent'); return flight(appContext); } } as any;
+    if (trip) TripPlannerAgent.model = { async getResponse() { order.push('trip_planner_agent'); return trip(appContext); } } as any;
+    ManagerAgent.model = { async getResponse(request: any) { inputs.push(request.input); return script(inputs.length); } } as any;
+    const result = await new Runner({ tracingDisabled: true, toolExecution: { maxFunctionToolConcurrency: 1 } })
+      .run(ManagerAgent, input, { context: sdkContext(appContext), maxTurns: 8 });
+    // Inspect the final Manager model input once, rather than duplicating accumulating tool results.
+    const toolResults = inputs.at(-1)!.filter((item: any) => item.type === 'function_call_result')
+      .map((item: any) => String(item.output.text));
+    return { appContext, inputs, order, toolResults, output: String(result.finalOutput) };
+  } finally { ManagerAgent.model = originalManager; FlightManagerAgent.model = originalFlight; TripPlannerAgent.model = originalTrip; }
 }
 
-test('a dependent Flight then Trip request runs in order and composes once', async () => {
+test('dependent Flight then Trip delegation is ordered and Trip reads confirmed shared flight facts', async () => {
   const plan = 'Day 1: Dubai Creek and local food.\nDay 2: museums and beaches.';
-  const { state, toolResults, composed } = await runManagerTurn({
-    input: 'Find flights to Dubai on 20 October, then plan what to do there',
-    script: (call, state) => {
-      if (call === 1) {
-        return toolCallResponse([
-          { name: 'flight_agent', input: 'Find flights to Dubai on 20 October', callId: 'c1' },
-        ]);
-      }
-      if (call === 2) {
-        // The Trip subtask carries the confirmed flight facts the plan depends on.
-        return toolCallResponse([
-          { name: 'trip_planner_agent', input: 'Plan Dubai activities for a 20 October arrival', callId: 'c2' },
-        ]);
-      }
-      const ref = [...state.renders.keys()][0];
-      return modelAnswer(`Found two Dubai flights for 20 October. Note: Prices shown are per person.\n\n[[render:${ref}]]`);
-    },
-    flight: (appContext) => {
-      appContext.flight.searchResults = [{ id: 'f1' }, { id: 'f2' }];
-      appContext.flight.totalResultsFound = 2;
-      appContext.flight.showFlight = true;
-      appContext.flight.outboundDate = '2026-10-20';
-      appContext.toolCallLog.push({ tool: 'flight_search', ok: true });
-      return flightStructuredAnswer({
-        completedTask: 'Searched Dubai flights for 20 October',
-        summary: 'Found two Dubai options for 20 October.',
-        findings: ['Outbound date: 2026-10-20'],
-        presentation: 'flight_cards_with_price_note',
-      });
-    },
-    trip: () => modelAnswer(plan),
-  });
-
-  // Ordered, one call each.
-  assert.deepEqual(state.outcomes.map((item) => item.name), ['flight_agent', 'trip_planner_agent']);
-  assert.equal(state.outcomes[1].input, 'Plan Dubai activities for a 20 October arrival');
-
-  // The Trip subtask ran against the flight facts already in shared state.
-  assert.deepEqual(state.outcomes[0].result.findings, ['Outbound date: 2026-10-20']);
-
-  // Both results stayed compact; the plan body never entered the Manager context.
-  for (const output of toolResults) {
-    assert.ok(output.length < 500, `tool result too large: ${output.length}`);
-    assert.doesNotMatch(output, /museums and beaches/);
-  }
-
-  // One composition: flight prose once, plan once, price note once.
-  assert.equal(composed.output.match(/Found two Dubai flights/g)?.length, 1);
-  assert.equal(composed.output.match(/Day 1: Dubai Creek/g)?.length, 1);
-  assert.equal(composed.output.match(/Note: Prices shown are per person\./g)?.length, 1);
-  assert.equal(composed.renderFlightOptions, true);
-  assert.deepEqual(composed.specialistsUsed, ['flight_agent', 'trip_planner_agent']);
+  const answer = `Found two Dubai flights for 20 October. Note: Prices shown are per person.\n\n${plan}`;
+  const result = await runManagerTurn({ input: 'Find flights to Dubai on 20 October, then plan what to do there',
+    script: (call) => call === 1 ? toolCall('flight_agent', 'Find flights to Dubai on 20 October', 'c1')
+      : call === 2 ? toolCall('trip_planner_agent', 'Plan Dubai activities for a 20 October arrival', 'c2') : modelAnswer(answer),
+    flight: (state) => {
+      state.flight.searchResults = [{ id: 'f1' }, { id: 'f2' }];
+      state.flight.totalResultsFound = 2;
+      state.flight.showFlight = true;
+      state.flight.outboundDate = '2026-10-20';
+      return flightAnswer({ findings: ['Outbound date: 2026-10-20'], presentation: 'flight_cards_with_price_note' });
+    }, trip: (state) => {
+      assert.equal(state.flight.outboundDate, '2026-10-20');
+      assert.equal(state.tripPlanner.currentUserMessage, 'Plan Dubai activities for a 20 October arrival');
+      return modelAnswer(plan);
+    } });
+  assert.deepEqual(result.order, ['flight_agent', 'trip_planner_agent']);
+  assert.deepEqual(JSON.parse(result.toolResults[0]).findings, ['Outbound date: 2026-10-20']);
+  assert.equal(result.toolResults[1], plan);
+  assert.equal(result.output, answer);
+  assert.equal(result.output.match(/Day 1: Dubai Creek/g)?.length, 1);
+  assert.equal(result.appContext.flight.showFlight, true);
+  assert.doesNotMatch(result.output, /\[\[render:|renderRef/);
 });
 
-test('a mixed in-scope and out-of-scope request answers only the in-scope parts', async () => {
-  const { state, toolResults, composed } = await runManagerTurn({
-    input: 'Find flights to Dubai and book me a hotel and airport taxi',
-    script: (call, state) => {
-      if (call === 1) {
-        return toolCallResponse([
-          { name: 'flight_agent', input: 'Find flights to Dubai', callId: 'c1' },
-        ]);
-      }
-      if (call === 2) {
-        return toolCallResponse([
-          { name: 'trip_planner_agent', input: 'Suggest Dubai things to do', callId: 'c2' },
-        ]);
-      }
-      const ref = [...state.renders.keys()][0];
-      return modelAnswer(`Found two Dubai flights.\n\n${ref ? `[[render:${ref}]]` : ''}`);
-    },
-    flight: (appContext) => {
-      appContext.flight.searchResults = [{ id: 'f1' }, { id: 'f2' }];
-      appContext.flight.totalResultsFound = 2;
-      appContext.flight.showFlight = true;
-      appContext.toolCallLog.push({ tool: 'flight_search', ok: true });
-      return flightStructuredAnswer({ summary: 'Found two Dubai options.', presentation: 'flight_cards_with_price_note' });
-    },
-    // The Trip Planner drifts out of scope; the scope filter must catch it.
-    trip: () => modelAnswer('Day 1: Dubai Creek.\nBook a hotel downtown and take a taxi from the airport.'),
-  });
-
-  // The out-of-scope content never reaches the stored plan or the final answer.
-  const tripOutcome = state.outcomes.find((item) => item.name === 'trip_planner_agent');
-  assert.equal(tripOutcome?.result.status, 'partial');
-  assert.doesNotMatch(composed.output, /hotel|taxi/i);
-  assert.doesNotMatch(toolResults.join(' '), /hotel|taxi/i);
-
-  // The in-scope flight half still answered fully.
-  assert.match(composed.output, /Found two Dubai flights/);
-  assert.equal(composed.renderFlightOptions, true);
+test('existing scope policy prevents prohibited Trip output reaching the Manager while Flight state survives', async () => {
+  const result = await runManagerTurn({ input: 'Find Dubai flights and suggest activities; do not arrange hotels or taxis',
+    script: (call) => call === 1 ? toolCall('flight_agent', 'Find flights to Dubai', 'c1')
+      : call === 2 ? toolCall('trip_planner_agent', 'Suggest Dubai activities', 'c2') : modelAnswer('Found two Dubai flights.'),
+    flight: (state) => {
+      state.flight.searchResults = [{ id: 'f1' }, { id: 'f2' }]; state.flight.showFlight = true;
+      return flightAnswer({ summary: 'Found two Dubai options.' });
+    }, trip: () => modelAnswer('Day 1: Dubai Creek.\nBook a hotel downtown and take a taxi from the airport.') });
+  assert.doesNotMatch(result.toolResults[1], /hotel|taxi/i);
+  assert.equal((result.appContext as any).tripPlannerScopeGuardrail.changed, true);
+  assert.equal(result.appContext.flight.showFlight, true);
+  assert.equal(result.output, 'Found two Dubai flights.');
 });
 
-test('filter clearing uses the scoped subtask, not the whole mixed turn', async () => {
+test('filter clearing uses the scoped subtask rather than the whole mixed turn', async () => {
   let sequence = 0;
-  const filterContext = () => {
-    sequence += 1;
-    return {
-      requestId: 'acceptance-request',
-      sessionId: 'acceptance-session',
-      toolCallLog: [],
-      // On a mixed turn the shared message holds far more than the filter clause.
-      currentUserMessage: 'Remove all filters and plan my Dubai trip',
-      flight: createProdFlightContext({
-        flight: {
-          uid: 'acceptance-user',
-          searchKey: `search-acceptance-${sequence}`,
-          searchResults: [],
-        },
-      }),
-    };
-  };
-
-  // A dummy filter the model supplies; a recognised clear-all request replaces it.
-  const suppliedFilter = {
-    filterType: 'stops', filterCode: '0',
-    minDurationMinutes: null, maxDurationMinutes: null,
-    minPrice: null, maxPrice: null,
-    airlineNames: null, layoverAirportNames: null,
-    departureAirportNames: null, arrivalAirportNames: null,
-    rawUserFilter: null,
-  };
-
-  // Scoped to the flight clause: the clear-all request is recognised.
-  const scoped = parseToolResult(await ApplyFilterTool.invoke(
-    { context: filterContext(), toolInput: { input: 'Remove all filters' } },
-    JSON.stringify({ filters: [suppliedFilter] }),
-    {},
-  ));
-  assert.ok(
-    JSON.stringify(scoped).includes('reset'),
-    `expected a reset filter from the scoped clear-all request: ${JSON.stringify(scoped).slice(0, 300)}`,
-  );
-
-  // Scoped to a narrower clause on the same turn: the mixed shared message must
-  // NOT be read as a clear-all, so the supplied filter stands.
-  const narrow = parseToolResult(await ApplyFilterTool.invoke(
-    { context: filterContext(), toolInput: { input: 'Show nonstop flights only' } },
-    JSON.stringify({ filters: [suppliedFilter] }),
-    {},
-  ));
-  assert.doesNotMatch(
-    JSON.stringify(narrow.finalFilterPayload ?? narrow),
-    /"filterType":"reset"/,
-    'a narrow subtask must not trigger clear-all from the shared turn message',
-  );
+  const filterContext = () => ({ requestId: 'acceptance-request', sessionId: 'acceptance-session', toolCallLog: [],
+    currentUserMessage: 'Remove all filters and plan my Dubai trip',
+    flight: createProdFlightContext({ flight: { uid: 'acceptance-user', searchKey: `search-acceptance-${++sequence}`,
+      searchResults: [] } }) });
+  const suppliedFilter = { filterType: 'stops', filterCode: '0', minDurationMinutes: null, maxDurationMinutes: null,
+    minPrice: null, maxPrice: null, airlineNames: null, layoverAirportNames: null,
+    departureAirportNames: null, arrivalAirportNames: null, rawUserFilter: null };
+  const parse = (value: unknown): any => typeof value === 'string' ? JSON.parse(value) : value;
+  const scoped = parse(await ApplyFilterTool.invoke({ context: filterContext(), toolInput: { input: 'Remove all filters' } },
+    JSON.stringify({ filters: [suppliedFilter] }), {}));
+  assert.match(JSON.stringify(scoped), /reset/);
+  const narrow = parse(await ApplyFilterTool.invoke({ context: filterContext(), toolInput: { input: 'Show nonstop flights only' } },
+    JSON.stringify({ filters: [suppliedFilter] }), {}));
+  assert.doesNotMatch(JSON.stringify(narrow.finalFilterPayload ?? narrow), /"filterType":"reset"/);
 });
 
-test('a second turn keeps persisted context without showing old cards', async () => {
-  // Turn one searches and leaves results plus a tool-log entry behind.
-  const first = await runManagerTurn({
-    input: 'Find flights to Dubai',
-    script: (call) => (call === 1
-      ? toolCallResponse([{ name: 'flight_agent', input: 'Find flights to Dubai', callId: 'c1' }])
-      : modelAnswer('Found two Dubai flights.')),
-    flight: (appContext) => {
-      appContext.flight.searchResults = [{ id: 'f1' }, { id: 'f2' }];
-      appContext.flight.totalResultsFound = 2;
-      appContext.flight.showFlight = true;
-      appContext.flight.outboundDate = '2026-10-20';
-      appContext.toolCallLog.push({ tool: 'flight_search', ok: true });
-      return flightStructuredAnswer({ summary: 'Found two Dubai options.', presentation: 'flight_cards_with_price_note' });
-    },
-  });
-  assert.equal(first.composed.renderFlightOptions, true);
-  assert.equal(first.state.outcomes[0].result.presentation, 'flight_cards_with_price_note');
-
-  // Turn two reuses that context and answers from it without running a tool.
-  const second = await runManagerTurn({
-    input: 'What date did you find?',
-    seed: first.appContext as any,
-    script: () => modelAnswer('The options I found are for 20 October.'),
-  });
-
-  // Persisted state survived the turn boundary.
-  assert.equal((second.appContext as any).flight.outboundDate, '2026-10-20');
-  assert.equal((second.appContext as any).flight.searchResults.length, 2);
-
-  // No Flight feedback requested cards in the second turn.
-  assert.deepEqual(second.state.outcomes, []);
-  assert.equal(second.composed.renderFlightOptions, false);
-  assert.doesNotMatch(second.composed.output, /Prices shown are per person/);
+test('a second turn preserves hydrated route, dates, and result context without a text-driven render decision', async () => {
+  const first = await runManagerTurn({ input: 'Find flights to Dubai',
+    script: (call) => call === 1 ? toolCall('flight_agent', 'Find flights to Dubai', 'c1') : modelAnswer('Found two flights.'),
+    flight: (state) => {
+      state.flight.searchResults = [{ id: 'f1' }, { id: 'f2' }];
+      state.flight.totalResultsFound = 2; state.flight.showFlight = true;
+      state.flight.outboundDate = '2026-10-20';
+      return flightAnswer({ presentation: 'flight_cards_with_price_note' });
+    } });
+  const second = await runManagerTurn({ input: 'What date did you find?',
+    seed: hydrateGatewayContext(snapshotGatewayContext(first.appContext)) as any,
+    script: () => modelAnswer('The options are for 20 October.') });
+  assert.equal(second.appContext.flight.outboundDate, '2026-10-20');
+  assert.ok(Array.isArray(second.appContext.flight.searchResults));
+  assert.equal(second.appContext.flight.searchResults.length, 2);
+  assert.deepEqual(second.order, []);
+  assert.equal(second.output, 'The options are for 20 October.');
+  assert.doesNotMatch(second.output, /Prices shown are per person|\[\[render:/);
 });
 
-test('a client abort surfaces as a terminal error, not a partial answer', async () => {
+test('client cancellation remains a terminal error without partial text', async () => {
   const controller = new AbortController();
-  const appContext = makeContext('Find flights to Dubai');
-  const original = (FlightManagerAgent as any).model;
-
-  try {
-    (FlightManagerAgent as any).model = {
-      async getResponse() {
-        controller.abort();
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        return flightStructuredAnswer();
-      },
-    };
-
-    const run = runGatewayAgentTextStream({
-      input: 'Find flights to Dubai',
-      context: appContext,
-      signal: controller.signal,
-      runner: {
-        async run(agent: any, _input: unknown, options: any) {
-          const flight = agent.tools.find((item: any) => item.name === 'flight_agent');
-          await flight.invoke(sdkContext(appContext), JSON.stringify({ input: 'Find flights' }));
-          options.signal?.throwIfAborted();
-          return { finalOutput: 'unused', lastResponseId: null, rawResponses: [] };
-        },
-      } as any,
-    });
-
-    await assert.rejects(() => run.completed);
-    let streamed = '';
-    await assert.rejects(async () => {
-      for await (const chunk of run.stream) streamed += String(chunk);
-    });
-    assert.equal(streamed, '', 'no partial answer may be emitted after an abort');
-  } finally {
-    (FlightManagerAgent as any).model = original;
-  }
+  const run = runGatewayAgentTextStream({ input: 'Find flights', context: makeContext('Find flights'), signal: controller.signal,
+    runner: { async run(_agent: unknown, _input: unknown, options: any) {
+      controller.abort(); options.signal.throwIfAborted(); return { finalOutput: 'unused' };
+    } } as any });
+  await assert.rejects(() => run.completed);
+  let streamed = '';
+  await assert.rejects(async () => { for await (const chunk of run.stream) streamed += String(chunk); });
+  assert.equal(streamed, '');
 });
 
-test('Manager max turns surfaces as a terminal error, not a partial answer', async () => {
-  const appContext = makeContext('Find flights to Dubai');
+test('Manager max-turn errors remain terminal without recovery composition', async () => {
   const failure = new MaxTurnsExceededError('Manager turn limit reached');
-
-  const run = runGatewayAgentTextStream({
-    input: 'Find flights to Dubai',
-    context: appContext,
-    runner: { async run() { throw failure; } } as any,
-  });
-
+  const run = runGatewayAgentTextStream({ input: 'Find flights', context: makeContext('Find flights'),
+    runner: { async run() { throw failure; } } as any });
   await assert.rejects(() => run.completed, (error: unknown) => error === failure);
   await assert.rejects(async () => { for await (const _chunk of run.stream) { /* drain */ } });
-});
-
-test('no SDK error wording can reach the Manager from either specialist', async () => {
-  for (const specialist of ['flight_agent', 'trip_planner_agent'] as const) {
-    const { toolResults, state } = await runManagerTurn({
-      input: 'Find flights to Dubai and plan my trip',
-      script: (call) => (call === 1
-        ? toolCallResponse([{ name: specialist, input: 'Do the work', callId: 'c1' }])
-        : modelAnswer('I could not complete that part.')),
-      flight: () => { throw new Error('INTERNAL_FLIGHT_DETAIL'); },
-      trip: () => { throw new Error('INTERNAL_TRIP_DETAIL'); },
-    });
-
-    assert.equal(toolResults.length, 1, `${specialist}: expected one tool result`);
-    assert.equal(toolResults[0], GENERIC_SPECIALIST_FAILURE, `${specialist}: not the generic line`);
-    assert.doesNotMatch(toolResults[0], /INTERNAL_(FLIGHT|TRIP)_DETAIL/);
-    assert.doesNotMatch(toolResults[0], /An error occurred while running the tool|MaxTurnsExceeded|Error:/);
-    assert.equal(state.outcomes[0].result.status, 'failure', `${specialist}: outcome not recorded`);
-  }
-});
-
-test('rendered block markup starts on its own line', () => {
-  // The Trip prompt requires `:::cards` to be exactly three colons on its own
-  // line. The Manager routinely writes a lead-in ending in ':' before the marker,
-  // so the marker must not be concatenated straight onto it.
-  const cards = ':::cards\n[CARD]\ntitle: Dubai\n:::cards';
-
-  const withColonLeadIn = createManagerTurnState(makeContext('Plan Dubai'), 'acceptance-request');
-  withColonLeadIn.renders.set('trip_a', cards);
-  withColonLeadIn.outcomes.push({
-    name: 'trip_planner_agent', input: 'Plan Dubai',
-    result: { status: 'success', summary: 'Prepared trip content.', renderRef: 'trip_a' },
-  });
-  const rendered = finalizeManagerOutput('Here’s a 3-day Dubai plan:[[render:trip_a]]', withColonLeadIn).output;
-  assert.doesNotMatch(rendered, /::::/, 'render insertion produced four colons');
-  assert.match(rendered, /^:::cards$/m, ':::cards is not on its own line');
-  assert.equal(rendered.match(/\[CARD\]/g)?.length, 1, 'card content duplicated');
-
-  // Already separated: no extra blank lines introduced.
-  const alreadySpaced = createManagerTurnState(makeContext('Plan Dubai'), 'acceptance-request');
-  alreadySpaced.renders.set('trip_b', cards);
-  const spaced = finalizeManagerOutput('Here’s your plan.\n\n[[render:trip_b]]', alreadySpaced).output;
-  assert.equal(spaced, `Here’s your plan.\n\n${cards}`);
-
-  // A repeated marker for the same ref still renders the content once.
-  const repeated = createManagerTurnState(makeContext('Plan Dubai'), 'acceptance-request');
-  repeated.renders.set('trip_c', cards);
-  const once = finalizeManagerOutput('Plan:[[render:trip_c]] and again [[render:trip_c]]', repeated).output;
-  assert.equal(once.match(/\[CARD\]/g)?.length, 1, 'repeated marker duplicated content');
-  assert.doesNotMatch(once, /\[\[render:/);
 });

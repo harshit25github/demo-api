@@ -1,5 +1,6 @@
 /** One paid Manager request after a locally prepared round-trip search. */
 import 'dotenv/config';
+import { managerSpecialistNames } from './manager-flight-evidence.js';
 
 if (process.env.RUN_MANAGER_PRICE_LIVE !== '1' || !process.env.OPENAI_API_KEY) {
   throw new Error('Set RUN_MANAGER_PRICE_LIVE=1 and OPENAI_API_KEY to run this live check.');
@@ -8,6 +9,8 @@ if (process.env.RUN_MANAGER_PRICE_LIVE !== '1' || !process.env.OPENAI_API_KEY) {
 process.env.ORCHESTRATION_MODE = 'manager';
 process.env.FLIGHT_AGENT_LOG_LEVEL = 'error';
 delete process.env.OPENAI_AGENTS_DISABLE_TRACING;
+const { pinManagerLiveModels } = await import('./manager-live-model-policy.js');
+pinManagerLiveModels();
 
 const [{ generateTraceId, getGlobalTraceProvider }, { hydrateGatewayContext },
   { runGatewayAgentTextStream }, { FlightSearchTool },
@@ -64,7 +67,7 @@ const managerResults = (result.result?.newItems || [])
   .filter((item: any) => item?.status && item?.summary);
 const output = String(result.output || '');
 const checks = {
-  flightSpecialistUsed: result.specialistsUsed?.includes('flight_agent') || false,
+  flightSpecialistUsed: managerSpecialistNames(result).includes('flight_agent'),
   predictionCalled: prediction !== priorPrediction && Boolean(prediction?.status),
   noPrematureAirportQuestion: !/which .*airport|specific airport|lhr.*lgw/i.test(output),
   streamMatchesFinal: streamed === output,

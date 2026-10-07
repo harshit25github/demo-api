@@ -53,11 +53,11 @@ export const managerFlightNormalizationConversation: ManagerFlightConversation =
     },
     {
       user: 'Show the cheapest current option.',
-      expectedIntent: 'Read to identify the cheapest current option, then select it for display.',
-      expectedTools: ['getGeneratedContractsContext', 'getGeneratedContractsContext', 'update_flight_suggested_questions'],
-      why: 'The option has not been ranked in this state; fresh read evidence must precede selection.',
-      expectedStateChange: 'Select the identified current option without clearing filters or searching again.',
-      validates: 'Read -> select mode ownership and evidence-backed indexing.',
+      expectedIntent: 'Read current contracts to identify the cheapest option without changing visibility.',
+      expectedTools: ['getGeneratedContractsContext', 'update_flight_suggested_questions'],
+      why: 'Open-ended ranking requires fresh read evidence; no particular existing option index was requested for display.',
+      expectedStateChange: 'Preserve current visibility, search parameters, and filters while returning a grounded ranking.',
+      validates: 'Read-only open-ended ranking, current-result evidence, and no unnecessary selection.',
       expectedSearchKeyChange: 'same', expectedFilterTypes: ['airline', 'layoverDuration'],
     },
     {

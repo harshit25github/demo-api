@@ -10,6 +10,23 @@
 import 'dotenv/config';
 
 const { runGatewayAgent } = await import('../src/agents/manager-orchestrator/runner.js');
+const { ManagerAgent } = await import('../src/agents/manager-orchestrator/agent.js');
+const { FlightManagerAgent } = await import('../src/agents/flight/agent.js');
+const { TripPlannerAgent } = await import('../src/agents/trip-planner/agent.js');
+
+// Live-test policy only, in this script process; leave production config intact.
+for (const agent of [ManagerAgent, FlightManagerAgent, TripPlannerAgent]) {
+  agent.model = 'gpt-5.2';
+  agent.modelSettings = { ...agent.modelSettings, reasoning: { effort: 'low' } };
+}
+
+/** Inspect SDK evidence locally; production does not track specialist usage. */
+function specialistCalls(result: any): string[] {
+  return (result?.newItems || [])
+    .filter((item: any) => item?.type === 'tool_call_item')
+    .map((item: any) => String(item.rawItem?.name || ''))
+    .filter((name: string) => ['flight_agent', 'trip_planner_agent'].includes(name));
+}
 
 const cases = [
   {
@@ -39,14 +56,15 @@ for (const testCase of cases) {
     timeZone: 'Asia/Kolkata',
   });
 
-  console.log(`   traceId ${done.traceId} | ${done.latencyMs}ms | specialists ${JSON.stringify(done.specialistsUsed)}`);
-  console.log(`   renderFlightOptions=${done.renderFlightOptions}`);
+  const calledSpecialists = specialistCalls(done.result);
+  console.log(`   traceId ${done.traceId} | ${done.latencyMs}ms | specialists ${JSON.stringify(calledSpecialists)}`);
+  console.log(`   showFlight=${done.context.flight?.showFlight}`);
   console.log(`   output: ${String(done.output).replace(/\s+/g, ' ').slice(0, 240)}...`);
 
   check('produced an answer', String(done.output).trim().length > 0);
   check(`routed to ${testCase.expectSpecialist}`,
-    done.specialistsUsed.includes(testCase.expectSpecialist),
-    JSON.stringify(done.specialistsUsed));
+    calledSpecialists.includes(testCase.expectSpecialist),
+    JSON.stringify(calledSpecialists));
   check('no unresolved render marker', !/\[\[render:/.test(done.output));
   check('no SDK tool-error sentinel', !/An error occurred while running the tool/.test(done.output));
   check('no generic failure line', !/couldn.{0,3}t finish that part of your request/.test(done.output));

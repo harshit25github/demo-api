@@ -14,7 +14,7 @@ const {
 } = await import('../../src/api/chat/context-hydration.js');
 const { streamChatTurn: streamChatTurnDefinition } = await import('../../src/api/chat/orchestrator.js');
 const { SseWriter: SseWriterDefinition } = await import('../../src/api/chat/sse.js');
-const { createChatServer } = await import('../../src/api/chat/server.js');
+const { createChatServer, publicChat } = await import('../../src/api/chat/server.js');
 
 const streamChatTurn: any = streamChatTurnDefinition;
 const SseWriter: any = SseWriterDefinition;
@@ -98,6 +98,30 @@ test('JSON store writes atomically, locks a chat, and recovers interrupted turns
   }
 });
 
+test('public chat projection omits usage while full JSON reload preserves it', async () => {
+  const fixture = await temporaryStore();
+  try {
+    const chat = await fixture.store.createChat({ title: 'Usage projection' });
+    await fixture.store.updateChat(chat.chatId, (record) => {
+      record.turns.push({ id: 'turn-public-projection', status: 'completed',
+        requestId: 'request-public-projection', traceId: 'trace-public-projection',
+        lastResponseId: null, finalAgent: 'Manager Agent',
+        startedAt: '2026-10-07T10:00:00.000Z', completedAt: '2026-10-07T10:00:01.000Z',
+        error: null, usage: { totalTokens: 42 } } as any);
+    });
+    const fullSnapshot = fixture.store.getChat(chat.chatId);
+    const diskReload = (await new JsonChatStore({ filePath: fixture.filePath }).init()).getChat(chat.chatId);
+    const publicSnapshot = publicChat(fullSnapshot);
+    assert.deepEqual(publicChat(diskReload), publicSnapshot);
+    assert.deepEqual(diskReload, fullSnapshot);
+    assert.equal(Object.hasOwn(publicSnapshot.turns[0], 'usage'), false);
+    assert.deepEqual(fullSnapshot.turns[0].usage, { totalTokens: 42 });
+    assert.notDeepEqual(diskReload, publicSnapshot);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test('summary context hydrates only missing Flight fields and preserves active search state', () => {
   const summary = completedSummary();
   const empty = hydrateGatewayContext({}, summary);
@@ -158,6 +182,7 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
     const runGateway = async ({ context, session }) => {
       assert.equal(session.getSessionId instanceof Function, true);
       context.flight.searchKey = 'search_sse_visibility';
+      context.flight.showFlight = true;
       context.flight.searchResults = [
         { id: 'contract-1', display: false },
         { id: 'contract-2', display: true },
@@ -165,8 +190,6 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
       return {
         output: 'Authoritative final answer',
         finalAgentName: 'Manager Agent',
-        specialistsUsed: ['flight_agent', 'trip_planner_agent'],
-        renderFlightOptions: true,
         context,
         lastResponseId: 'resp_test_123',
       };
@@ -206,8 +229,7 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
       ],
     );
     assert.deepEqual(sessionOptions, { conversationId: undefined });
-    // One delta, carrying the composed answer: nothing is emitted before every
-    // specialist result is folded in.
+    // One delta carries the Manager's final answer; card data stays in context.
     assert.equal(events.filter((item) => item.event === 'delta').length, 1);
     assert.equal(
       events.find((item) => item.event === 'delta').data.text,
@@ -217,11 +239,10 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
       events.find((item) => item.event === 'done').data.finalText,
       'Authoritative final answer',
     );
-    assert.deepEqual(
-      events.find((item) => item.event === 'done').data.specialistsUsed,
-      ['flight_agent', 'trip_planner_agent'],
-    );
-    assert.equal(events.find((item) => item.event === 'done').data.renderFlightOptions, true);
+    const done = events.find((item) => item.event === 'done').data;
+    assert.equal(Object.hasOwn(done, 'specialistsUsed'), false);
+    assert.equal(Object.hasOwn(done, 'renderFlightOptions'), false);
+    assert.equal(done.flightContext.showFlight, true);
     assert.deepEqual(
       events
         .find((item) => item.event === 'done')
@@ -234,12 +255,14 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
     assert.equal(stored.conversationId, 'conv_test_123');
     assert.equal(stored.messages.length, 2);
     assert.equal(stored.messages[1].content, 'Authoritative final answer');
-    assert.deepEqual(stored.messages[1].specialistsUsed, ['flight_agent', 'trip_planner_agent']);
-    assert.equal(stored.messages[1].renderFlightOptions, true);
+    assert.equal(Object.hasOwn(stored.messages[1], 'specialistsUsed'), false);
+    assert.equal(Object.hasOwn(stored.messages[1], 'renderFlightOptions'), false);
     assert.equal(stored.messages[1].summaryContext.destination.iata, 'DEL');
     assert.equal(stored.turns[0].status, 'completed');
     assert.equal(stored.turns[0].lastResponseId, 'resp_test_123');
-    assert.deepEqual(stored.turns[0].specialistsUsed, ['flight_agent', 'trip_planner_agent']);
+    assert.equal(Object.hasOwn(stored.turns[0], 'specialistsUsed'), false);
+    assert.equal(Object.hasOwn(stored.turns[0], 'renderFlightOptions'), false);
+    assert.equal(stored.runtimeContext.flight.showFlight, true);
     assert.deepEqual(
       (stored.runtimeContext.flight.searchResults as any[]).map(
         (contract) => contract.display,
@@ -365,6 +388,12 @@ test('HTTP API serves dashboard, creates chats over SSE, rejects unknown and bus
     const flightContractsModule = await fetch(`${baseUrl}/flightContracts.js`);
     assert.equal(flightContractsModule.status, 200);
     assert.match(await flightContractsModule.text(), /getVisibleFlightContracts/);
+
+    const dashboardScript = await fetch(`${baseUrl}/app.js`).then((response) => response.text());
+    assert.doesNotMatch(dashboardScript, /renderFlightOptions|isFlightAgent|shouldRenderFlightOptions/);
+    assert.match(dashboardScript, /state\.flightContext = chat\.runtimeContext\?\.flight \|\| \{\}/);
+    assert.match(dashboardScript, /renderFlightContracts\(latestAssistantMessage\.body, state\.flightContext\)/);
+    assert.match(dashboardScript, /clearFlightContracts\(\);\s*renderFlightContracts\(draft\.body, state\.flightContext\)/);
 
     const streamResponse = await fetch(`${baseUrl}/api/chat/stream`, {
       method: 'POST',

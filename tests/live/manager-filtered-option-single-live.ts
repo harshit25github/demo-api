@@ -1,5 +1,6 @@
 /** One paid Manager request against a locally prepared, filtered Flight search. */
 import 'dotenv/config';
+import { managerSpecialistNames } from './manager-flight-evidence.js';
 
 if (process.env.RUN_MANAGER_OPTION_LIVE !== '1' || !process.env.OPENAI_API_KEY) {
   throw new Error('Set RUN_MANAGER_OPTION_LIVE=1 and OPENAI_API_KEY to run this live check.');
@@ -8,6 +9,8 @@ if (process.env.RUN_MANAGER_OPTION_LIVE !== '1' || !process.env.OPENAI_API_KEY) 
 process.env.ORCHESTRATION_MODE = 'manager';
 process.env.FLIGHT_AGENT_LOG_LEVEL = 'error';
 delete process.env.OPENAI_AGENTS_DISABLE_TRACING;
+const { pinManagerLiveModels } = await import('./manager-live-model-policy.js');
+pinManagerLiveModels();
 
 const [{ generateTraceId, getGlobalTraceProvider }, { hydrateGatewayContext },
   { runGatewayAgentTextStream }, { FlightSearchTool }, { ApplyFilterTool },
@@ -75,7 +78,7 @@ const managerResults = (result.result?.newItems || [])
 const output = String(result.output || '');
 const checks = {
   oneVisibleOption: context.flight.searchResults.length === 1,
-  flightSpecialistUsed: result.specialistsUsed?.includes('flight_agent') || false,
+  flightSpecialistUsed: managerSpecialistNames(result).includes('flight_agent'),
   explainsUnavailableOption: /option 2.*(?:not available|isn.t|unavailable)/i.test(output),
   doesNotAskDateAgain: !/what date|which date|when would you like to fly/i.test(output),
   streamMatchesFinal: streamed === output,

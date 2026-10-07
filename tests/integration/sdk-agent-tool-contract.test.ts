@@ -1,9 +1,8 @@
 /**
- * Pins the `Agent.asTool()` behaviors the Manager refactor builds on.
+ * Pins native `Agent.asTool()` behavior, including optional SDK capabilities.
  *
- * Each of these is a silent failure mode: if the SDK changes, nothing throws —
- * specialists quietly run on the wrong model, or raw failure text reaches the
- * Manager's context. These tests fail loudly instead.
+ * Optional guardrails and timeout tests below exercise the SDK, not application
+ * Manager wrappers. Production Manager uses the direct singleton registrations.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';

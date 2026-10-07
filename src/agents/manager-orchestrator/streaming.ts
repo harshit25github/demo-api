@@ -2,14 +2,11 @@
  * Compatibility adapter for callers that want the Manager turn as a stream.
  *
  * The Manager turn itself is a single nonstream `Runner.run()` (see
- * `runGatewayAgent`). The final answer can only be composed once every specialist
- * result is in — render references have to be resolved and scope and link
- * filtering applied before any text is user-visible — so there is nothing to emit
- * incrementally. This adapter therefore emits the finished answer as one chunk.
+ * `runGatewayAgent`). This adapter emits the Manager's finished answer as one
+ * chunk; it does not resolve render references or compose specialist outputs.
  *
  * It exists for existing live tests and scripts. The chat API calls
- * `runGatewayAgent` directly. Real token streaming is a separate change: it needs
- * the composition step to move after the stream rather than before it.
+ * `runGatewayAgent` directly. Real token streaming is a separate change.
  */
 import { randomUUID } from 'node:crypto';
 import { PassThrough } from 'node:stream';

@@ -21,6 +21,7 @@
 import 'dotenv/config';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { flightCardsVisible, managerSpecialistNames } from './manager-flight-evidence.js';
 
 if (process.env.RUN_FLIGHT_CONVERSATION_LIVE !== '1') {
   throw new Error('Set RUN_FLIGHT_CONVERSATION_LIVE=1 to run this paid conversation script.');
@@ -37,6 +38,8 @@ process.env.FLIGHT_AGENT_LOG_LEVEL = 'warn';
 // dashboard afterwards. They are exported on a timer, so the run force-flushes
 // before it exits or a short script finishes before anything is sent.
 delete process.env.OPENAI_AGENTS_DISABLE_TRACING;
+const { pinManagerLiveModels } = await import('./manager-live-model-policy.js');
+pinManagerLiveModels();
 
 const [
   { generateTraceId, getGlobalTraceProvider },
@@ -151,7 +154,7 @@ for (const [index, turn] of scenario.turns.entries()) {
     const actual = normalizeTools(rawTools, turn.alsoAllowed ?? []);
     const expected = [...turn.expectedTools];
     const coreToolsMatched = JSON.stringify(actual) === JSON.stringify(expected);
-    const specialistsUsed: string[] = result.specialistsUsed || [];
+    const specialistsUsed = managerSpecialistNames(result);
     const suggestedQuestions: string[] = result.context.flight?.suggestedQuestions || [];
     const suggestionsProblem = checkSuggestions(rawTools, specialistsUsed, result.context);
     const passed = coreToolsMatched && !suggestionsProblem;
@@ -191,7 +194,7 @@ for (const [index, turn] of scenario.turns.entries()) {
     console.log(`  suggest  : ${suggestionsProblem ? `FAIL - ${suggestionsProblem}` : 'ok'}  ${
       JSON.stringify(suggestedQuestions)}`);
     console.log(`  delegated: ${JSON.stringify(specialistsUsed)}  cards=${
-      Boolean(result.renderFlightOptions)}  trace=${traceId}`);
+      flightCardsVisible(result.context)}  trace=${traceId}`);
     for (const item of feedback) {
       console.log(`  feedback : status=${item.status} presentation=${item.presentation ?? 'null'} missingInfo=${
         (item.missingInformation || []).length}`);
@@ -219,7 +222,7 @@ for (const [index, turn] of scenario.turns.entries()) {
       suggestionsCheck: suggestionsProblem || 'ok',
       suggestedQuestions,
       specialistsUsed,
-      renderFlightOptions: Boolean(result.renderFlightOptions),
+      renderFlightOptions: flightCardsVisible(result.context),
       subtasks,
       feedback,
       specialistFailures,

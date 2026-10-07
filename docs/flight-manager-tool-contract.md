@@ -39,8 +39,10 @@ failures, or invents a next step.
 - `limitations` explains unresolved parts and uncertainty that affect the answer.
 - `missingInformation` lists genuine blockers; known details are reused.
 - `nextStep` gives one useful grounded suggestion or is null.
-- `presentation` expresses whether this task's results should show cards.
-  Old results or a stale `showFlight` value alone do not justify it.
+- `presentation` describes the task's result presentation for the Manager's
+  wording, including the per-person note. Old results or a stale `showFlight`
+  value alone do not justify it. Client visibility is independently controlled
+  by the existing shared Flight flags and results.
 
 The prompt covers partial success, searches with no matches, unavailable options,
 and unsuccessful price intelligence. Flight must preserve useful completed work,
@@ -50,13 +52,14 @@ These decisions belong to Flight's reasoning.
 ## Direct SDK tool boundary
 
 `src/agents/manager/specialists/flight.ts` registers `FlightManagerAgent.asTool()`.
-The input builder passes the scoped subtask through the SDK. The output extractor
-only records and serializes `result.finalOutput` unchanged. `recordOutcome` keeps
-the same feedback for UI metadata and returns it as JSON to the Manager.
+The singleton input builder passes the scoped subtask through the SDK. The SDK's
+default output extraction serializes `result.finalOutput` directly. No application
+outcome recorder or custom Flight output extractor is needed, and no specialist
+usage metadata is generated for the UI.
 
-The existing shared SDK tool-output guardrail still masks execution failures
-when a specialist run cannot produce feedback. It does not alter successful
-structured Flight feedback. No Flight turn watermarks are retained.
+The registration adds no Manager-specific tool-output guardrail, retry wrapper,
+or failure-recovery infrastructure. SDK-default nested-tool handling remains in
+effect. Existing Flight tools and suggestion lifecycle are unchanged.
 
 ## Manager and application responsibilities
 
@@ -66,9 +69,11 @@ prevents disclosure of agents, tools, internal identifiers, errors, and JSON
 field names. It writes the per-person price note when Flight requests the
 corresponding presentation.
 
-The application renders flight cards from shared context when Flight requests
-them and visible card data exists. It resolves Trip render references. It does
-not rebuild the Flight reply, repair date questions, or append Flight prose.
+The client renders flight cards solely from shared `showFlight`, `searchResults`,
+and per-contract `display` flags, not from response text, agent identity, or
+presentation feedback. The application uses no render references/tags or output
+composition finalizer. It does not rebuild the Flight reply, repair date
+questions, or append Flight prose.
 Standalone Flight instructions retain their direct-user audience; the Manager
 instructions are appended only on `FlightManagerAgent`.
 

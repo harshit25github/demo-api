@@ -24,12 +24,11 @@ if (!process.env.OPENAI_API_KEY) {
 
 process.env.OPENAI_AGENTS_DISABLE_TRACING = '1';
 
-const [{ Runner, setDefaultOpenAIKey, tool }, { createManagerAgent }, { createManagerTools, createManagerTurnState }, { gatewayAgentConfig }] =
+const [{ Runner, setDefaultOpenAIKey, tool }, { ManagerAgent }, { flightAgentAsTool, tripPlannerAgentAsTool }] =
   await Promise.all([
     import('@openai/agents'),
-  import('../../src/agents/manager-orchestrator/agent.js'),
+    import('../../src/agents/manager-orchestrator/agent.js'),
     import('../../src/agents/manager/tools.js'),
-  import('../../src/agents/manager-orchestrator/config.js'),
   ]);
 
 setDefaultOpenAIKey(process.env.OPENAI_API_KEY);
@@ -85,9 +84,9 @@ function makeProbeContext(scenario: ManagerRoutingCase) {
   };
 }
 
-function makeProbeTools(scenario: ManagerRoutingCase, calls: ProbeCall[]) {
+function makeProbeTools(calls: ProbeCall[]) {
   // Read the current production descriptions, then replace execution only.
-  const production = createManagerTools(createManagerTurnState(makeProbeContext(scenario) as any, scenario.id));
+  const production = [flightAgentAsTool, tripPlannerAgentAsTool];
   return production.map((original) => tool({
     name: original.name,
     description: (original as { description?: string }).description || original.name,
@@ -142,7 +141,11 @@ for (const scenario of selected) {
   let usage = { responseCalls: 0, inputTokens: 0, outputTokens: 0 };
   try {
     const result = await runner.run(
-      createManagerAgent(makeProbeTools(scenario, calls)),
+      ManagerAgent.clone({
+        model: 'gpt-5.2',
+        modelSettings: { ...ManagerAgent.modelSettings, reasoning: { effort: 'low' } },
+        tools: makeProbeTools(calls),
+      }),
       scenario.input,
       { context: makeProbeContext(scenario), maxTurns: 7 },
     );
@@ -180,9 +183,10 @@ for (const scenario of selected) {
 
 const failures = results.filter((item) => !item.passed);
 const report = {
-  model: gatewayAgentConfig.model,
-  promptSource: 'createManagerAgent / buildManagerInstructions',
-  toolDescriptionsSource: 'createManagerTools',
+  model: 'gpt-5.2',
+  reasoningEffort: 'low',
+  promptSource: 'ManagerAgent / buildManagerInstructions',
+  toolDescriptionsSource: 'flightAgentAsTool / tripPlannerAgentAsTool',
   specialistExecution: 'probe only',
   summary: {
     passed: results.length - failures.length,

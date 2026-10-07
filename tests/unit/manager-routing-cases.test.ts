@@ -1,16 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { managerRoutingCases } from '../fixtures/manager-routing-cases.js';
-import { createManagerTools, createManagerTurnState } from '../../src/agents/manager/tools.js';
+import { ManagerAgent } from '../../src/agents/manager-orchestrator/agent.js';
 
 test('Manager routing probe covers each Gateway tie-breaker with available tool names', () => {
-  const context = {
-    currentUserMessage: '',
-    flight: { searchResults: [], segments: [] },
-    toolCallLog: [],
-  } as any;
-  const registered = new Set(createManagerTools(createManagerTurnState(context, 'routing-probe'))
-    .map((tool) => tool.name));
+  const registered = new Set(ManagerAgent.tools.map((tool) => tool.name));
   const ids = new Set<string>();
   const categories = new Set<string>();
   for (const scenario of managerRoutingCases) {

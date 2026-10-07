@@ -2,6 +2,15 @@
 import 'dotenv/config';
 
 const { runGatewayAgentTextStream } = await import('../src/agents/manager-orchestrator/streaming.js');
+const { ManagerAgent } = await import('../src/agents/manager-orchestrator/agent.js');
+const { FlightManagerAgent } = await import('../src/agents/flight/agent.js');
+const { TripPlannerAgent } = await import('../src/agents/trip-planner/agent.js');
+
+// Live-test policy only, in this script process; leave production config intact.
+for (const agent of [ManagerAgent, FlightManagerAgent, TripPlannerAgent]) {
+  agent.model = 'gpt-5.2';
+  agent.modelSettings = { ...agent.modelSettings, reasoning: { effort: 'low' } };
+}
 
 function countFlightResults(results: unknown): number {
   if (Array.isArray(results)) return results.length;
@@ -12,6 +21,14 @@ function countFlightResults(results: unknown): number {
     if (Array.isArray(records)) count = Math.max(count, records.length);
   }
   return count;
+}
+
+/** Inspect SDK evidence locally; production does not track specialist usage. */
+function specialistCalls(result: any): string[] {
+  return (result?.newItems || [])
+    .filter((item: any) => item?.type === 'tool_call_item')
+    .map((item: any) => String(item.rawItem?.name || ''))
+    .filter((name: string) => ['flight_agent', 'trip_planner_agent'].includes(name));
 }
 
 const cases = [
@@ -40,8 +57,9 @@ for (const testCase of cases) {
   const done: any = await run.completed;
 
   const flightCount = countFlightResults(done.context.flight?.searchResults);
-  console.log(`   traceId ${done.traceId ?? '(n/a)'} | ${done.latencyMs}ms | specialists ${JSON.stringify(done.specialistsUsed)}`);
-  console.log(`   renderFlightOptions=${done.renderFlightOptions} | results=${flightCount}`);
+  const calledSpecialists = specialistCalls(done.result);
+  console.log(`   traceId ${done.traceId ?? '(n/a)'} | ${done.latencyMs}ms | specialists ${JSON.stringify(calledSpecialists)}`);
+  console.log(`   showFlight=${done.context.flight?.showFlight} | results=${flightCount}`);
   console.log(`   output: ${done.output.replace(/\s+/g, ' ').slice(0, 220)}...`);
 
   check('streamed text equals completed.output', streamed === done.output);
@@ -52,17 +70,17 @@ for (const testCase of cases) {
 
   if (testCase.id === 'flight' || testCase.id === 'mixed') {
     check('flight results in shared context', flightCount > 0, `${flightCount}`);
-    check('renderFlightOptions true for the UI', done.renderFlightOptions === true);
+    check('shared context enables flight cards', done.context.flight?.showFlight === true);
     const notes = done.output.match(/Note: Prices shown are per person\./g)?.length ?? 0;
     check('per-person note appears exactly once', notes === 1, `${notes}`);
   }
   if (testCase.id === 'mixed') {
-    check('trip planner ran', done.specialistsUsed.includes('trip_planner_agent'));
+    check('trip planner ran', calledSpecialists.includes('trip_planner_agent'));
     const day1 = done.output.match(/Day 1/gi)?.length ?? 0;
     check('itinerary rendered once, not duplicated', day1 <= 1, `Day 1 x${day1}`);
   }
   if (testCase.id === 'declined') {
-    check('no specialist called', done.specialistsUsed.length === 0, JSON.stringify(done.specialistsUsed));
+    check('no specialist called', calledSpecialists.length === 0, JSON.stringify(calledSpecialists));
     const fabricated = /\b\d{1,3}\s?(?:kg|lbs?)\b|[$€£₹]\s?\d|\b\d{1,3}\s?%|\b24[- ]hour\b/i.test(done.output);
     check('no fabricated policy figures', !fabricated);
   }

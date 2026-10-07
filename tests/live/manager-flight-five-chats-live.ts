@@ -18,7 +18,7 @@ import {
 import { managerFlightNormalizationConversation } from '../fixtures/manager-flight-normalization-conversation.js';
 import { expectedFilterValues, expectedPredictionInput, expectedSearchPayload } from '../fixtures/manager-flight-complex-state.js';
 import {
-  activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, parseToolValue, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues,
+  activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, parseToolValue, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, flightCardsVisible, managerSpecialistNames,
   type ObservedFlightToolCall,
 } from './manager-flight-evidence.js';
 
@@ -57,9 +57,9 @@ const [
   { generateTraceId, getGlobalTraceProvider },
   { runGatewayAgentTextStream },
   { hydrateGatewayContext, snapshotGatewayContext },
-  { gatewayAgentConfig },
-  { flightAgentConfig },
-  { tripPlannerAgentConfig },
+  { ManagerAgent },
+  { TripPlannerAgent },
+  { pinManagerLiveModels },
   { flightTools },
   { snapshotFlightSearchRuntime },
   { FlightManagerAgent },
@@ -70,9 +70,9 @@ const [
   import('@openai/agents'),
   import('../../src/agents/manager-orchestrator/streaming.js'),
   import('../../src/api/chat/context-hydration.js'),
-  import('../../src/agents/manager-orchestrator/config.js'),
-  import('../../src/agents/flight/config.js'),
-  import('../../src/agents/trip-planner/config.js'),
+  import('../../src/agents/manager-orchestrator/agent.js'),
+  import('../../src/agents/trip-planner/agent.js'),
+  import('./manager-live-model-policy.js'),
   import('../../src/agents/flight/tools/index.js'),
   import('../../src/agents/flight/context/search-runtime-store.js'),
   import('../../src/agents/flight/agent.js'),
@@ -80,30 +80,25 @@ const [
   import('../../src/agents/flight/context/flight-context.js'),
 ]);
 
-// This paid eval is intentionally pinned to the user's requested model. The
-// production default remains untouched; createManagerAgent reads this object
-// when each Manager turn begins.
-gatewayAgentConfig.model = 'gpt-5.2';
-gatewayAgentConfig.modelSettings = {
-  ...gatewayAgentConfig.modelSettings,
-  reasoning: { effort: 'low' },
-};
+// Pin the actual singleton agents, not configuration objects that were already
+// read at module initialization. Production defaults remain unchanged on disk.
+pinManagerLiveModels();
 
 const liveModels = {
-  manager: gatewayAgentConfig.model,
-  flight: flightAgentConfig.model,
-  tripPlanner: tripPlannerAgentConfig.model,
+  manager: ManagerAgent.model,
+  flight: FlightManagerAgent.model,
+  tripPlanner: TripPlannerAgent.model,
 };
 if (Object.values(liveModels).some((model) => model !== 'gpt-5.2')) {
   throw new Error(`All agents in this eval must use gpt-5.2: ${JSON.stringify(liveModels)}`);
 }
-if (flightAgentConfig.modelSettings.reasoning?.effort !== 'low') {
+if (FlightManagerAgent.modelSettings.reasoning?.effort !== 'low') {
   throw new Error('Flight reasoning effort must be low for this eval.');
 }
-if (gatewayAgentConfig.modelSettings.reasoning?.effort !== 'low') {
+if (ManagerAgent.modelSettings.reasoning?.effort !== 'low') {
   throw new Error('Manager reasoning effort must be low for this eval.');
 }
-if (tripPlannerAgentConfig.modelSettings.reasoning?.effort !== 'low') {
+if (TripPlannerAgent.modelSettings.reasoning?.effort !== 'low') {
   throw new Error('Supporting-agent reasoning effort must be low for this eval.');
 }
 
@@ -138,7 +133,7 @@ if (process.argv.includes('--check-api')) {
       requestId: 'manager-flight-api-availability',
     });
     console.log(JSON.stringify({ apiAvailable: true, models: liveModels, reasoningEffort: 'low',
-      finalAgent: result.finalAgentName, specialistsUsed: result.specialistsUsed }));
+      finalAgent: result.finalAgentName, specialistsUsed: managerSpecialistNames(result) }));
   } catch (error) {
     const failure = error as Error & { code?: string };
     console.log(JSON.stringify({ apiAvailable: false, code: failure.code || null,
@@ -371,6 +366,8 @@ for (const [index, expectation] of scenario.turns.entries()) {
   const predictionBefore = JSON.stringify(context.flight?.lastPricePrediction || null);
   const searchStateBefore = structuredClone(getFlightSearchState(context));
   const filtersBefore = snapshotFlightSearchRuntime(searchKeyBefore)?.appliedFilters || [];
+  const visibilityBefore = (Array.isArray(context.flight?.searchResults) ? context.flight.searchResults : [])
+    .map((flight: any) => ({ id: flight.id, display: flight.display }));
 
   try {
     const run = runGatewayAgentTextStream({
@@ -393,6 +390,8 @@ for (const [index, expectation] of scenario.turns.entries()) {
     if (streamResult.status === 'rejected') throw streamResult.reason;
 
     const result = completionResult.value;
+    const specialistsUsed = managerSpecialistNames(result);
+    const renderFlightOptions = flightCardsVisible(result.context);
     const predictionAfter = JSON.stringify(result.context.flight?.lastPricePrediction || null);
     const predictionChanged = predictionAfter !== predictionBefore;
     const flightToolCalls = toolCallsByRequest.get(requestId) || [];
@@ -443,8 +442,8 @@ for (const [index, expectation] of scenario.turns.entries()) {
     if (/\b(?:flight_search|apply_filter|price_prediction_tool|searchKey|toolCallLog)\b/.test(output)) {
       checks.push('internal tool identifier leaked to user');
     }
-    if (!sameSequence(result.specialistsUsed || [], ['flight_agent'])) {
-      checks.push(`expected only flight_agent specialist; got ${(result.specialistsUsed || []).join(', ') || 'none'}`);
+    if (!sameSequence(specialistsUsed, ['flight_agent'])) {
+      checks.push(`expected only flight_agent specialist; got ${specialistsUsed.join(', ') || 'none'}`);
     }
     if (managerResults.length !== 1) {
       checks.push(`expected one Flight specialist result; got ${managerResults.length}`);
@@ -493,10 +492,10 @@ for (const [index, expectation] of scenario.turns.entries()) {
     if (suggestions.length !== 3) {
       checks.push(`expected exactly three grounded suggestions; got ${suggestions.length}`);
     }
-    if (expectation.expectedTools.includes('flight_search') && resultCount > 0 && !result.renderFlightOptions) {
-      checks.push('successful search did not request flight-card rendering');
+    if (expectation.expectedTools.includes('flight_search') && resultCount > 0 && !renderFlightOptions) {
+      checks.push('successful search did not leave visible client flight cards');
     }
-    if (observedFlightTools.includes('flight_search') && result.renderFlightOptions && noteCount !== 1) {
+    if (observedFlightTools.includes('flight_search') && renderFlightOptions && noteCount !== 1) {
       checks.push('new search cards need exactly one per-person note');
     }
     if (!observedFlightTools.includes('flight_search') && noteCount > 0) {
@@ -517,6 +516,15 @@ for (const [index, expectation] of scenario.turns.entries()) {
       checks.push('suggestions recycled the used-and-reset nonstop action on the unchanged trip');
     }
     if (scenario.id === 'normalization_fewshots' && index === 5) {
+      const rankingRead = flightToolCalls.find((call) => call.tool === 'getGeneratedContractsContext');
+      if (rankingRead?.input?.mode !== 'read' || rankingRead?.input?.indexes !== null) {
+        checks.push('open-ended cheapest ranking must read all current contracts without selecting an index');
+      }
+      const visibilityAfter = (Array.isArray(result.context.flight?.searchResults) ? result.context.flight.searchResults : [])
+        .map((flight: any) => ({ id: flight.id, display: flight.display }));
+      if (JSON.stringify(visibilityAfter) !== JSON.stringify(visibilityBefore)) {
+        checks.push('open-ended cheapest ranking changed current card visibility');
+      }
       if (!specialistSubtasks.some((subtask) => /historical/i.test(subtask.input) && /non[ -]?stop/i.test(subtask.input))) {
         checks.push('Manager dropped the consumed/reversed-action history on the next inspection turn');
       }
@@ -538,7 +546,7 @@ for (const [index, expectation] of scenario.turns.entries()) {
       validates: expectation.validates,
       output,
       finalAgent: result.finalAgentName,
-      specialistsUsed: result.specialistsUsed || [],
+      specialistsUsed,
       specialistSubtasks,
       flightToolCalls,
       searchStateBefore,
@@ -553,7 +561,7 @@ for (const [index, expectation] of scenario.turns.entries()) {
       searchKeyAfter,
       activeFilterTypes,
       suggestions,
-      renderFlightOptions: Boolean(result.renderFlightOptions),
+      renderFlightOptions,
       resultCount,
       noteCount,
       inputTokens: sdkUsage?.inputTokens ?? null,

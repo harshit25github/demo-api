@@ -1,4 +1,18 @@
 import type { FilterValues } from '../fixtures/manager-flight-complex-state.js';
+import { getVisibleFlightContracts } from '../../public/chat-dashboard/flightContracts.js';
+
+/** Test reporting reads native SDK evidence; production need not track delegates. */
+export function managerSpecialistNames(result: { result?: { newItems?: readonly unknown[] } }): string[] {
+  return (result.result?.newItems || []).flatMap((item: any) =>
+    item?.type === 'tool_call_item' && typeof item.rawItem?.name === 'string'
+      ? [item.rawItem.name]
+      : []);
+}
+
+/** Use the client's existing flags/result-display behavior, never response text. */
+export function flightCardsVisible(context: { flight?: unknown }): boolean {
+  return getVisibleFlightContracts(context.flight || {}).length > 0;
+}
 
 export interface ObservedFlightToolCall {
   callId: string;

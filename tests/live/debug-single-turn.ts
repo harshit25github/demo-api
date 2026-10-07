@@ -3,8 +3,11 @@
  */
 
 import { runGatewayAgent } from '../../src/agents/manager-orchestrator/runner.js';
+import { managerSpecialistNames } from './manager-flight-evidence.js';
+import { pinManagerLiveModels } from './manager-live-model-policy.js';
 
 async function debugSingleTurn() {
+  pinManagerLiveModels();
   console.log('Testing single turn: "Delhi to Dubai October 27 one-way, 1 adult economy"\n');
 
   const result = await runGatewayAgent({
@@ -14,7 +17,7 @@ async function debugSingleTurn() {
   });
 
   console.log('\n=== RESULT STRUCTURE ===');
-  console.log('specialistsUsed:', result.specialistsUsed);
+  console.log('specialistsUsed:', managerSpecialistNames(result));
   console.log('output preview:', result.output?.substring(0, 100));
 
   // Check context.toolCallLog
@@ -33,7 +36,7 @@ async function debugSingleTurn() {
   }
 
   console.log('\n=== VALIDATION ===');
-  const hasFlightAgent = result.specialistsUsed?.includes('flight_agent');
+  const hasFlightAgent = managerSpecialistNames(result).includes('flight_agent');
   const toolLog = context?.toolCallLog || [];
   const hasFlightSearch = toolLog.some((e: any) => e.tool === 'flight_search');
   const hasApplyFilter = toolLog.some((e: any) => e.tool === 'apply_filter');

@@ -19,6 +19,7 @@
 import 'dotenv/config';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { flightCardsVisible, managerSpecialistNames } from './manager-flight-evidence.js';
 
 if (process.env.RUN_MANAGER_FLIGHT_LIVE !== '1') {
   throw new Error('Set RUN_MANAGER_FLIGHT_LIVE=1 to run this test suite.');
@@ -38,6 +39,8 @@ globalThis.fetch = (async (input: any, init?: any) => {
   if (String(input).includes('/v1/traces/ingest')) traceExportStatuses.push(response.status);
   return response;
 }) as typeof fetch;
+const { pinManagerLiveModels } = await import('./manager-live-model-policy.js');
+pinManagerLiveModels();
 
 const [
   { OpenAIConversationsSession },
@@ -501,13 +504,13 @@ for (const scenario of scenarios.filter(s => !chatId || s.id === chatId)) {
         output,
         outputPreview: output.slice(0, 200),
         finalAgent: result.finalAgentName,
-        specialistsUsed: result.specialistsUsed || [],
+        specialistsUsed: managerSpecialistNames(result),
         flightTools,
         subtasks,
         managerResults,
         toolFeedback,
         predictionStatus,
-        renderFlightOptions: Boolean(result.renderFlightOptions),
+        renderFlightOptions: flightCardsVisible(result.context),
         resultCount,
         noteCount,
         inputTokens: sdkUsage?.inputTokens ?? null,

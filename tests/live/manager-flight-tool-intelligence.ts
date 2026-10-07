@@ -20,6 +20,8 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { runGatewayAgent } from '../../src/agents/manager-orchestrator/runner.js';
 import type { FlightAppContext } from '../../src/agents/flight/types.js';
+import { managerSpecialistNames } from './manager-flight-evidence.js';
+import { pinManagerLiveModels } from './manager-live-model-policy.js';
 
 interface TurnCapture {
   turnNumber: number;
@@ -49,6 +51,7 @@ async function runConversation(
   description: string,
   userMessages: string[],
 ): Promise<ConversationReport> {
+  pinManagerLiveModels();
   const turns: TurnCapture[] = [];
   let context: FlightAppContext | null = null;
   let turnNumber = 0;
@@ -73,7 +76,7 @@ async function runConversation(
     context = result.context;
 
     // Extract Manager's tool calls and Flight Agent's nested tool calls
-    const managerCalls: string[] = result.specialistsUsed || [];
+    const managerCalls = managerSpecialistNames(result);
     const flightTools: Array<{ toolName: string; payload: unknown; result: string }> = [];
 
     // Extract Flight Agent's internal tool calls from context.toolCallLog
