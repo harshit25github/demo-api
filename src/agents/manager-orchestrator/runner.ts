@@ -12,13 +12,7 @@ import {
 } from '../flight/tools/suggested-questions-tool.js';
 import { createRequestContext } from '../../shared/runtime/request-context.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
-import { createManagerAgent } from './agent.js';
-import {
-  createManagerTools,
-  createManagerTurnState,
-  finalizeManagerOutput,
-} from '../manager/tools.js';
-import { log } from '../../shared/logging/logger.js';
+import { ManagerAgent } from './agent.js';
 import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import type { FlightAppContext } from '../flight/types.js';
 
@@ -26,8 +20,6 @@ export { sanitizeGatewayOutputForFinalAgent } from './output-guardrail.js';
 
 assertOpenAIConfig();
 setDefaultOpenAIKey(flightAgentConfig.openaiApiKey!);
-
-type DynamicRecord = Record<string, any>;
 
 export interface ManagerRunOptions {
   input: string;
@@ -64,37 +56,6 @@ export const mainChatRunner = new Runner({
   workflowName: 'travel-manager',
   traceIncludeSensitiveData: true,
 });
-
-/**
- * Compose the final answer from the Manager's text plus this turn's outcomes.
- *
- * Render references are resolved here, so bulk content (a Trip itinerary) is
- * inserted exactly once and never travelled through the Manager's own context.
- */
-export function finalizeManagerAgentResult({
-  result,
-  appContext,
-  turnState,
-  startedAt = Date.now(),
-}: {
-  result: DynamicRecord;
-  appContext: FlightAppContext;
-  turnState: ReturnType<typeof createManagerTurnState>;
-  startedAt?: number;
-}) {
-  const composed = finalizeManagerOutput(String(result?.finalOutput || ''), turnState);
-  const sanitized = sanitizeNoLinks(composed.output, { preserveCardImageUrls: true });
-  assertNoLinks(sanitized.text, { allowCardImageUrls: true });
-  return {
-    output: sanitized.text,
-    finalAgentName: 'Manager Agent',
-    context: appContext,
-    latencyMs: Date.now() - startedAt,
-    specialistsUsed: composed.specialistsUsed,
-    renderFlightOptions: composed.renderFlightOptions,
-    lastResponseId: result?.lastResponseId || null,
-  };
-}
 
 export function buildGatewayContext({
   context,
@@ -135,7 +96,7 @@ export function buildGatewayContext({
  *
  * This is the production path. One nonstream `Runner.run()`: the Manager calls
  * the specialists it needs as SDK agent tools, then makes its own final model
- * call, and the composed answer is returned whole. There is no stream-resume
+ * call, and its answer is returned whole. There is no stream-resume
  * loop and no partial-answer reconstruction — a terminal failure throws and the
  * caller reports it.
  */
@@ -143,22 +104,10 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   const requestId = options.requestId ?? randomUUID();
   const traceId = options.traceId ?? generateTraceId();
   const sessionId = options.sessionId ?? 'default';
-  return runManagerTurn({ ...options, requestId, traceId, sessionId });
-}
-
-async function runManagerTurn({
-  input,
-  requestId = randomUUID(),
-  traceId = generateTraceId(),
-  sessionId = 'default',
-  context,
-  session,
-  signal,
-  maxTurns = 12,
-  now = new Date(),
-  timeZone,
-  runner = mainChatRunner,
-}: ManagerRunOptions) {
+  const {
+    input, context, session, signal, maxTurns = 12,
+    now = new Date(), timeZone, runner = mainChatRunner,
+  } = options;
   if (!input) {
     throw new Error('input is required.');
   }
@@ -172,16 +121,11 @@ async function runManagerTurn({
   });
   const requestClock = createRequestClock({ now, timeZone });
   const requestContext = createRequestContext(appContext, requestClock);
-  const managerTurn = createManagerTurnState(appContext, requestId);
-  const managerAgent = createManagerAgent(createManagerTools(managerTurn));
-
-  log('info', 'manager_agent.request', { requestId, traceId, sessionId, input });
-
-  let result: DynamicRecord;
+  let result;
   try {
     result = await withTrace(
       'travel-manager',
-      () => runner.run(managerAgent, input, {
+      () => runner.run(ManagerAgent, input, {
         context: requestContext,
         maxTurns,
         session,
@@ -195,26 +139,18 @@ async function runManagerTurn({
     finalizeFlightSuggestedQuestions(appContext);
   }
 
-  const finalized = finalizeManagerAgentResult({
-    result,
-    appContext,
-    turnState: managerTurn,
-    startedAt,
-  });
-
-  log('info', 'manager_agent.response', {
-    requestId,
-    traceId,
-    sessionId,
-    specialistsUsed: finalized.specialistsUsed,
-    latencyMs: finalized.latencyMs,
-  });
-
+  // Existing link policy only; no render decisions or specialist composition.
+  const sanitized = sanitizeNoLinks(String(result.finalOutput ?? ''), { preserveCardImageUrls: true });
+  assertNoLinks(sanitized.text, { allowCardImageUrls: true });
   return {
     requestId,
     traceId,
     sessionId,
-    ...finalized,
+    output: sanitized.text,
+    finalAgentName: ManagerAgent.name,
+    context: appContext,
+    latencyMs: Date.now() - startedAt,
+    lastResponseId: result.lastResponseId || null,
     result,
   };
 }
