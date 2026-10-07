@@ -19,6 +19,7 @@ import { managerFlightNormalizationConversation } from '../fixtures/manager-flig
 import { expectedFilterValues, expectedPredictionInput, expectedSearchPayload } from '../fixtures/manager-flight-complex-state.js';
 import {
   activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, parseToolValue, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, flightCardsVisible, managerSpecialistNames,
+  predictionSearchIssues, searchProducedResults, suggestionIssues,
   type ObservedFlightToolCall,
 } from './manager-flight-evidence.js';
 
@@ -65,6 +66,7 @@ const [
   { FlightManagerAgent },
   { getRequestState },
   { getFlightSearchState },
+  { defaultPricePredictionRepository },
 ] = await Promise.all([
   import('@openai/agents-openai'),
   import('@openai/agents'),
@@ -78,6 +80,7 @@ const [
   import('../../src/agents/flight/agent.js'),
   import('../../src/shared/runtime/request-context.js'),
   import('../../src/agents/flight/context/flight-context.js'),
+  import('../../src/agents/flight/tools/price-prediction/repository.js'),
 ]);
 
 // Pin the actual singleton agents, not configuration objects that were already
@@ -180,6 +183,47 @@ if (!scenario) {
   throw new Error(
     `Unknown chat: ${chatId}. Available: ${availableConversations.map((item) => item.id).join(', ')}`,
   );
+}
+
+// The production prediction client is a stub that returns no rows, so every
+// prediction would be NO_PREDICTIONS. Conversations marked 'available' get
+// deterministic ranked dates instead, so the success path is exercised too:
+// the same date always gets the same price, and re-runs rank identically.
+const PREDICTION_TODAY = '2026-10-05';
+function isoDay(base: string, offset: number): string {
+  const date = new Date(`${base}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+function predictedPrice(key: string): number {
+  let hash = 0;
+  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) % 100_003;
+  return 180 + (hash % 260);
+}
+function predictionRow(isRoundTrip: boolean) {
+  const trips: Record<string, unknown> = {};
+  for (let offset = 0; offset <= 89; offset += 1) {
+    const outbound = isoDay(PREDICTION_TODAY, offset);
+    if (!isRoundTrip) {
+      trips[outbound] = predictedPrice(outbound);
+      continue;
+    }
+    const returns: Record<string, number> = {};
+    for (let stay = 1; stay <= 14; stay += 1) {
+      const back = isoDay(PREDICTION_TODAY, offset + stay);
+      returns[back] = predictedPrice(`${outbound}/${back}`);
+    }
+    trips[outbound] = returns;
+  }
+  return {
+    SearchDate: isoDay(PREDICTION_TODAY, -1),
+    Currency: 'USD',
+    Thresholds: JSON.stringify({ LowerLimit: 250, UpperLimit: 380 }),
+    TripPredictions: JSON.stringify(trips),
+  };
+}
+if (scenario.predictionData === 'available') {
+  defaultPricePredictionRepository.findCityPrediction = async (criteria) => predictionRow(criteria.isRoundTrip);
 }
 
 type ManagerResult = {
@@ -368,6 +412,8 @@ for (const [index, expectation] of scenario.turns.entries()) {
   const filtersBefore = snapshotFlightSearchRuntime(searchKeyBefore)?.appliedFilters || [];
   const visibilityBefore = (Array.isArray(context.flight?.searchResults) ? context.flight.searchResults : [])
     .map((flight: any) => ({ id: flight.id, display: flight.display }));
+  const suggestionsBefore = Array.isArray(context.flight?.suggestedQuestions)
+    ? context.flight.suggestedQuestions.map(String) : [];
 
   try {
     const run = runGatewayAgentTextStream({
@@ -449,10 +495,19 @@ for (const [index, expectation] of scenario.turns.entries()) {
       checks.push(`expected one Flight specialist result; got ${managerResults.length}`);
     }
     if (flightToolCalls.some((call) => !call.completed)) checks.push('a Flight tool started without a captured result');
-    if (!sameSequence(comparedFlightTools, expectation.expectedTools)) {
+    const allowedSequences = [expectation.expectedTools, ...(expectation.acceptableToolSequences || [])];
+    if (!allowedSequences.some((sequence) => sameSequence(comparedFlightTools, sequence))) {
       checks.push(
-        `expected tools ${expectation.expectedTools.join(' -> ')}, got ${comparedFlightTools.join(' -> ') || 'none'}`,
+        `expected tools ${allowedSequences.map((sequence) => sequence.join(' -> ')).join(' OR ')}, got ${comparedFlightTools.join(' -> ') || 'none'}`,
       );
+    }
+    const allowedStatuses = expectation.expectedStatuses || ['success', 'partial'];
+    const flightStatus = managerResults[0]?.status;
+    if (flightStatus && !allowedStatuses.includes(flightStatus as any)) {
+      checks.push(`Flight feedback status ${flightStatus}; expected ${allowedStatuses.join(' or ')}`);
+    }
+    if (flightStatus === 'needs_input' && !managerResults[0]?.missingInformation.length) {
+      checks.push('needs_input feedback named no missing information');
     }
     if (observedFlightTools.at(-1) !== 'update_flight_suggested_questions') {
       checks.push('suggested-questions update was not the last Flight tool');
@@ -489,17 +544,39 @@ for (const [index, expectation] of scenario.turns.entries()) {
       const call = flightToolCalls.find((entry) => entry.tool === 'flight_search');
       checks.push(...payloadFieldIssues(call?.input, expectedSearch));
     }
+    if (expectation.reusesPreviousSearchDates) {
+      const ond = flightToolCalls.find((entry) => entry.tool === 'flight_search')?.input?.onds?.[0] || {};
+      if (ond.outbound_date !== searchStateBefore?.outbound_date) {
+        checks.push(`search did not reuse the previous outbound date ${searchStateBefore?.outbound_date}; got ${ond.outbound_date}`);
+      }
+      if ((ond.return_date ?? null) !== (searchStateBefore?.return_date ?? null)) {
+        checks.push(`search did not reuse the previous return date ${searchStateBefore?.return_date ?? null}; got ${ond.return_date ?? null}`);
+      }
+    }
+    checks.push(...predictionSearchIssues(flightToolCalls));
     if (suggestions.length !== 3) {
       checks.push(`expected exactly three grounded suggestions; got ${suggestions.length}`);
     }
-    if (expectation.expectedTools.includes('flight_search') && resultCount > 0 && !renderFlightOptions) {
+    checks.push(...suggestionIssues({
+      suggestions,
+      previous: suggestionsBefore,
+      activeFilters,
+      airlineOptions: Array.isArray(result.context.flight?.airlineFilterOptions)
+        ? result.context.flight.airlineFilterOptions as any[] : [],
+      resultCount,
+    }));
+    const successfulSearch = flightToolCalls.some((call) => call.tool === 'flight_search' && searchProducedResults(call));
+    if (successfulSearch && resultCount > 0 && !renderFlightOptions) {
       checks.push('successful search did not leave visible client flight cards');
     }
-    if (observedFlightTools.includes('flight_search') && renderFlightOptions && noteCount !== 1) {
+    if (successfulSearch && renderFlightOptions && noteCount !== 1) {
       checks.push('new search cards need exactly one per-person note');
     }
-    if (!observedFlightTools.includes('flight_search') && noteCount > 0) {
-      checks.push('per-person note added without current-turn search');
+    if (successfulSearch && renderFlightOptions && managerResults[0]?.presentation !== 'flight_cards_with_price_note') {
+      checks.push(`a new search with visible cards reported presentation ${managerResults[0]?.presentation ?? null}`);
+    }
+    if (!successfulSearch && noteCount > 0) {
+      checks.push('per-person note added without a successful current-turn search');
     }
     if (
       predictionChanged && predictionStatus !== 'SUCCESS' &&

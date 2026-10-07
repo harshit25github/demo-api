@@ -11,17 +11,28 @@ export interface ManagerFlightConversationTurn {
   user: string;
   expectedIntent: string;
   expectedTools: readonly ExpectedFlightTool[];
+  /** Other tool sequences that are equally correct for this turn. */
+  acceptableToolSequences?: readonly (readonly ExpectedFlightTool[])[];
   why: string;
   expectedStateChange: string;
   validates: string;
   expectedSearchKeyChange: ExpectedSearchKeyChange;
   expectedFilterTypes: readonly string[];
+  /** Flight feedback statuses that fit this turn's outcome. */
+  expectedStatuses?: readonly ('success' | 'partial' | 'needs_input' | 'failure')[];
+  /** The turn's search must reuse the previous search's outbound and return dates. */
+  reusesPreviousSearchDates?: boolean;
 }
 
 export interface ManagerFlightConversation {
   id: string;
   title: string;
   focus: string;
+  /**
+   * Whether the test prediction repository returns ranked dates. 'unavailable'
+   * keeps the stub's empty response, so every prediction is NO_PREDICTIONS.
+   */
+  predictionData: 'available' | 'unavailable';
   turns: readonly ManagerFlightConversationTurn[];
 }
 
@@ -32,15 +43,16 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
     id: 'compound_filters_route_change',
     title: 'Compound filters, replacements, removals, prediction, and route change',
     focus:
-      'Filter stacking and replacement, current-option reasoning, prediction-to-search sequencing, and distinguishing a departure-location change from an airport filter.',
+      'Filter stacking and replacement, current-option reasoning, implicit flexible-window prediction with an unavailable-data fallback, distinguishing a departure-location change from an airport filter, and a terse contextual filter.',
+    predictionData: 'unavailable',
     turns: [
       {
-        user: 'Find one-way flights from New York to Los Angeles on October 20, 2026 for one adult in economy.',
+        user: 'Find one-way flights from New York (NYC) to Los Angeles LAX on October 20, 2026 for one adult in economy.',
         expectedIntent: 'Start a new exact-date one-way flight search.',
         expectedTools: ['flight_search', SUGGESTIONS],
         why: 'The route, exact date, passengers, trip type, and cabin are complete, so a new search is required without price prediction.',
         expectedStateChange: 'Create a new search key, store three current options, and start with no active filters.',
-        validates: 'Manager delegates a complete flight request once and Flight does not over-trigger prediction for an exact date.',
+        validates: 'Manager delegates a complete flight request once, Flight does not over-trigger prediction for an exact date, and "New York (NYC)" / "Los Angeles LAX" split into clean names plus IATA codes.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: [],
       },
@@ -85,24 +97,37 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedFilterTypes: ['departureTime', 'airline', 'totalDuration'],
       },
       {
-        user: 'Check for better travel dates between October 21 and October 28, then show flights on the strongest date with Air China still applied.',
-        expectedIntent: 'Evaluate a flexible date window, search the strongest or bounded fallback date, then reapply the explicitly retained airline.',
+        user: 'Any date between October 21 and October 28 works for me. Show me flights in that window and keep Air China applied.',
+        expectedIntent: 'Recognize an implicit flexible window, evaluate it, search the strongest or bounded fallback date, then reapply the explicitly retained airline.',
         expectedTools: ['price_prediction_tool', 'flight_search', 'apply_filter', SUGGESTIONS],
-        why: 'The flexible bracket requires prediction before the requested search; the new search clears old filters, so only the explicitly retained Air China filter is reapplied.',
-        expectedStateChange: 'Create a new search key on an in-window date and leave only the Air China filter active.',
-        validates: 'Prediction-to-search-to-filter ordering, bounded failure fallback, and selective filter carry-forward.',
+        why: 'A window that permits several travel dates is date intelligence even without "cheapest" wording. Prediction data is unavailable here, so one disclosed in-window fallback search follows; the new search clears old filters, so only Air China is reapplied.',
+        expectedStateChange: 'Create a new search key on October 21 and leave only the Air China filter active.',
+        validates: 'Implicit flexible-window detection, prediction-to-search-to-filter ordering, honest fallback, and selective filter carry-forward.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: ['airline'],
+        expectedStatuses: ['success', 'partial'],
       },
       {
-        user: 'Start the trip in Newark instead of New York, using the same date, passengers, and cabin. Keep Air China and remove every other filter.',
+        user: 'Same date, passengers and cabin, but start from Newark (EWR) instead of New York. Keep Air China and remove every other filter.',
         expectedIntent: 'Change the departure endpoint, run a new search, and reapply only the requested airline filter.',
         expectedTools: ['flight_search', 'apply_filter', SUGGESTIONS],
         why: 'Starting in Newark changes the search route; it is not merely a departure-airport filter on the old New York search.',
-        expectedStateChange: 'Create a new search key for Newark to Los Angeles and keep only Air China active.',
-        validates: 'Filter-looking route changes, reuse of prior date/passengers/cabin, and removal of stale filters after re-search.',
+        expectedStateChange: 'Create a new search key for Newark/EWR to Los Angeles/LAX on the previous date and keep only Air China active.',
+        validates: 'Filter-looking route changes, "Newark (EWR)" normalization, reuse of prior date/passengers/cabin, and removal of stale filters after re-search.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: ['airline'],
+        reusesPreviousSearchDates: true,
+      },
+      {
+        user: 'Show nonstop now.',
+        expectedIntent: 'Add a nonstop filter on top of the active Air China filter.',
+        expectedTools: ['apply_filter', SUGGESTIONS],
+        why: 'A terse filter request on active results adds one constraint; it neither re-searches nor drops Air China.',
+        expectedStateChange: 'Keep the search key with Air China and nonstop active; the fixture has no nonstop Air China option, so zero results remain.',
+        validates: 'Terse contextual filtering, filter stacking, honest zero-result feedback, and relaxation-first suggestions.',
+        expectedSearchKeyChange: 'same',
+        expectedFilterTypes: ['airline', 'stops'],
+        expectedStatuses: ['success', 'partial'],
       },
     ],
   },
@@ -110,15 +135,16 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
     id: 'roundtrip_airports_layovers',
     title: 'Round-trip airport, layover, duration, and destination changes',
     focus:
-      'Round-trip context retention, airport and layover filters, compound removals, filter-then-read sequencing, flexible-date search, and destination changes.',
+      'Round-trip context retention, airport and layover filters, compound removals, filter-then-read sequencing, flexible-date search with real prediction data, destination changes, numbered and indirect option references, and a multi-city search.',
+    predictionData: 'available',
     turns: [
       {
-        user: 'Find round-trip business-class flights from Los Angeles to New York, leaving October 30, 2026 and returning November 6, 2026, for two adults.',
+        user: 'Find round-trip business-class flights from Los Angeles, California to New York, NY, leaving October 30, 2026 and returning November 6, 2026, for two adults.',
         expectedIntent: 'Start a complete exact-date round-trip search.',
         expectedTools: ['flight_search', SUGGESTIONS],
         why: 'Both route endpoints, both dates, passenger count, trip type, and cabin are known.',
         expectedStateChange: 'Create a round-trip search with no active filters.',
-        validates: 'Round-trip payload assembly and Manager-to-Flight context handoff.',
+        validates: 'Round-trip payload assembly, state/region text stripped from city names, and Manager-to-Flight context handoff.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: [],
       },
@@ -163,22 +189,64 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedFilterTypes: ['departureAirport', 'arrivalTime', 'totalDuration'],
       },
       {
-        user: 'Find stronger round-trip departure dates between November 1 and November 5, returning exactly seven days later, then show flights for the strongest date. Keep only morning arrival and total duration under three hours.',
-        expectedIntent: 'Predict within a bounded round-trip window, search the strongest or fallback pair, then apply only two carried filters.',
+        user: 'I could leave any day from November 1 to November 5 and come back exactly seven days later; I\'m flexible during those dates. Show me flights for whichever dates work best, keeping only morning arrival and total duration under three hours.',
+        expectedIntent: 'Predict within a bounded round-trip window, search the top returned pair, then apply only two carried filters.',
         expectedTools: ['price_prediction_tool', 'flight_search', 'apply_filter', SUGGESTIONS],
-        why: 'Flexible outbound timing plus a fixed stay requires round-trip prediction before search, and the new result set must be filtered afterward.',
-        expectedStateChange: 'Create a new search key and retain only arrivalTime and totalDuration filters.',
-        validates: 'Round-trip prediction bounds/duration, serial dependency handling, and explicit filter carry-forward.',
+        why: 'Flexible outbound timing plus a fixed stay requires round-trip prediction before search; with prediction data available, the search must use the top-ranked pair, and the new result set is filtered afterward.',
+        expectedStateChange: 'Create a new search key on the top-ranked pair and retain only arrivalTime and totalDuration filters.',
+        validates: '"I\'m flexible during those dates" as prediction intent, round-trip bounds/duration, searching the returned winner, and explicit filter carry-forward.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: ['arrivalTime', 'totalDuration'],
       },
       {
-        user: 'Keep those dates, passengers, and cabin, but fly to Boston instead. Do not keep any filters.',
+        user: 'Keep those dates, passengers, and cabin, but fly to Boston, Massachusetts instead. Do not keep any filters.',
         expectedIntent: 'Change the destination and run a clean new search using all other established search inputs.',
         expectedTools: ['flight_search', SUGGESTIONS],
         why: 'Destination is a core search field; the explicit no-filters instruction means no apply_filter call is needed after the new search clears state.',
-        expectedStateChange: 'Create a Boston search key with no active filters.',
-        validates: 'Route update versus filtering, round-trip context reuse, and clean filter reset through new-search semantics.',
+        expectedStateChange: 'Create a Boston search key with no active filters, on the dates the previous turn searched.',
+        validates: 'Route update versus filtering, "Boston, Massachusetts" normalization, round-trip date reuse, and clean filter reset through new-search semantics.',
+        expectedSearchKeyChange: 'new',
+        expectedFilterTypes: [],
+        reusesPreviousSearchDates: true,
+      },
+      {
+        user: 'Compare option 2 with option 3.',
+        expectedIntent: 'Read and compare two numbered current options.',
+        expectedTools: ['getGeneratedContractsContext', SUGGESTIONS],
+        why: 'Numbered-option facts come from fresh contract evidence in read mode; nothing about the search or filters changes.',
+        expectedStateChange: 'Keep the Boston search, no filters, and all three cards visible.',
+        validates: 'Indexed read with indexes [2, 3] and no visibility change.',
+        expectedSearchKeyChange: 'same',
+        expectedFilterTypes: [],
+      },
+      {
+        user: 'Show me the cheaper one.',
+        expectedIntent: 'Resolve "the cheaper one" from the previous comparison and display only that option.',
+        expectedTools: ['getGeneratedContractsContext', SUGGESTIONS],
+        acceptableToolSequences: [['getGeneratedContractsContext', 'getGeneratedContractsContext', SUGGESTIONS]],
+        why: 'The Manager knows which of options 2 and 3 was cheaper; Flight selects that index directly, or reads once to confirm and then selects.',
+        expectedStateChange: 'Keep the search and filters; only the cheaper of options 2 and 3 stays visible.',
+        validates: 'Indirect reference resolution across turns through the Manager subtask, and select only for an explicit display request.',
+        expectedSearchKeyChange: 'same',
+        expectedFilterTypes: [],
+      },
+      {
+        user: 'Does that same flight include a checked bag?',
+        expectedIntent: 'Answer a fact about the option just shown, without changing visibility.',
+        expectedTools: ['getGeneratedContractsContext', SUGGESTIONS],
+        why: '"That same flight" is the option displayed last turn; a baggage fact needs a fresh read of that index.',
+        expectedStateChange: 'Keep the search, filters, and the single visible card unchanged.',
+        validates: 'Reference chain across three turns, read-only fact lookup, and no re-search or filter.',
+        expectedSearchKeyChange: 'same',
+        expectedFilterTypes: [],
+      },
+      {
+        user: 'Change this to a multi-city trip for the same two adults in business: Los Angeles to New York on November 10, New York to Boston on November 14, then Boston back to Los Angeles on November 18.',
+        expectedIntent: 'Run a new three-segment multi-city search.',
+        expectedTools: ['flight_search', SUGGESTIONS],
+        why: 'Trip type and every segment change; each segment has endpoints and a chronological date, so one multi-city search runs.',
+        expectedStateChange: 'Create a multi-city search key with three segments and no filters.',
+        validates: 'Trip-type change to multi-city, segment payload assembly, and passenger/cabin reuse.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: [],
       },
@@ -188,7 +256,8 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
     id: 'clarification_relative_context',
     title: 'Missing route, relative flexibility, indirect removal, and route replacement',
     focus:
-      'Pending flexible timing across clarification, implicit prediction, indirect filter references, airport filtering, and later departure-city change.',
+      'Pending flexible timing across clarification, implicit prediction with real data, indirect filter references, airport filtering, later departure-city change, and an out-of-range numbered option.',
+    predictionData: 'available',
     turns: [
       {
         user: 'I need to fly to Dubai any day next week, one adult in economy.',
@@ -199,14 +268,15 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         validates: 'Manager/Flight clarification ownership, no premature tool call, and preservation of multi-turn flexible timing.',
         expectedSearchKeyChange: 'none',
         expectedFilterTypes: [],
+        expectedStatuses: ['needs_input'],
       },
       {
-        user: 'Leaving from Delhi.',
-        expectedIntent: 'Complete the retained flexible-window request, predict dates, and show flights.',
+        user: 'Leaving from Delhi (DEL), India.',
+        expectedIntent: 'Complete the retained flexible-window request, predict dates, and show flights on the top returned date.',
         expectedTools: ['price_prediction_tool', 'flight_search', SUGGESTIONS],
-        why: 'The missing route endpoint now completes the earlier search intent; the multi-date window requires prediction first.',
-        expectedStateChange: 'Create a Delhi-to-Dubai search key on an in-window strongest or fallback date.',
-        validates: 'Self-contained Manager subtask reconstruction and completion of pending intent without re-asking for timing.',
+        why: 'The missing route endpoint now completes the earlier search intent; the multi-date window requires prediction first, and the search uses its top-ranked date.',
+        expectedStateChange: 'Create a Delhi-to-Dubai search key on the top-ranked date inside next week.',
+        validates: 'Self-contained Manager subtask reconstruction, completion of pending intent without re-asking for timing, and "Delhi (DEL), India" normalization.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: [],
       },
@@ -251,24 +321,26 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedFilterTypes: ['stops', 'departureTime', 'arrivalTime', 'airline', 'departureAirport'],
       },
       {
-        user: 'Actually start in Mumbai instead, using the same date, passenger, and cabin. Keep only Air Canada and morning arrival.',
+        user: 'Actually start in Mumbai, India (BOM) instead, using the same date, passenger, and cabin. Keep only Air Canada and morning arrival.',
         expectedIntent: 'Change the departure city, start a new search, and selectively reapply two filters.',
         expectedTools: ['flight_search', 'apply_filter', SUGGESTIONS],
         why: 'Mumbai replaces the route endpoint; the old search and all unmentioned filters become stale.',
-        expectedStateChange: 'Create a Mumbai-to-Dubai search key with only airline and arrivalTime active.',
-        validates: 'Route-change detection, prior date reuse, stale-filter clearing, and explicit carry-forward.',
+        expectedStateChange: 'Create a Mumbai-to-Dubai search key on the previous date with only airline and arrivalTime active.',
+        validates: 'Route-change detection, "Mumbai, India (BOM)" normalization, prior date reuse, stale-filter clearing, and explicit carry-forward.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: ['airline', 'arrivalTime'],
+        reusesPreviousSearchDates: true,
       },
       {
         user: 'Compare option 1 with option 2 from the current results.',
-        expectedIntent: 'Read and compare two current options without changing cards or filters.',
+        expectedIntent: 'Read the current options; only option 1 matches the active filters, so report that option 2 does not exist.',
         expectedTools: ['getGeneratedContractsContext', SUGGESTIONS],
-        why: 'The request concerns generated contracts and should use fresh indexed context.',
+        why: 'The request concerns generated contracts and needs fresh indexed context. Air Canada plus morning arrival leaves one fixture option, so the comparison cannot be completed and no other option may be substituted.',
         expectedStateChange: 'Keep search key, route, date, and filters unchanged.',
-        validates: 'Numbered-option context reuse through Manager and no redundant search/filter call.',
+        validates: 'Numbered-option reference through the Manager, honest out-of-range handling, and no redundant search/filter call.',
         expectedSearchKeyChange: 'same',
         expectedFilterTypes: ['airline', 'arrivalTime'],
+        expectedStatuses: ['partial'],
       },
     ],
   },
@@ -276,15 +348,16 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
     id: 'reset_prediction_recommit',
     title: 'Atomic reset-plus-add, result reasoning, advice-only prediction, and recommit',
     focus:
-      'Broad compound filtering, atomic clear-and-add behavior, date advice without search, later exact-date search, and final option comparison.',
+      'Broad compound filtering, atomic clear-and-add behavior, date advice without search when prediction data is unavailable, later exact-date search, option comparison, and a one-way to round-trip change.',
+    predictionData: 'unavailable',
     turns: [
       {
-        user: 'Find one-way flights from San Francisco to Tokyo on November 15, 2026 for one adult in economy.',
+        user: 'Find one-way flights from SFO San Francisco to Tokyo, Japan on November 15, 2026 for one adult in economy.',
         expectedIntent: 'Start a new exact-date one-way search.',
         expectedTools: ['flight_search', SUGGESTIONS],
         why: 'The request has all required search fields and no flexible date window.',
         expectedStateChange: 'Create a search key with no filters.',
-        validates: 'Baseline Manager-routed search and exact-date prediction boundary.',
+        validates: 'Baseline Manager-routed search, exact-date prediction boundary, and "SFO San Francisco" / "Tokyo, Japan" normalization.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: [],
       },
@@ -329,14 +402,15 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedFilterTypes: ['totalDuration', 'stops', 'baggage', 'arrivalTime'],
       },
       {
-        user: 'I can travel any day from November 16 through November 23. Recommend stronger dates only; do not change my current search yet.',
+        user: 'I can travel any day from November 16 through November 23. Which day would be better to travel? Don\'t change my current search yet.',
         expectedIntent: 'Evaluate an implicit flexible date window for advice only.',
         expectedTools: ['price_prediction_tool', SUGGESTIONS],
-        why: 'The bounded window itself authorizes prediction, while the explicit instruction forbids a new flight search.',
-        expectedStateChange: 'Keep the existing search key and active filters unchanged while storing the prediction outcome.',
-        validates: 'Flexible-window intent detection and advice-only no-search discipline.',
+        why: 'The bounded window itself authorizes prediction, while the explicit instruction forbids a new flight search. Prediction data is unavailable, so the comparison cannot be verified and no fallback search is allowed.',
+        expectedStateChange: 'Keep the existing search key and active filters unchanged while storing the failed prediction outcome.',
+        validates: 'Flexible-window intent detection, advice-only no-search discipline, and honest unverified-advice feedback.',
         expectedSearchKeyChange: 'same',
         expectedFilterTypes: ['totalDuration', 'stops', 'baggage', 'arrivalTime'],
+        expectedStatuses: ['failure', 'partial'],
       },
       {
         user: 'Now search November 20 instead, keeping nonstop, carry-on, morning arrival, and total duration under four hours.',
@@ -358,21 +432,32 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedSearchKeyChange: 'same',
         expectedFilterTypes: ['stops', 'baggage', 'arrivalTime', 'totalDuration'],
       },
+      {
+        user: 'Make it a round trip, coming back November 27.',
+        expectedIntent: 'Change the trip type to round trip with a November 27 return and run a new search.',
+        expectedTools: ['flight_search', SUGGESTIONS],
+        why: 'Trip type and return date are core search fields. The traveler did not ask to keep filters, and a new search does not silently reinstate old ones.',
+        expectedStateChange: 'Create a round-trip search key for November 20 to November 27 with no filters.',
+        validates: 'One-way to round-trip change, outbound date and route reuse, and new-search filter semantics.',
+        expectedSearchKeyChange: 'new',
+        expectedFilterTypes: [],
+      },
     ],
   },
   {
     id: 'deep_filter_state_search_changes',
     title: 'Deep filter state, airline replacement, passenger/cabin search, and price advice',
     focus:
-      'Dense filter accumulation, later replacements/removals, option detail selection, search-input changes with selected filter carry-forward, and round-trip date advice.',
+      'Dense filter accumulation, later replacements/removals, option detail selection, search-input changes with selected filter carry-forward, round-trip date advice with real prediction data, and an out-of-window date.',
+    predictionData: 'available',
     turns: [
       {
-        user: 'Find round-trip flights from Delhi to Dubai, departing December 5, 2026 and returning December 12, 2026, for two adults in economy.',
+        user: 'Find round-trip flights from DEL Delhi to Dubai DXB, departing December 5, 2026 and returning December 12, 2026, for two adults in economy.',
         expectedIntent: 'Start a complete exact-date round-trip search.',
         expectedTools: ['flight_search', SUGGESTIONS],
         why: 'All core search inputs are explicitly supplied.',
         expectedStateChange: 'Create a Delhi-to-Dubai round-trip search with no filters.',
-        validates: 'Baseline round-trip search and exact state initialization.',
+        validates: 'Baseline round-trip search, exact state initialization, and "DEL Delhi" / "Dubai DXB" normalization.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: [],
       },
@@ -435,16 +520,30 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         validates: 'Core search changes after deep filtering, search-before-filter ordering, and exact selective carry-forward.',
         expectedSearchKeyChange: 'new',
         expectedFilterTypes: ['stops', 'departureTime', 'arrivalTime', 'baggage', 'totalDuration', 'layoverAirport', 'layoverDuration'],
+        reusesPreviousSearchDates: true,
       },
       {
-        user: 'For this route and seven-day stay, compare departures from December 8 through December 15 and recommend stronger date pairs only. Do not search yet.',
+        user: 'I\'m flexible between December 8 and December 15 for the same seven-day stay. Which dates look better? Don\'t search yet.',
         expectedIntent: 'Use current round-trip context for advice-only date prediction across a new outbound window.',
         expectedTools: ['price_prediction_tool', SUGGESTIONS],
         why: 'The route and trip duration are known, the new date bracket is flexible, and the user explicitly forbids a search.',
         expectedStateChange: 'Keep the existing search key and all seven filters while storing the prediction result.',
-        validates: 'Round-trip context reuse for prediction and no accidental search on an advice-only turn.',
+        validates: '"I\'m flexible between" as prediction intent, round-trip context reuse, returned-date advice, and no accidental search on an advice-only turn.',
         expectedSearchKeyChange: 'same',
         expectedFilterTypes: ['stops', 'departureTime', 'arrivalTime', 'baggage', 'totalDuration', 'layoverAirport', 'layoverDuration'],
+        expectedStatuses: ['success'],
+      },
+      {
+        user: 'What about leaving December 5, 2027 instead, same seven-day stay?',
+        expectedIntent: 'Recognize that the date is beyond the bookable window and ask for a date inside it, without changing the exact date silently.',
+        expectedTools: [SUGGESTIONS],
+        acceptableToolSequences: [['flight_search', SUGGESTIONS]],
+        why: 'The search window ends September 29, 2027. Flight either sees that from its clock context or gets field-level recovery from the search tool; an exact date the traveler named must not be replaced with a boundary date.',
+        expectedStateChange: 'Keep the existing search, filters, and cards unchanged.',
+        validates: 'Out-of-window handling, tool-feedback recovery without a silent date change, and narrow clarification.',
+        expectedSearchKeyChange: 'same',
+        expectedFilterTypes: ['stops', 'departureTime', 'arrivalTime', 'baggage', 'totalDuration', 'layoverAirport', 'layoverDuration'],
+        expectedStatuses: ['needs_input', 'failure'],
       },
     ],
   },

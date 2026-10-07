@@ -1,4 +1,4 @@
-import type { FilterValues } from '../fixtures/manager-flight-complex-state.js';
+import type { FilterValues, PayloadOracle } from '../fixtures/manager-flight-complex-state.js';
 import { getVisibleFlightContracts } from '../../public/chat-dashboard/flightContracts.js';
 
 /** Test reporting reads native SDK evidence; production need not track delegates. */
@@ -76,12 +76,95 @@ export function fullAirportGroupEvidence(
   return { values, acceptableDeviations };
 }
 
-export function payloadFieldIssues(actual: any, expected: Record<string, string | number | null | readonly string[]>): string[] {
+export function payloadFieldIssues(actual: any, expected: PayloadOracle): string[] {
   return Object.entries(expected).flatMap(([path, intended]) => {
     const observed = path.split('.').reduce((value, key) => value?.[key], actual);
     const matches = Array.isArray(intended) ? intended.includes(observed) : observed === intended;
     return matches ? [] : [`payload ${path}: expected ${JSON.stringify(intended)}, got ${JSON.stringify(observed)}`];
   });
+}
+
+/** A search that succeeded and returned options, read from the tool's own output. */
+export function searchProducedResults(call: ObservedFlightToolCall | undefined): boolean {
+  return Array.isArray(call?.output?.flights) && call.output.flights.length > 0;
+}
+
+/**
+ * The search after a prediction must follow the prediction's outcome: the
+ * top-ranked date (or pair) on success, a date inside the requested window on
+ * a fallback. Read from the actual tool inputs and outputs, never the reply.
+ */
+export function predictionSearchIssues(calls: ObservedFlightToolCall[]): string[] {
+  const predictionIndex = calls.findIndex((call) => call.tool === 'price_prediction_tool' && call.completed);
+  if (predictionIndex < 0) return [];
+  const search = calls.slice(predictionIndex + 1).find((call) => call.tool === 'flight_search');
+  if (!search) return [];
+  const prediction = calls[predictionIndex];
+  const ond = search.input?.onds?.[0] || {};
+  if (prediction.output?.status === 'SUCCESS') {
+    const top = prediction.output.cheapestCombinations?.[0] || prediction.output.cheapestDates?.[0];
+    const outbound = top?.outboundDate || top?.departureDate;
+    const issues: string[] = [];
+    if (outbound && ond.outbound_date !== outbound) {
+      issues.push(`search after a successful prediction used ${ond.outbound_date}, not the top-ranked date ${outbound}`);
+    }
+    if (top?.returnDate && ond.return_date !== top.returnDate) {
+      issues.push(`search after a successful prediction returned ${ond.return_date}, not the top-ranked return ${top.returnDate}`);
+    }
+    return issues;
+  }
+  const { startDate, endDate } = prediction.input || {};
+  if (startDate && endDate && !(ond.outbound_date >= startDate && ond.outbound_date <= endDate)) {
+    return [`fallback search date ${ond.outbound_date} is outside the requested window ${startDate}..${endDate}`];
+  }
+  return [];
+}
+
+const RELAXING_SUGGESTION = /^(?:remove|drop|clear|relax|allow|undo|reset|show all|include|loosen|widen|any)\b/i;
+
+/**
+ * Suggestion rules the update tool cannot see for itself: an action already in
+ * effect, an option number that does not exist, or the same three as last turn.
+ */
+export function suggestionIssues({
+  suggestions,
+  previous,
+  activeFilters,
+  airlineOptions,
+  resultCount,
+}: {
+  suggestions: string[];
+  previous: string[];
+  activeFilters: any[];
+  airlineOptions: any[];
+  resultCount: number;
+}): string[] {
+  const issues: string[] = [];
+  const active = activeFilterValues(activeFilters);
+  const activeAirlines = new Set((active.airline || []).flatMap((code) =>
+    airlineOptions.filter((option) => option?.Code === code).map((option) => String(option.Text || option.Name || ''))));
+  for (const suggestion of suggestions) {
+    const adds = !RELAXING_SUGGESTION.test(suggestion.trim());
+    if (adds && active.stops?.includes('0') && /\bnon[ -]?stop\b/i.test(suggestion)) {
+      issues.push(`suggestion re-offers the active nonstop filter: "${suggestion}"`);
+    }
+    if (adds && /^(?:show|only|filter|keep)\b/i.test(suggestion)) {
+      for (const name of activeAirlines) {
+        if (name && suggestion.toLowerCase().includes(name.toLowerCase())) {
+          issues.push(`suggestion re-offers the active ${name} filter: "${suggestion}"`);
+        }
+      }
+    }
+    const option = suggestion.match(/\boption\s+(\d+)\b/i);
+    if (option && Number(option[1]) > resultCount) {
+      issues.push(`suggestion names option ${option[1]} but only ${resultCount} current option(s) exist: "${suggestion}"`);
+    }
+  }
+  const normalize = (items: string[]) => items.map((item) => item.trim().toLowerCase()).sort().join('|');
+  if (previous.length === 3 && suggestions.length === 3 && normalize(previous) === normalize(suggestions)) {
+    issues.push('suggestions repeated the previous three unchanged');
+  }
+  return issues;
 }
 
 /** Flexible-date fallback must not promise an unsolicited range-wide sweep. */

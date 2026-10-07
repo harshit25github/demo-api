@@ -5,6 +5,7 @@ export const managerFlightNormalizationConversation: ManagerFlightConversation =
   id: 'normalization_fewshots',
   title: 'Separated location payloads and stateful tool-intelligence replay',
   focus: 'Actual Manager -> Flight payloads, all five tools, empty-state inspection, mixed reset/add, flexible-date fallback, and endpoint changes.',
+  predictionData: 'unavailable',
   turns: [
     {
       user: 'Find one-way flights from Delhi DEL to New York NYC on October 20, 2026 for one adult in economy.',
