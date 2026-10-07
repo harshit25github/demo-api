@@ -2220,6 +2220,73 @@ test('ApplyFilterTool preserves remaining values during partial layover and airl
   });
 });
 
+test('ApplyFilterTool keeps the API payload in step with state when removal wording says "filter"', async () => {
+  // The wording used to decide the API payload while the merge decided state,
+  // so "remove the Emirates filter" cleared every airline in one and not the other.
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  setAppliedFilters(context, [
+    createApiFilter({ filterType: 'airline', filterCode: 'AC' }),
+    createApiFilter({ filterType: 'airline', filterCode: 'EK' }),
+  ]);
+
+  const result = parseToolResult(await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'airline', airlineNames: ['Emirates'], rawUserFilter: 'Remove the Emirates filter',
+    })] }),
+    {},
+  ));
+
+  assert.deepEqual(result.filters.map((filter: any) => filter.filterCode), ['AC']);
+  assert.deepEqual(findPayloadFilter(result.finalFilterPayload, 'airline'), { filterType: 'airline', Values: ['AC'] });
+});
+
+test('ApplyFilterTool treats "any ... airport" as the whole endpoint airport group', async () => {
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  setAppliedFilters(context, [createApiFilter({ filterType: 'departureAirport', filterCode: 'BUR' })]);
+
+  const result = parseToolResult(await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'departureAirport',
+      departureAirportNames: ['any Los Angeles-area departure airport'],
+      rawUserFilter: 'Allow any Los Angeles-area departure airport',
+    })] }),
+    {},
+  ));
+
+  assert.deepEqual(findPayloadFilter(result.finalFilterPayload, 'outbounddepart'), {
+    filterType: 'outbounddepart',
+    Values: ['LAX,BUR,ONT,SNA,DSB'],
+  });
+});
+
+test('ApplyFilterTool state and payload agree when a group replacement also says remove', async () => {
+  // Live run 7 Oct: the payload cleared departure airports to "all" while the
+  // stored state still held BUR-only, so the next turn read a stale filter.
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  setAppliedFilters(context, [createApiFilter({ filterType: 'departureAirport', filterCode: 'BUR' })]);
+
+  const result = parseToolResult(await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'departureAirport',
+      departureAirportNames: ['any Los Angeles-area departure airport'],
+      rawUserFilter: "replace departure-airport filter with 'any Los Angeles-area departure airport' (remove BUR-only)",
+    })] }),
+    {},
+  ));
+
+  assert.equal(result.filters.some((filter: any) => filter.filterType === 'departureAirport'), false);
+  assert.deepEqual(findPayloadFilter(result.finalFilterPayload, 'outbounddepart'), {
+    filterType: 'outbounddepart',
+    Values: ['all'],
+  });
+});
+
 test('ApplyFilterTool replaces same filter type when add intent is absent', async () => {
   const context = createContext();
   await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});

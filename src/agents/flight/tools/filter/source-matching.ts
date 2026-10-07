@@ -698,7 +698,7 @@ function buildAirportFeedbackLabel(filterType: FlightFilter['filterType']): stri
 function isGenericAirportSelectionRequest(value: unknown): boolean {
   const text = toSearchText(value);
   return (
-    /\b(all|every|each|these|available|options?|nearby|alternate|alternative|near\s*by|main|primary|current|non[-\s]?nearby|not\s+nearby)\b/.test(
+    /\b(all|any|every|each|these|available|options?|nearby|alternate|alternative|near\s*by|main|primary|current|non[-\s]?nearby|not\s+nearby)\b/.test(
       text,
     ) &&
     /\b(airport|airports|arrival|departure|arrive|depart|options?|area|only)\b/.test(text)

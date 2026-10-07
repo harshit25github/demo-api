@@ -210,10 +210,6 @@ export function mergeApplyFilterState(
   return dedupeFilterState(updatedFilters);
 }
 
-function sameFilterValue(left: FlightFilter, right: FlightFilter): boolean {
-  return left.filterType === right.filterType && left.filterCode === right.filterCode;
-}
-
 function buildClearPayload(filterType: FlightFilter['filterType']): FilterPayload | null {
   const clearPayload = clearPayloadByToolType[filterType];
   if (!clearPayload) {
@@ -242,21 +238,21 @@ export function buildRemovalFilterPayloads(
       continue;
     }
 
-    const hadActiveType = existingFilters.some(
-      (existingFilter) => existingFilter.filterType === filter.filterType,
-    );
+    // The payload follows the merged state. Values of this type that remain
+    // are already in the final payload, so clear the type only once none
+    // remain. Deciding from the wording instead made "remove the Emirates
+    // filter" clear every airline in the API while the state kept the rest.
     const hasRemainingType = updatedFilters.some(
       (updatedFilter) => updatedFilter.filterType === filter.filterType,
     );
-    const removedExactValue =
-      hasUsableFilterValue(filter) &&
-      existingFilters.some((existingFilter) => sameFilterValue(existingFilter, filter));
-
-    if (!hadActiveType && !isClearWholeFilterIntent(filter)) {
+    if (hasRemainingType) {
       continue;
     }
 
-    if (isClearWholeFilterIntent(filter) || (removedExactValue && !hasRemainingType)) {
+    const hadActiveType = existingFilters.some(
+      (existingFilter) => existingFilter.filterType === filter.filterType,
+    );
+    if (hadActiveType || isClearWholeFilterIntent(filter)) {
       const clearPayload = buildClearPayload(filter.filterType);
       if (clearPayload) {
         clearPayloads.push(clearPayload);
