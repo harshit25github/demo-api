@@ -94,7 +94,7 @@ export const applyFilterSchema = z.object({
         rawUserFilter: z
           .string()
           .nullable()
-          .describe('Original operation clause for this filter, preserving remove/also/only/nearby/all wording. Exclude unrelated clauses: an addition after reset must not contain the reset clause.'),
+          .describe('Original operation clause for this filter, preserving remove/also/only/nearby/all wording. Exclude unrelated clauses: an addition after reset must not contain the reset clause, and an inclusion or replacement must not carry an explanatory remove/exclude clause even when the request has one ("Delhi airport only", not "DEL only; exclude nearby airports").'),
       }),
     )
     .min(1)

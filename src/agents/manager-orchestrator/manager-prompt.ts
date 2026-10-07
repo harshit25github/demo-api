@@ -1,4 +1,4 @@
-import { getRequestState } from '../../shared/runtime/request-context.js';
+import { getRequestClock, getRequestState } from '../../shared/runtime/request-context.js';
 
 function hasCurrentFlightOptions(results: unknown): boolean {
   if (Array.isArray(results)) return results.length > 0;
@@ -98,10 +98,16 @@ export function buildManagerInstructions(runContext: { context?: unknown }): str
   const fact = (value: unknown) => typeof value === 'string' && value.trim()
     ? value.replace(/\s+/g, ' ').trim().slice(0, 60)
     : 'unknown';
+  // The same request clock Flight resolves dates from. Without it the model
+  // used its own date and wrote dates into subtasks that Flight then trusted.
+  const clock = getRequestClock(raw);
+  const today = clock
+    ? `\n- Today in the traveler's time zone: ${clock.localDate} (${clock.timeZone}). Resolve relative dates such as "next week" from this date only.`
+    : '';
   return `${MANAGER_PROMPT}
 
 ## Current trusted routing state
-These are the stable search parameters, for choosing a specialist and writing a self-contained subtask. They do not describe the current result set: anything about the options themselves comes from Flight.
+These are the stable search parameters, for choosing a specialist and writing a self-contained subtask. They do not describe the current result set: anything about the options themselves comes from Flight.${today}
 - Generated flight options available: ${hasCurrentFlightOptions(state.flight?.searchResults) ? 'yes' : 'no'}.
 - Current flight search: ${fact(segment?.origin)} to ${fact(segment?.destination)}, outbound ${fact(state.flight?.outboundDate || segment?.date)}, return ${fact(state.flight?.inboundDate)}.
 - Current trip summary: ${fact(origin?.city)} to ${fact(destination?.city)}, outbound ${fact(state.summaryContext?.outbound_date)}, return ${fact(state.summaryContext?.return_date)}, duration ${typeof state.summaryContext?.duration_days === 'number' ? state.summaryContext.duration_days : 'unknown'} days.
@@ -118,7 +124,7 @@ Preserve the route's known geographic scope. Do not expand a city into an enumer
 
 On active results, selecting departure or arrival airports within the existing route is filter work, not a route change. Preserve the user's airport-selection clauses in the subtask and ask Flight to constrain the current results while keeping the search unchanged; let Flight resolve the available airport names and groups. Do not rewrite these selections as an instruction to update the search endpoints. An explicit change of route city/location still requires a new search; ambiguous route-versus-airport wording belongs to Flight for clarification. Preserve "allow one stop" as written rather than inventing "up to one stop" or another range.
 
-Preserve each original filter clause without explanatory negations. "Allow one stop" must not become "allow one stop (exclude 2+ stops)": exclude/remove wording expresses a different filter operation. Likewise, replacing BUR-only with an all-airport group is a new selection, not a combined removal-and-selection clause. Keep historical removals outside active operation clauses.
+Preserve each original filter clause without explanatory negations. "Allow one stop" must not become "allow one stop (exclude 2+ stops)": exclude/remove wording expresses a different filter operation. Likewise, replacing BUR-only with an all-airport group is a new selection, not a combined removal-and-selection clause. Never append "exclude …" or "remove …" to a selection the traveler stated positively, such as "Use Delhi airport only". Keep historical removals outside active operation clauses.
 
 A flexible date bracket means choosing a travel date within it, not inventory for every day. "Show me flights in that window" asks for flights on one good date in it. Preserve the bracket; do not add "cheapest per day", "show options across every date", "which dates have matches", or any other per-date coverage. If date intelligence is unavailable, explain the single dated fallback and the unverified comparison; do not propose more searches, ask the traveler to pick dates to check, or ask permission for an each-day listing instead.
 

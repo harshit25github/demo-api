@@ -515,6 +515,10 @@ for (const [index, expectation] of scenario.turns.entries()) {
     if (flightStatus === 'needs_input' && !managerResults[0]?.missingInformation.length) {
       checks.push('needs_input feedback named no missing information');
     }
+    const missingCount = managerResults[0]?.missingInformation.length ?? 0;
+    if (expectation.maxMissingInformation !== undefined && missingCount > expectation.maxMissingInformation) {
+      checks.push(`Flight asked for ${missingCount} details; at most ${expectation.maxMissingInformation} is missing: ${JSON.stringify(managerResults[0]?.missingInformation)}`);
+    }
     if (observedFlightTools.at(-1) !== 'update_flight_suggested_questions') {
       checks.push('suggested-questions update was not the last Flight tool');
     }

@@ -20,6 +20,8 @@ export interface ManagerFlightConversationTurn {
   expectedFilterTypes: readonly string[];
   /** Flight feedback statuses that fit this turn's outcome. */
   expectedStatuses?: readonly ('success' | 'partial' | 'needs_input' | 'failure')[];
+  /** The most details Flight may ask for; safe defaults are never missing. */
+  maxMissingInformation?: number;
   /** The turn's search must reuse the previous search's outbound and return dates. */
   reusesPreviousSearchDates?: boolean;
 }
@@ -267,10 +269,11 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         expectedTools: [SUGGESTIONS],
         why: 'Prediction and search both require the missing route endpoint; no core tool can run safely yet.',
         expectedStateChange: 'No search key; preserve the pending date window and known arrival/passenger/cabin context in feedback/session history.',
-        validates: 'Manager/Flight clarification ownership, no premature tool call, and preservation of multi-turn flexible timing.',
+        validates: 'Manager/Flight clarification ownership, no premature tool call, preservation of multi-turn flexible timing, and no question about trip type (one-way is the safe default).',
         expectedSearchKeyChange: 'none',
         expectedFilterTypes: [],
         expectedStatuses: ['needs_input'],
+        maxMissingInformation: 1,
       },
       {
         user: 'Leaving from Delhi (DEL), India.',

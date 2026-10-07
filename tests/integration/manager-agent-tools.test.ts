@@ -54,6 +54,9 @@ test('Manager has bounded routing context without render-tag instructions or pri
   context.flight.searchResults = [{ id: 'private-flight' }] as any;
   const instructions = buildManagerInstructions({ context: sdkContext(context).context });
   assert.match(instructions, /Generated flight options available: yes/);
+  // The request clock Flight uses, so the Manager never resolves dates from its own.
+  assert.match(instructions, /Today in the traveler's time zone: 2026-09-19 \(UTC\)/);
+  assert.doesNotMatch(buildManagerInstructions({ context: {} }), /Today in the traveler's time zone/);
   assert.match(instructions, /minimum specialist set/);
   assert.match(instructions, /Speak as one helpful travel assistant/);
   assert.match(instructions, /Do not call options cheap, good, or best unless verified facts support that claim/);
