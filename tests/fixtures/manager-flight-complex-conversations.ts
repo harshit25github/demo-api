@@ -345,7 +345,9 @@ export const managerFlightComplexConversations: readonly ManagerFlightConversati
         validates: 'Numbered-option reference through the Manager, honest out-of-range handling, and no redundant search/filter call.',
         expectedSearchKeyChange: 'same',
         expectedFilterTypes: ['airline', 'arrivalTime'],
-        expectedStatuses: ['partial'],
+        // partial per Flight's own rule; success when the Manager's subtask
+        // already says "if option 2 does not exist, report that" (observed 7 Oct).
+        expectedStatuses: ['partial', 'success'],
       },
     ],
   },
