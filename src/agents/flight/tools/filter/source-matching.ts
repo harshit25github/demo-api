@@ -363,6 +363,15 @@ function getRequestedAirlineNames(
   if (!rawText) {
     return explicitNames;
   }
+  // Raw text recovers airlines omitted from an inclusion ("Show Qatar and
+  // Emirates"). A replacement clause also names the old airline ("Show Air
+  // Canada instead of Air China"), so explicit names are the whole selection.
+  if (
+    explicitNames.length > 0 &&
+    /\b(instead|replace|replacing|switch|rather than)\b/.test(toSearchText(filter.rawUserFilter))
+  ) {
+    return explicitNames;
+  }
 
   const inferredNames = uniqueStrings(
     airlineOptions.flatMap((option) => {

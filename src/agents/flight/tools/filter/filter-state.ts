@@ -62,7 +62,14 @@ function hasUsableFilterValue(filter: FlightFilter): boolean {
 
 function hasRemoveIntent(filter: FlightFilter): boolean {
   const text = toSearchText(filter.rawUserFilter);
-  return /\b(remove|without|exclude|clear|drop|delete|no\s+longer)\b/.test(text);
+  if (!/\b(remove|without|exclude|clear|drop|delete|no\s+longer)\b/.test(text)) {
+    return false;
+  }
+  // "Remove the current airline filter and replace it with Air Canada or
+  // Emirates": the values are the new selection and the removal wording refers
+  // to the old one, so this is a replacement. "only" and "change" stay out of
+  // this test: "remove the Air China-only filter" is a real removal.
+  return !(/\b(replace|replacing|instead|switch)\b/.test(text) && hasUsableFilterValue(filter));
 }
 
 function hasClearAllIntent(filters: FlightFilter[]): boolean {

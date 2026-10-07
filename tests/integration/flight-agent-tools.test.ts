@@ -2297,11 +2297,80 @@ test('ApplyFilterTool state and payload agree when a group replacement also says
     {},
   ));
 
-  assert.equal(result.filters.some((filter: any) => filter.filterType === 'departureAirport'), false);
+  // "replace" makes it a replacement despite "remove": the group is selected,
+  // and state and payload agree on it.
+  assert.deepEqual(
+    result.filters.filter((filter: any) => filter.filterType === 'departureAirport').map((filter: any) => filter.filterCode),
+    ['LAX', 'BUR', 'ONT', 'SNA', 'DSB'],
+  );
   assert.deepEqual(findPayloadFilter(result.finalFilterPayload, 'outbounddepart'), {
     filterType: 'outbounddepart',
-    Values: ['all'],
+    Values: ['LAX,BUR,ONT,SNA,DSB'],
   });
+});
+
+test('ApplyFilterTool treats a remove-and-replace clause with new values as a replacement', async () => {
+  // Live run 7 Oct: one entry carried the new airlines plus "remove the current
+  // airline filter ... and replace it with ...". It was read as a removal, the
+  // airline filter vanished, and a second apply_filter call was needed.
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  setAppliedFilters(context, [
+    createApiFilter({ filterType: 'airline', filterCode: 'CA' }),
+    createApiFilter({ filterType: 'stops', filterCode: '2' }),
+  ]);
+
+  const result = parseToolResult(await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'airline',
+      airlineNames: ['Air Canada', 'Emirates'],
+      rawUserFilter: 'remove the current airline filter (Air China only) and replace it with airline = Air Canada OR Emirates only',
+    })] }),
+    {},
+  ));
+
+  assert.deepEqual(
+    result.filters.filter((filter: any) => filter.filterType === 'airline').map((filter: any) => filter.filterCode),
+    ['AC', 'AC+', 'EK'],
+  );
+  assert.deepEqual(findPayloadFilter(result.finalFilterPayload, 'airline'), { filterType: 'airline', Values: ['AC,AC+,EK'] });
+  assert.ok(result.filters.some((filter: any) => filter.filterType === 'stops'));
+});
+
+test('ApplyFilterTool does not select the airline an "instead of" clause replaces', async () => {
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  setAppliedFilters(context, [createApiFilter({ filterType: 'airline', filterCode: 'CA' })]);
+
+  const result = parseToolResult(await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'airline', airlineNames: ['Air Canada'], rawUserFilter: 'Show Air Canada instead of Air China',
+    })] }),
+    {},
+  ));
+
+  assert.deepEqual(result.filters.map((filter: any) => filter.filterCode), ['AC', 'AC+']);
+});
+
+test('ApplyFilterTool still removes on "remove the X-only filter" wording', async () => {
+  const context = createContext();
+  await FlightSearchTool.invoke({ context }, JSON.stringify(baseSearchPayload), {});
+  setAppliedFilters(context, [
+    createApiFilter({ filterType: 'airline', filterCode: 'CA' }),
+    createApiFilter({ filterType: 'airline', filterCode: 'EK' }),
+  ]);
+
+  const result = parseToolResult(await ApplyFilterTool.invoke(
+    { context },
+    JSON.stringify({ filters: [createApiFilter({
+      filterType: 'airline', airlineNames: ['Air China'], rawUserFilter: 'Remove the Air China-only filter',
+    })] }),
+    {},
+  ));
+
+  assert.deepEqual(result.filters.map((filter: any) => filter.filterCode), ['EK']);
 });
 
 test('ApplyFilterTool replaces same filter type when add intent is absent', async () => {
