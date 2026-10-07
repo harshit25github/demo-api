@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, type ObservedFlightToolCall } from '../live/manager-flight-evidence.js';
+import { activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, subtaskEnrichmentIssues, type ObservedFlightToolCall } from '../live/manager-flight-evidence.js';
 import { managerFlightComplexConversations } from '../fixtures/manager-flight-complex-conversations.js';
 import { expectedFilterValues, expectedPredictionInput } from '../fixtures/manager-flight-complex-state.js';
 import { managerFlightNormalizationConversation } from '../fixtures/manager-flight-normalization-conversation.js';
@@ -20,8 +20,24 @@ test('date-fallback evidence catches both observed sweep promises, not a bounded
     'Should I go day-by-day through the whole range?',
     'Or confirm searching each day one at a time.',
     'Run the same search on another specific date to compare manually.',
+    // Observed 7 Oct: the same sweep offered as availability checks.
+    'Tell me 1–2 specific dates within 2026-10-21 to 2026-10-28 to check next (I can run a new search per date).',
+    'I can’t confirm which of Oct 22–Oct 28 have Air China flights without running those dates individually.',
+    'Which 1–2 dates in that window should I check next?',
   ]) assert.equal(dateSweepPromiseIssues(feedback).length, 1);
   assert.deepEqual(dateSweepPromiseIssues('Inspect the October 21 results; no cheapest day was verified.'), []);
+  assert.deepEqual(dateSweepPromiseIssues('Want me to allow one stop or remove the evening filter?'), []);
+});
+
+test('subtask evidence flags per-date coverage the traveler never asked for', () => {
+  const user = 'Any date between October 21 and October 28 works for me. Show me flights in that window and keep Air China applied.';
+  assert.equal(subtaskEnrichmentIssues(user, [
+    'Search NYC → LAX for 2026-10-21 through 2026-10-28. Return available options in that window (and indicate which dates have matches if possible).',
+  ]).length, 1);
+  assert.deepEqual(subtaskEnrichmentIssues(user, [
+    'Search NYC → LAX with a flexible outbound window 2026-10-21 through 2026-10-28; keep Air China only.',
+  ]), []);
+  assert.deepEqual(subtaskEnrichmentIssues('Show me fares for each day next week.', ['List fares for each day next week.']), []);
 });
 
 test('failed-date CTA evidence rejects the observed repeated lookup, not current-option ranking', () => {

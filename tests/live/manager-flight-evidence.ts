@@ -169,8 +169,22 @@ export function suggestionIssues({
 
 /** Flexible-date fallback must not promise an unsolicited range-wide sweep. */
 export function dateSweepPromiseIssues(feedback: string): string[] {
-  const sweep = /\b(?:day[ -]by[ -]day|(?:separate|individual)\s+(?:flight\s+)?search(?:es)?|search(?:ing)?\s+(?:each|every)\s+(?:day|date)|compare\s+manually)\b|\bsearch\b.{0,160}\bto compare\b/i;
+  const sweep = new RegExp([
+    String.raw`\b(?:day[ -]by[ -]day|(?:separate|individual)\s+(?:flight\s+)?search(?:es)?|search(?:ing)?\s+(?:each|every)\s+(?:day|date)|compare\s+manually)\b`,
+    String.raw`\bsearch\b.{0,160}\bto compare\b`,
+    String.raw`\bsearch(?:es)?\s+(?:per|for each|for every)\s+(?:day|date)\b`,
+    String.raw`\b(?:dates?|days?)\s+(?:individually|one by one|one at a time)\b`,
+    String.raw`\b(?:which|tell me|pick|choose|share|give me)\s+(?:\d+\s*[–-]\s*\d+|\d+|one or two|two or three|a few|a couple of|some|other|more|specific)\s+(?:(?:more|other|specific)\s+)?(?:dates?|days?)\b`,
+  ].join('|'), 'i');
   return sweep.test(feedback) ? ['failed prediction offered a date-by-date search sweep as a replacement comparison'] : [];
+}
+
+/** A flexible window is a choice of one date; the Manager must not turn it into per-date coverage. */
+export function subtaskEnrichmentIssues(user: string, subtasks: readonly string[]): string[] {
+  const perDate = /\b(?:which|what)\s+(?:of\s+the\s+)?dates?\s+(?:have|has|had)\b|\bper[ -](?:day|date)\b|\b(?:each|every)\s+(?:day|date)\b|\bacross\s+(?:every|each|all)\s+(?:days?|dates?)\b/i;
+  if (perDate.test(user)) return [];
+  const enriched = subtasks.find((subtask) => perDate.test(subtask));
+  return enriched ? [`Manager subtask asked for per-date coverage the traveler did not request: "${enriched.slice(0, 200)}"`] : [];
 }
 
 export function failedPredictionCtaIssues(suggestions: string[]): string[] {

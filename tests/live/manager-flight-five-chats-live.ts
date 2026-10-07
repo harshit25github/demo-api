@@ -19,7 +19,7 @@ import { managerFlightNormalizationConversation } from '../fixtures/manager-flig
 import { expectedFilterValues, expectedPredictionInput, expectedSearchPayload } from '../fixtures/manager-flight-complex-state.js';
 import {
   activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, parseToolValue, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, flightCardsVisible, managerSpecialistNames,
-  predictionSearchIssues, searchProducedResults, suggestionIssues,
+  predictionSearchIssues, searchProducedResults, subtaskEnrichmentIssues, suggestionIssues,
   type ObservedFlightToolCall,
 } from './manager-flight-evidence.js';
 
@@ -554,6 +554,7 @@ for (const [index, expectation] of scenario.turns.entries()) {
       }
     }
     checks.push(...predictionSearchIssues(flightToolCalls));
+    checks.push(...subtaskEnrichmentIssues(expectation.user, specialistSubtasks.map((subtask) => subtask.input)));
     if (suggestions.length !== 3) {
       checks.push(`expected exactly three grounded suggestions; got ${suggestions.length}`);
     }
