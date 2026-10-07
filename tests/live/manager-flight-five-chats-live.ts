@@ -19,7 +19,7 @@ import { managerFlightNormalizationConversation } from '../fixtures/manager-flig
 import { expectedFilterValues, expectedPredictionInput, expectedSearchPayload } from '../fixtures/manager-flight-complex-state.js';
 import {
   activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, parseToolValue, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, flightCardsVisible, managerSpecialistNames,
-  predictionSearchIssues, searchProducedResults, subtaskEnrichmentIssues, suggestionIssues,
+  inventedPlaceIssues, predictionSearchIssues, searchProducedResults, subtaskEnrichmentIssues, suggestionIssues,
   type ObservedFlightToolCall,
 } from './manager-flight-evidence.js';
 
@@ -576,6 +576,15 @@ for (const [index, expectation] of scenario.turns.entries()) {
         ? result.context.flight.airlineFilterOptions as any[] : [],
       resultCount,
     }));
+    const flightState = result.context.flight as any;
+    const sourceOptionNames = [flightState?.layoverAirportFilterOptions, flightState?.departAirports, flightState?.depLandAirports]
+      .flatMap((options) => (Array.isArray(options) ? options : []))
+      .map((option: any) => `${option?.AirportCityName || ''} ${option?.Text || ''}`);
+    checks.push(...inventedPlaceIssues(suggestions, [
+      ...scenario.turns.slice(0, index + 1).map((turn) => turn.user),
+      JSON.stringify(searchStateAfter || {}),
+      ...sourceOptionNames,
+    ].join(' ')));
     const successfulSearch = flightToolCalls.some((call) => call.tool === 'flight_search' && searchProducedResults(call));
     const searchIndex = flightToolCalls.findIndex((call) => call.tool === 'flight_search' && searchProducedResults(call));
     if (searchIndex >= 0 && flightToolCalls.slice(searchIndex + 1).some((call) =>

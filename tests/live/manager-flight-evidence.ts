@@ -120,7 +120,26 @@ export function predictionSearchIssues(calls: ObservedFlightToolCall[]): string[
   return [];
 }
 
-const RELAXING_SUGGESTION = /^(?:remove|drop|clear|relax|allow|undo|reset|show all|include|loosen|widen|any)\b/i;
+/** Cities the prompts' examples and these conversations use; enough to catch borrowed ones. */
+const KNOWN_CITIES = [
+  'delhi', 'mumbai', 'dubai', 'new york', 'los angeles', 'london', 'goa', 'tokyo', 'san francisco',
+  'boston', 'newark', 'paris', 'singapore', 'bali', 'rome', 'amsterdam', 'doha', 'frankfurt',
+  'chicago', 'miami', 'toronto', 'bangkok', 'sydney', 'burbank',
+];
+
+/**
+ * A suggestion may name only places the traveler gave, the current search's
+ * endpoints, or cities in the current filter source options (layover and
+ * endpoint airports). The prompt forbids inventing a departure or arrival.
+ */
+export function inventedPlaceIssues(suggestions: string[], allowedText: string): string[] {
+  const allowed = allowedText.toLowerCase();
+  return suggestions.flatMap((suggestion) => KNOWN_CITIES
+    .filter((city) => new RegExp(`\\b${city}\\b`, 'i').test(suggestion) && !allowed.includes(city))
+    .map((city) => `suggestion names ${city}, which the traveler has not given: "${suggestion}"`));
+}
+
+const RELAXING_SUGGESTION =/^(?:remove|drop|clear|relax|allow|undo|reset|show all|include|loosen|widen|any)\b/i;
 
 /**
  * Suggestion rules the update tool cannot see for itself: an action already in

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, subtaskEnrichmentIssues, suggestionIssues, type ObservedFlightToolCall } from '../live/manager-flight-evidence.js';
+import { activeFilterValues, comparableToolSequence, filterValueIssues, fullAirportGroupEvidence, payloadFieldIssues, dateSweepPromiseIssues, failedPredictionCtaIssues, inventedPlaceIssues, subtaskEnrichmentIssues, suggestionIssues, type ObservedFlightToolCall } from '../live/manager-flight-evidence.js';
 import { managerFlightComplexConversations } from '../fixtures/manager-flight-complex-conversations.js';
 import { expectedFilterValues, expectedPredictionInput } from '../fixtures/manager-flight-complex-state.js';
 import { managerFlightNormalizationConversation } from '../fixtures/manager-flight-normalization-conversation.js';
@@ -53,6 +53,16 @@ test('suggestion evidence catches stale, impossible, and repeated chips but allo
   assert.equal(suggestionIssues({ ...base, resultCount: 1, suggestions: ['Show details for option 2'] }).length, 1);
   const three = ['Show nonstop flights only', 'Which option is fastest?', 'Change to business class'];
   assert.equal(suggestionIssues({ ...base, previous: [...three].reverse(), suggestions: three }).length, 1);
+});
+
+test('place evidence flags cities the traveler never gave, not ones from their messages or source options', () => {
+  // Observed 7 Oct: only Dubai was known, and the chips named Delhi and Mumbai.
+  const allowed = 'I need to fly to Dubai any day next week, one adult in economy.';
+  assert.equal(inventedPlaceIssues(
+    ['Flights from Delhi to Dubai next week', 'Flights from Mumbai to Dubai next week', 'Dubai weather next week'], allowed,
+  ).length, 2);
+  assert.deepEqual(inventedPlaceIssues(['Plan my Dubai trip next week', 'Dubai weather next week'], allowed), []);
+  assert.deepEqual(inventedPlaceIssues(['Add a Doha layover'], `${allowed} Doha Hamad International Airport`), []);
 });
 
 test('failed-date CTA evidence rejects the observed repeated lookup, not current-option ranking', () => {
