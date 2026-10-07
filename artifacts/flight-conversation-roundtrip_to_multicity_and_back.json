@@ -1,0 +1,453 @@
+{
+  "case": "roundtrip_to_multicity_and_back",
+  "focus": "Trip type and segment list as search inputs, and which state a new search destroys",
+  "description": "A round trip becomes multi-city and then reverts. Tests that segments are treated as search inputs rather than filters, and that Flight knows a new search clears the filters that belonged to the old one.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 9,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "New York to London, out on Nov 5 and back Nov 12, two adults",
+      "understanding": "A complete round trip: both directions dated, two adults, economy by default.",
+      "why": "All required inputs are present, so the search can run without any clarification.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is fastest?",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search round-trip flights from New York to London for 2 adults, departing Nov 5 and returning Nov 12."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a round-trip flight search for New York → London for 2 adults departing Nov 5 and returning Nov 12 (economy).",
+          "summary": "Search completed and returned 3 flight options for the requested round trip and traveler count.",
+          "findings": [
+            "Search used: New York → London, round trip, 2 adults, economy.",
+            "Travel dates interpreted as 2026-11-05 outbound and 2026-11-12 return (next valid future occurrence).",
+            "3 options are available to display from this search. No filters were applied."
+          ],
+          "limitations": [
+            "Some displayed airport codes/timings in the returned options appear inconsistent with the New York → London route; treat airport-level details as needing confirmation in the UI before booking."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you share your preference (nonstop vs 1 stop, budget cap, and preferred departure time window), I can narrow these to the best matches.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 round-trip options for New York → London for 2 adults, departing Nov 5 and returning Nov 12.\n\nNote: Prices shown are per person.\n\nℹ️ Some airport/timing details look inconsistent, so please confirm the exact flight card details in the results before booking. If you want, I can narrow these by nonstop, budget, or departure time.",
+      "traceId": "trace_ad447d27a1964af1805d4950fddf9847",
+      "latencyMs": 20213
+    },
+    {
+      "turn": 2,
+      "user": "add a Paris stop before the London to New York leg",
+      "understanding": "The trip becomes multi-city: New York to London, then London to Paris, then Paris to New York. Passengers, cabin and both existing dates carry over, but the new middle leg has no date and nothing in context supplies one. Ask for that one detail.",
+      "why": "Every other input is already known, so this is the single genuinely missing piece. Any day between the two existing dates would fit, which is exactly why choosing one invents input the traveller never gave.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Spend 2 nights in Paris",
+        "Spend 3 nights in Paris",
+        "Keep return on Nov 12"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "Modify the current round-trip search into a multi-city trip with the existing New York → London outbound on Nov 5, then add a Paris stop before the London → New York return leg, keeping the current travel context and 2 adults."
+      ],
+      "feedback": [
+        {
+          "status": "needs_input",
+          "completedTask": "Interpreted the requested change from round-trip to multi-city and preserved all existing known trip context (NYC→London Nov 5, 2 adults, economy, current return date context).",
+          "summary": "To convert the current NYC↔London round-trip into a 3-leg multi-city (NYC→London, London→Paris, Paris→NYC), the Paris-stop segment dates are required; the existing round-trip dates alone don’t uniquely determine them.",
+          "findings": [
+            "Current context to preserve: 2 adults, economy, outbound New York→London on 2026-11-05, original return timing anchored on 2026-11-12.",
+            "Requested new structure: multi-city with 3 legs: New York→London (2026-11-05), London→Paris (date needed), Paris→New York (date needed, likely aligned to the existing 2026-11-12 return if you want to keep it)."
+          ],
+          "limitations": [
+            "Multi-city searches require a specific travel date for each added segment; there isn’t enough information to safely infer the London→Paris and Paris→New York dates from “add a Paris stop before the return leg.”"
+          ],
+          "missingInformation": [
+            "What date should you fly London → Paris, and what date should you fly Paris → New York (or how many nights do you want in Paris while keeping/adjusting the Nov 12 return)?"
+          ],
+          "nextStep": "Once you confirm either (a) the two segment dates or (b) the number of nights in Paris and whether the final return stays on Nov 12, I can run the multi-city search with 2 adults in economy.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "🗓️ I can set up the Paris stop, but I need the dates for the extra legs.\n\nWhat date should London → Paris be, and what date should Paris → New York be? If you want, tell me how many nights you want in Paris and I’ll use that.",
+      "traceId": "trace_22fef217daa4408a98ad8ca2cdb6f992",
+      "latencyMs": 24793
+    },
+    {
+      "turn": 3,
+      "user": "let's do London to Paris on the 9th",
+      "understanding": "The missing leg date arrives. Combine it with the itinerary already assembled and run the multi-city search.",
+      "why": "The trip is now fully specified. Trip type and the segment list are search inputs, so only a search can produce multi-city results; no filter can add a leg, and treating this as a filter is the mistake worth catching.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Show business class options"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Update the current New York → London trip for 2 adults to a multi-city search: New York → London on 2026-11-05, London → Paris on 2026-11-09. Need the Paris → New York return date to complete the search."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Updated the itinerary to a 3-leg multi-city search for 2 adults in economy and ran the search using the existing return date.",
+          "summary": "Multi-city search is now set as NYC→LON (2026-11-05), LON→PAR (2026-11-09), PAR→NYC (2026-11-12) for 2 adults; results are available to display.",
+          "findings": [
+            "Search used multi-city segments: NYC→LON on 2026-11-05; LON→PAR on 2026-11-09; PAR→NYC on 2026-11-12.",
+            "Passengers/cabin: 2 adults, economy.",
+            "Search returned 3 visible options in the current result set (no filters applied).",
+            "Return date was taken from existing trip context (2026-11-12), since the latest message didn’t specify a different date. (This date can be changed if needed.)"
+          ],
+          "limitations": [
+            "Current result data contains inconsistencies (e.g., segment airport codes shown do not align with the requested cities), so airports/times should be treated as not fully reliable in these results."
+          ],
+          "missingInformation": [],
+          "nextStep": "Confirm whether the Paris→New York leg should remain on 2026-11-12 or move to a different date; if different, provide the new return date and I’ll re-run the multi-city search.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I’ve set it to a 3-leg trip for 2 adults:\n\n- New York → London: Nov 5\n- London → Paris: Nov 9\n- Paris → New York: Nov 12\n\nNote: Prices shown are per person.\n\nℹ️ The city/airport details in the results look inconsistent, so please double-check the exact flight cards before booking. If you want a different Paris → New York date, send it and I’ll update the search.",
+      "traceId": "trace_82d5edf8dbd14553a6fea6c75ae33939",
+      "latencyMs": 37583
+    },
+    {
+      "turn": 4,
+      "user": "how many options do we have now?",
+      "understanding": "A count of the options the multi-city search produced.",
+      "why": "A result count is volatile and belongs to the current contracts. Quoting a number from an earlier turn is wrong once the search has changed underneath it.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Which option is fastest?",
+        "Show 1-stop flights only",
+        "Compare options 1 and 3"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "For the current multi-city search (New York → London Nov 5, London → Paris Nov 9, Paris → New York Nov 12, 2 adults), how many flight options are currently available?"
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Checked the currently available options for the active multi-city search.",
+          "summary": "There are 3 flight options currently available for the NYC→LON (Nov 5), LON→PAR (Nov 9), PAR→NYC (Nov 12) itinerary for 2 adults.",
+          "findings": [
+            "Current visible option count: 3 (options 1–3).",
+            "No filters are currently applied; total available count matches visible count (3)."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "If you want, I can also rank them (cheapest/fastest/fewest stops) or compare specific option numbers side-by-side.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ We have 3 options right now.",
+      "traceId": "trace_f49f7beaecff4d1e8655759dceedfead",
+      "latencyMs": 19420
+    },
+    {
+      "turn": 5,
+      "user": "nonstop only",
+      "understanding": "Narrow the current multi-city results to itineraries without stops.",
+      "why": "Route, dates and passengers are unchanged, so the result set stands and a stops filter is the whole request.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show details for option 1",
+        "Remove the nonstop filter",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Apply a nonstop-only filter to the current multi-city search: New York → London Nov 5, London → Paris Nov 9, Paris → New York Nov 12, for 2 adults."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a nonstop-only (0 stops) filter to the active multi-city NYC→LON (2026-11-05), LON→PAR (2026-11-09), PAR→NYC (2026-11-12) search for 2 adults.",
+          "summary": "Nonstop-only filtering is now active; the result set narrowed from 3 options to 1 matching option.",
+          "findings": [
+            "Trip context used: multi-city NYC→LON (2026-11-05), LON→PAR (2026-11-09), PAR→NYC (2026-11-12), 2 adults, economy.",
+            "Filter applied: stops = nonstop only (0 stops).",
+            "Counts after filtering: 3 → 1 option visible. არსებული filter list now includes the nonstop-only constraint."
+          ],
+          "limitations": [
+            "The remaining visible option shows inconsistent airport coding versus the route (e.g., a NYC→LON option displaying LAX airport codes), so the displayed airport fields may not be reliable in the current view."
+          ],
+          "missingInformation": [],
+          "nextStep": "If they want more choices, suggest removing the nonstop-only filter or allowing 1-stop flights.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✅ I narrowed it to 1 nonstop option.",
+      "traceId": "trace_6e30e0258bc148479606af987f1ec89b",
+      "latencyMs": 25426
+    },
+    {
+      "turn": 6,
+      "user": "drop Paris, make it a plain round trip again",
+      "understanding": "Revert the segment list and trip type to the original two-way New York to London shape, keeping the dates and passengers already established.",
+      "why": "Removing a leg changes the search, not the view of it. The nonstop filter belonged to the multi-city search and does not carry across.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Compare options 1 and 2",
+        "Show evening departures"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Change the current search back to a plain round trip: New York → London departing Nov 5 and returning Nov 12, for 2 adults in economy. Drop the Paris stop and clear the nonstop-only constraint by starting the new round-trip search."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Started a fresh NYC ⇄ LON round-trip search for Nov 5–Nov 12 (2 adults, economy), which resets prior constraints (including any Paris stop and nonstop-only).",
+          "summary": "New round-trip NYC → London (Nov 5) / London → NYC (Nov 12) search is now loaded with 3 options visible; prior-stop routing and nonstop-only constraint are no longer in effect because this is a new search.",
+          "findings": [
+            "Search parameters used: NYC → LON departing 2026-11-05, returning 2026-11-12; 2 adults; economy; round trip.",
+            "Result set returned: 3 flight options (visible).",
+            "Because this is a new search, prior constraints (including any Paris stop routing and any nonstop-only filter) are cleared/reset for this result set."
+          ],
+          "limitations": [
+            "The returned option cards contain inconsistent airport codes that do not match the NYC→LON route (e.g., showing LAX/BUR/ONT/SNA); treat airport-specific details as unreliable in these displayed results."
+          ],
+          "missingInformation": [],
+          "nextStep": "If they still want a specific routing preference, ask whether they want nonstop only, max 1 stop, or a preferred layover city/airport (e.g., avoid CDG/Paris).",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I’ve switched it back to a plain round trip: New York → London on Nov 5 and back Nov 12.\n\nNote: Prices shown are per person.\n\nℹ️ There are 3 options visible now, and the airport-code details in the cards look inconsistent, so double-check the exact route info in the results.",
+      "traceId": "trace_f2f4519874a74d5fb34bf8e27f278b49",
+      "latencyMs": 21040
+    },
+    {
+      "turn": 7,
+      "user": "is the nonstop setting still on?",
+      "understanding": "A question about which filters belong to the search that is current right now. The new search reset them, and the applied-filter list for the current search is in context.",
+      "why": "Flight’s own context lists the filters attached to the current search and excludes any from a superseded one, so the answer is already there to read. Delegating to reach that context is fine; spending a domain tool call on it is the false positive.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Compare options 1 and 2",
+        "Show evening departures"
+      ],
+      "specialistsUsed": [],
+      "renderFlightOptions": false,
+      "subtasks": [],
+      "feedback": [],
+      "specialistFailures": [],
+      "output": "No — it’s off now.",
+      "traceId": "trace_e967af1a9ee4406b98746cf596753fa9",
+      "latencyMs": 3241
+    },
+    {
+      "turn": 8,
+      "user": "put nonstop back on then",
+      "understanding": "Re-apply a stops filter to the round-trip results now current.",
+      "why": "The results exist and only the view needs narrowing, so this is a filter rather than another search.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show details for option 1",
+        "Any cheaper dates nearby?",
+        "Remove nonstop-only filter"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Apply a nonstop-only filter to the current New York → London round-trip search for 2 adults, departing Nov 5 and returning Nov 12."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a nonstop-only (0 stops) filter to the active NYC ⇄ LON round-trip search.",
+          "summary": "Nonstop-only filtering is now active; the results list is narrowed from 3 options to 1 option.",
+          "findings": [
+            "Search context kept as provided: New York (NYC) → London (LON), round trip, 2 adults, depart 2026-11-05 and return 2026-11-12, economy.",
+            "Stops filter applied: nonstop only (0 stops).",
+            "Result count change: 3 → 1 matching option after filtering.",
+            "No additional filters were added/changed in this task. Only the stops constraint is active from this call."
+          ],
+          "limitations": [
+            "The remaining displayed option’s airport codes appear inconsistent with the NYC→LON route (it shows LAX codes), so airport-level details may be unreliable in the currently displayed card data."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler is flexible, consider removing the nonstop-only filter to see more (likely cheaper/more available) options, or ask for details on the remaining option.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✅ Nonstop is back on, and it narrowed the trip to 1 option.",
+      "traceId": "trace_5120edfe0b2d4d27ac0d0fe9e35bbeb9",
+      "latencyMs": 23787
+    },
+    {
+      "turn": 9,
+      "user": "and cap it at $900",
+      "understanding": "Add a maximum-price filter on top of the nonstop one, keeping both active.",
+      "why": "Filters accumulate. Adding one must not silently drop the nonstop constraint, and it must not trigger a re-search.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Which option is fastest?",
+        "Show evening departures only",
+        "Relax the $900 price cap"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "On the current New York → London round-trip search for 2 adults (depart Nov 5, return Nov 12), keep nonstop only and apply a price cap of $900."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied the requested constraints to the current NYC → LON round-trip results: nonstop-only and a maximum price of $900.",
+          "summary": "Nonstop-only was kept and a $900 price cap was applied on the existing Nov 5–Nov 12, 2-adult search; 1 option remains visible after filtering.",
+          "findings": [
+            "Trip context used: NYC → LON round trip for 2 adults, depart 2026-11-05 and return 2026-11-12 (economy).",
+            "Active filters now include: nonstop only (0 stops) and price max $900.",
+            "Filter impact: results narrowed from 3 to 1 option matching these constraints."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "If you want more choices, consider raising the price cap or removing the nonstop-only constraint.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✅ Done — nonstop only, with a $900 cap. There’s 1 option left.",
+      "traceId": "trace_66406607f824429a8f805f22528b7e0d",
+      "latencyMs": 20667
+    }
+  ]
+}

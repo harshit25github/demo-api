@@ -1,0 +1,295 @@
+{
+  "case": "relative_dates_then_shift",
+  "focus": "Resolving relative timing, then moving it twice without losing the rest of the search",
+  "description": "Timing arrives vague and changes twice. Tests that Flight commits to a concrete date from the clock instead of asking, and that a date change re-searches while an unchanged route does not.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 7,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "I need to get to Bengaluru from Delhi sometime next week",
+      "understanding": "Route is complete and the timing is vague but resolvable from the turn clock. Commit to a concrete outbound date inside that window; assume one-way, one adult, economy until told otherwise.",
+      "why": "Ordinary search intent with timing the clock can settle. Asking the traveller which day, or reaching for price intelligence because the date is loose, both fail this turn.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search one-way flights from Delhi to Bengaluru sometime next week. The traveler is flexible on the exact day next week and wants options for a trip from Delhi to Bengaluru."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way flight search for Delhi → Bengaluru on the earliest date in “next week” (2026-10-12) for 1 adult in economy and returned available options.",
+          "summary": "Found 3 one-way options for Delhi → Bengaluru on 2026-10-12 (earliest day next week based on the traveler’s flexibility). Cards can be shown for selection/refinement.",
+          "findings": [
+            "Interpreted “sometime next week” as the next calendar week starting Mon 2026-10-12; searched outbound date 2026-10-12.",
+            "Search used: one-way, 1 adult, economy, Delhi → Bengaluru.",
+            "Result set contains 3 flight options."
+          ],
+          "limitations": [
+            "Some displayed airport codes in the results do not match the Delhi/Bengaluru route and may be confusing to the traveler."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to filter these results by non-stop only, preferred departure time window, or baggage (checked bag included vs not).",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "output": "✈️ I found 3 one-way flights from Delhi to Bengaluru for next week, starting on Mon, Oct 12.\n\nNote: Prices shown are per person.\n\nℹ️ The displayed airport codes in the results look a bit inconsistent, so I’d recommend using a filter or checking the options carefully. If you want, I can narrow these to nonstop, a time window, or baggage-included flights.",
+      "traceId": "trace_b2ab9777da9e46618e2850958aac39f9",
+      "latencyMs": 22112
+    },
+    {
+      "turn": 2,
+      "user": "make it Wednesday instead",
+      "understanding": "Only the outbound date moves, to the Wednesday of the window already established. Route, passengers and cabin carry over untouched.",
+      "why": "A date is a search input, so the existing result set no longer describes the request. Only a fresh search can produce options for the new day; no filter expresses a date change.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Update the one-way flight search from Delhi to Bengaluru to Wednesday next week instead of the current date. Keep the same route and economy, 1 adult."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran an updated one-way flight search for Delhi → Bengaluru in economy for 1 adult, changing the outbound date to Wednesday next week.",
+          "summary": "Search updated to Wednesday next week (2026-10-14) for Delhi → Bengaluru, one-way, economy, 1 adult; results are available to display.",
+          "findings": [
+            "Route kept as Delhi → Bengaluru; trip type one-way; cabin economy; passengers: 1 adult.",
+            "Interpreted “Wednesday next week” (relative to 2026-10-05) as 2026-10-14.",
+            "Search returned 3 flight options for 2026-10-14.",
+            "No filters were applied or changed as part of this update."
+          ],
+          "limitations": [
+            "Some displayed airport codes in the results (e.g., LAX/BUR/ONT/SNA) do not align with the Delhi ↔ Bengaluru route and may confuse airport-specific filtering/selection."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler has preferences (non-stop/1-stop, time window, airline, or max price), apply filters to narrow these results.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "output": "✈️ Updated to Wednesday next week: Tue, Oct 14 for the Delhi → Bengaluru one-way search.\n\nNote: Prices shown are per person.\n\nℹ️ The results still show some airport codes that don’t match this route, so use the options carefully. If you want, I can narrow them by nonstop, time, airline, or price.",
+      "traceId": "trace_fd0c5d131c614bf3b4f3528a2f65d5f9",
+      "latencyMs": 21311
+    },
+    {
+      "turn": 3,
+      "user": "what route and date are we on now?",
+      "understanding": "A restatement of the committed search parameters, which are already in context.",
+      "why": "Route, date, passengers and cabin are stable search parameters injected into the prompt. Reading them back through a tool is unnecessary work and a false positive here.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "specialistsUsed": [],
+      "renderFlightOptions": false,
+      "subtasks": [],
+      "feedback": [],
+      "output": "✈️ Delhi to Bengaluru, one-way, on Tue, Oct 14.",
+      "traceId": "trace_54f6463f4b384873b397fbc68dfa9d20",
+      "latencyMs": 2716
+    },
+    {
+      "turn": 4,
+      "user": "push the whole thing a week later",
+      "understanding": "Shift the committed outbound date forward by seven days, keeping everything else.",
+      "why": "Same reason as the earlier move: the date changed, so the results must be rebuilt rather than filtered.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Push the current one-way flight search from Delhi to Bengaluru one week later than Tue, Oct 14. Keep the same route, 1 adult, economy."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a new one-way flight search for the same route (Delhi → Bengaluru) shifted one week later to 2026-10-21 for 1 adult in economy.",
+          "summary": "Search updated to Tue, 2026-10-21 (one week after Oct 14) with 3 flight options returned for Delhi → Bengaluru, 1 adult, economy.",
+          "findings": [
+            "Route used: Delhi → Bengaluru; trip type: one-way.",
+            "Date used: 2026-10-21 (one week later than Oct 14 as requested).",
+            "Passengers/cabin: 1 adult, economy.",
+            "Results returned: 3 options currently visible. زمینه"
+          ],
+          "limitations": [
+            "The displayed airport codes within the result cards appear inconsistent with the stated route (Delhi → Bengaluru), so airports may need verification before booking."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to narrow results by non-stop only, a departure-time window, or a max budget/preferred airline.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "output": "✈️ Moved the search to Tue, Oct 21 for Delhi → Bengaluru.\n\nNote: Prices shown are per person.\n\nℹ️ The result cards still show some inconsistent airport codes, so double-check the options if you plan to pick one. If you want, I can narrow them down by nonstop, time window, airline, or budget.",
+      "traceId": "trace_ab013edbb77f4fb0a621a8fc343d9077",
+      "latencyMs": 19307
+    },
+    {
+      "turn": 5,
+      "user": "morning departures only",
+      "understanding": "A narrowing of the current result set by departure time slot, with route and date unchanged.",
+      "why": "The search inputs did not move, so the existing results are still valid and a filter is enough. Re-searching would discard a usable result set to rebuild the same one.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Filter the current Delhi → Bengaluru one-way search for morning departures only. Keep the current date 2026-10-21, 1 adult, economy."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a morning-departures-only filter to the existing Delhi → Bengaluru one-way search for 2026-10-21 (1 adult, economy).",
+          "summary": "Morning departure time filter is now active; the result set narrowed from 3 to 1 option while keeping the same route/date/passengers/cabin.",
+          "findings": [
+            "Search context preserved: Delhi → Bengaluru, one-way, 2026-10-21, 1 adult, economy.",
+            "Filter applied: Departure time = MORNING (morning departures only).",
+            "Results changed: 3 options before filtering, 1 option after filtering."
+          ],
+          "limitations": [
+            "The remaining option card shows airport codes that don’t match the Delhi → Bengaluru route (it displays LAX as both departure and arrival), so airport details on cards may be unreliable."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to further narrow results (e.g., non-stop only, preferred airline, or a max budget), or remove/relax the morning-only filter if they want more options.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "output": "✈️ Morning departures only is now applied for Delhi → Bengaluru on Tue, Oct 21.\n\nℹ️ That narrowed it to 1 option. The airport codes shown still look inconsistent, so please double-check the card details if you’re choosing it.",
+      "traceId": "trace_b136138b13e74e3c98823e8a9db74324",
+      "latencyMs": 19625
+    },
+    {
+      "turn": 6,
+      "user": "which of these is cheapest?",
+      "understanding": "A ranking question about the options currently visible after the morning filter.",
+      "why": "Prices live on the generated contracts, not in the search summary, and the filter changed which ones are visible. Only reading the current contracts can answer it.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Among the current flight results for Delhi → Bengaluru on 2026-10-21 with morning departures only, identify which option is cheapest."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Inspected the currently visible (morning-departure) Delhi → Bengaluru results for 2026-10-21 and identified the lowest-priced option.",
+          "summary": "Only one option is currently visible under the morning-departure filter, so it is also the cheapest.",
+          "findings": [
+            "Cheapest among current visible results: Option 1 at USD 199 (as displayed in the result set).",
+            "Current visible result count under the morning-departure filter: 1 option.րվ"
+          ],
+          "limitations": [
+            "The displayed airport codes in the current option appear inconsistent with the Delhi → Bengaluru route (both show LAX), so airport-code details may be unreliable even though the option ranking/price label is what’s shown."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want, I can also identify the shortest-duration or non-stop-only best pick among the current results.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "output": "✈️ Option 1 is the cheapest at USD 199.\n\nℹ️ There’s only one morning option showing right now, and the airport codes on the card still look inconsistent.",
+      "traceId": "trace_2cd10b8158304e74b76e5010df724410",
+      "latencyMs": 13544
+    },
+    {
+      "turn": 7,
+      "user": "any cheaper dates near that one?",
+      "understanding": "Explicit fare-and-date intelligence for the current route, built around the committed date and inside the prediction window. The date is already known, so a lookup that returns nothing is an answer — nothing cheaper was confirmed — not a reason to ask which dates to check.",
+      "why": "The prices of the options already found say nothing about other days. Comparing dates is what the prediction tool is for, and inventing a cheaper date from contract prices is the failure to catch.",
+      "expectedTools": [
+        "price_prediction_tool"
+      ],
+      "actualTools": [
+        "price_prediction_tool"
+      ],
+      "rawTools": [
+        "price_prediction_tool"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "Find cheaper travel dates near the current Delhi → Bengaluru search date 2026-10-21 for a one-way trip, 1 adult, economy. The traveler wants date comparison / price-date intelligence."
+      ],
+      "feedback": [
+        {
+          "status": "failure",
+          "completedTask": "Requested price-date intelligence was attempted for nearby dates around 2026-10-21 on the Delhi → Bengaluru one-way (1 adult, economy) search.",
+          "summary": "Cheaper-date guidance could not be confirmed for Delhi (DEL) → Bengaluru (BLR) within the nearby window around 2026-10-21, so no reliable cheaper-date recommendation can be provided from the date-comparison lookup.",
+          "findings": [
+            "Attempted date-comparison lookup for DEL → BLR covering 2026-10-18 through 2026-10-24 (one-way).",
+            "No predicted/confirmed cheaper dates were returned for that nearby date range, so no alternative date can be recommended as cheaper than 2026-10-21 based on the lookup."
+          ],
+          "limitations": [
+            "Because no nearby-date comparison data was available for this route/date window, I cannot validate whether shifting by a few days would be cheaper."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to run actual flight searches for a few specific nearby outbound dates (e.g., Oct 20, 21, 22) so the traveler can compare real fares across those days.",
+          "presentation": null
+        }
+      ],
+      "output": "ℹ️ I couldn’t confirm any cheaper dates near Tue, Oct 21 for Delhi → Bengaluru.\n\nIf you want, I can check a few specific nearby days side by side, like Oct 20, 21, and 22.",
+      "traceId": "trace_8acdb7c8c6644406b8af67f9871eb8be",
+      "latencyMs": 19773
+    }
+  ]
+}

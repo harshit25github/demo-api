@@ -1,0 +1,350 @@
+{
+  "case": "missing_information_progression",
+  "focus": "Asking for the smallest missing piece, once, and never re-asking",
+  "description": "The request arrives in fragments. Tests that Flight asks for what is genuinely absent without guessing an endpoint, and does not ask again for something just supplied.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 7,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "I want to fly to Amsterdam",
+      "understanding": "Destination only. Origin and timing are both absent and nothing in context supplies them. Ask for the smallest set needed, in one go.",
+      "why": "No tool can run without an origin, and choosing one would return options for a route nobody asked for. Reporting what is missing is the whole turn.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Best time to visit Amsterdam",
+        "Plan a weekend in Amsterdam",
+        "Amsterdam travel tips"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "Search for flights to Amsterdam. Origin not specified yet. If needed, report what other details are missing and suggest next steps."
+      ],
+      "feedback": [
+        {
+          "status": "needs_input",
+          "completedTask": "Identified the minimum missing trip details needed to run a flight search to Amsterdam and prepared next-step guidance.",
+          "summary": "I can’t run a flight search yet because the departure location and travel date aren’t provided. Everything else can be defaulted unless the traveler specifies otherwise.",
+          "findings": [
+            "Destination known: Amsterdam (AMS/Amsterdam area).",
+            "Blocking for a flight search: departure location (city/airport) is missing.",
+            "Blocking for a flight search: outbound travel date (or an allowed date range like “next weekend”/“sometime in November”) is missing.",
+            "If not specified, safe defaults would be: 1 adult, economy, one-way (no return date needed unless they want round-trip)."
+          ],
+          "limitations": [
+            "No flight options can be returned until both departure location and outbound date (or date range) are provided."
+          ],
+          "missingInformation": [
+            "Where are you departing from (city or airport)?",
+            "What is your departure date (or approximate timing, e.g., “next weekend” or “Nov 10–15”)?"
+          ],
+          "nextStep": "Ask for the departure city/airport and preferred departure date (or a flexible date window); optionally clarify if they want one-way or round-trip and, if round-trip, the return date or trip length.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I can help find flights to Amsterdam — I just need your departure city/airport and travel date (or a date window like “next weekend”).",
+      "traceId": "trace_e38f4d8b105e4131a06b6ae2080da8e1",
+      "latencyMs": 16866
+    },
+    {
+      "turn": 2,
+      "user": "from Hyderabad",
+      "understanding": "Origin now known, timing still absent with nothing in context to resolve it. Ask only for the date.",
+      "why": "A search still cannot run, and re-asking for the origin just given is the specific failure to catch. Guessing a date is the other.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Search HYD to AMS next weekend",
+        "Cheapest Hyderabad–Amsterdam dates next month",
+        "Make it a round trip"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "Search flights from Hyderabad to Amsterdam. Origin: Hyderabad. Destination: Amsterdam. Outbound date still missing. Preserve the previous intent and ask for the missing date or date range; optionally keep defaults of 1 adult, economy, one-way unless stated otherwise."
+      ],
+      "feedback": [
+        {
+          "status": "needs_input",
+          "completedTask": "Captured the requested Hyderabad → Amsterdam route and preserved default assumptions; identified the missing outbound date needed to run a flight search.",
+          "summary": "I can’t run the flight search yet because the outbound travel date (or date range) wasn’t provided; everything else can stay at defaults unless you change it.",
+          "findings": [
+            "Route requested: Hyderabad (origin) → Amsterdam (destination).",
+            "Pending (not yet executed): one-way, economy, 1 adult, unless the traveler specifies otherwise.",
+            "Only blocker to start the search: outbound date (exact date is best; a range like “next week” also works)."
+          ],
+          "limitations": [
+            "No flight options can be returned until an outbound travel date or allowed date range is provided."
+          ],
+          "missingInformation": [
+            "Outbound date (YYYY-MM-DD) or an outbound date range (e.g., specific week/month)."
+          ],
+          "nextStep": "Ask the traveler for the outbound date or an acceptable range (for example: exact date, “next weekend,” “anytime in November,” etc.).",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Great — I have Hyderabad → Amsterdam. What date would you like to fly?",
+      "traceId": "trace_119aaa9466aa4b5dbd607f787edff100",
+      "latencyMs": 19246
+    },
+    {
+      "turn": 3,
+      "user": "November 18",
+      "understanding": "The last missing input arrives. Combine it with the origin and destination already gathered and search, with default passengers and cabin.",
+      "why": "The request is complete, so the turn should end in results rather than another question.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is fastest?",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search flights from Hyderabad to Amsterdam on November 18. Use the previously captured defaults unless overridden: 1 adult, economy, one-way. Return current flight options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way flight search for Hyderabad (HYD) → Amsterdam (AMS) on 2026-11-18 for 1 adult in economy and retrieved the current option set.",
+          "summary": "Search completed with 3 flight options returned for HYD → AMS on Nov 18 (one-way, 1 adult, economy).",
+          "findings": [
+            "Search used: Hyderabad (HYD) → Amsterdam (AMS), outbound 2026-11-18, one-way.",
+            "Passengers/cabin: 1 adult, economy.",
+            "Results: 3 options are available to display.",
+            "No filters were applied/changed in this task."
+          ],
+          "limitations": [
+            "The returned options contain inconsistent airport codes (e.g., LAX/BUR/ONT/SNA shown as departure/arrival airports despite HYD → AMS route), so airport-specific details in these results may be unreliable."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want, I can narrow these to nonstop only, specific departure/arrival time windows, or a preferred max number of stops.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 flight options for Hyderabad → Amsterdam on November 18.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_90a717e8c5874fedb50abd8b903a01b6",
+      "latencyMs": 20379
+    },
+    {
+      "turn": 4,
+      "user": "two adults and an infant",
+      "understanding": "Passenger counts change; route, date and cabin carry over.",
+      "why": "Passenger mix is a search input that changes pricing and availability, so results have to be rebuilt rather than filtered.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show the cheapest options",
+        "1 stop or fewer",
+        "Show evening departures"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Update the current Hyderabad (HYD) → Amsterdam (AMS) search for outbound 2026-11-18 to 2 adults and 1 infant, keeping one-way and economy unless otherwise stated. Return the updated current flight options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a refreshed HYD → AMS one-way economy flight search for 2026-11-18 with passengers updated to 2 adults + 1 infant, and returned the updated option set.",
+          "summary": "Search updated to 2 adults and 1 infant (one-way, economy) for Hyderabad (HYD) → Amsterdam (AMS) on 2026-11-18; 3 flight options are available to display.",
+          "findings": [
+            "Search parameters used: Hyderabad (HYD) → Amsterdam (AMS), one-way, economy, outbound 2026-11-18.",
+            "Passengers updated as requested: 2 adults, 1 infant (total 3).",
+            "Updated result set contains 3 available flight options (no filters applied)."
+          ],
+          "limitations": [
+            "Some itinerary fields in the returned options appear inconsistent with the requested route (e.g., airport codes shown do not match HYD/AMS), so the displayed airport-level details may be unreliable."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you share a preference (nonstop vs 1-stop, max duration, or preferred departure time), I can narrow these options with filters.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Updated to 2 adults and 1 infant for Hyderabad → Amsterdam on November 18.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_bcc1907c081443b89269f363c004b126",
+      "latencyMs": 18545
+    },
+    {
+      "turn": 5,
+      "user": "cheapest option?",
+      "understanding": "A ranking question over the results for the new passenger mix.",
+      "why": "Fares moved with the passenger change, so any figure from before it is stale.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Show option 3 layover details",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "From the current Hyderabad (HYD) → Amsterdam (AMS) one-way economy search on 2026-11-18 for 2 adults and 1 infant, identify the cheapest current option and summarize it concisely. If airport-specific details look inconsistent, note that."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Inspected the current HYD→AMS one-way economy results and identified the cheapest available option, with a concise summary and data-consistency note.",
+          "summary": "Cheapest current option is Option 3 (Emirates EK 309) at USD 149; airport codes shown in the option look inconsistent with the HYD→AMS route.",
+          "findings": [
+            "Search context used: Hyderabad (HYD) → Amsterdam (AMS), one-way, economy, 2026-11-18, passengers: 2 adults + 1 infant.",
+            "Cheapest option: Option 3 — Emirates (EK 309), dep 05:45, arr 13:40, 2 stops, total duration 7h 55m, layover time shown 135 min, price USD 149.",
+            "Airport-detail inconsistency: although the route is HYD→AMS, Option 3 lists departure/arrival airport code as SNA→SNA (and other options show LAX/BUR/ONT), which does not align with HYD/AMS."
+          ],
+          "limitations": [
+            "The airport codes/times/durations in the current option data appear internally inconsistent with the stated HYD→AMS route, so airport-specific details should be treated cautiously until refreshed/validated."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler wants, we can open Option 3’s full segment/layover breakdown (or filter to nonstop / ≤1 stop to avoid multi-stop itineraries).",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "💰 The cheapest current option is Option 3: Emirates (EK 309) at USD 149.\n\nℹ️ The airport details shown for the current results look inconsistent with Hyderabad → Amsterdam, so I’d treat the route-specific details cautiously.",
+      "traceId": "trace_1f6cd1c218f54b6d92fdbd5db07688c3",
+      "latencyMs": 21294
+    },
+    {
+      "turn": 6,
+      "user": "only flights with a checked bag",
+      "understanding": "A baggage filter on the current results.",
+      "why": "Search inputs are unchanged, so the existing options can simply be narrowed.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show the cheapest flights",
+        "Show evening departures",
+        "Remove checked-bag filter"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Apply a baggage-included filter to the current Hyderabad (HYD) → Amsterdam (AMS) one-way economy search on 2026-11-18 for 2 adults and 1 infant. Show only flights with a checked bag included."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a checked-bag-included baggage filter to the active HYD → AMS one-way economy search and narrowed results accordingly.",
+          "summary": "The checked-bag-included filter is now active; 1 flight option remains visible under this constraint.",
+          "findings": [
+            "Search context used: Hyderabad (HYD) → Amsterdam (AMS), one-way, economy, 2026-11-18; passengers: 2 adults + 1 infant.",
+            "Filter applied: show only flights with a checked bag included (baggage filter active).",
+            "Result count changed from 3 options to 1 option after filtering."
+          ],
+          "limitations": [
+            "At least one returned option shows departure/arrival airport codes that do not match the HYD → AMS route, so airport-code details in the card data may be unreliable."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want more choices, remove the checked-bag filter or add another preference (e.g., nonstop only, preferred departure time window).",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✅ I narrowed it to flights with a checked bag included.",
+      "traceId": "trace_dbdc7ede0a8342f7acf2e2ecb3b8632e",
+      "latencyMs": 22776
+    },
+    {
+      "turn": 7,
+      "user": "what's my passenger count again?",
+      "understanding": "A restatement of the passenger mix set two turns ago.",
+      "why": "Passengers are an injected search parameter. This turn exists to catch a tool call for something already in the prompt.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show the cheapest flights",
+        "Show evening departures",
+        "Remove checked-bag filter"
+      ],
+      "specialistsUsed": [],
+      "renderFlightOptions": false,
+      "subtasks": [],
+      "feedback": [],
+      "specialistFailures": [],
+      "output": "👥 2 adults and 1 infant.",
+      "traceId": "trace_f9d10a6bbd2946b4a9d41f1bfa5d27f0",
+      "latencyMs": 3205
+    }
+  ]
+}

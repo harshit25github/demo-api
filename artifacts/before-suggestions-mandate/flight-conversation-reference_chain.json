@@ -1,0 +1,56 @@
+{
+  "case": "reference_chain",
+  "focus": "Ordinal and comparative references resolved against the live result set",
+  "description": "Every turn after the first refers to an option obliquely. Tests that Flight binds \"option 2\", \"the cheaper one\", \"same flight\" and \"the first one\" to the current contracts, and knows which of those needs a new search.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 1,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "San Francisco to Tokyo on Nov 7",
+      "understanding": "A complete one-way search.",
+      "why": "All inputs present.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search flights from San Francisco to Tokyo departing Nov 7. Show current options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way flight search for San Francisco (SFO) to Tokyo (TYO) departing Nov 7 and retrieved the current set of options.",
+          "summary": "Current SFO→TYO options for Nov 7 are available and have been loaded for 1 adult in economy (3 options shown).",
+          "findings": [
+            "Route/date used: SFO → TYO, outbound 2026-11-07 (interpreted as the next upcoming Nov 7).",
+            "Trip setup: one-way, 1 adult, economy.",
+            "Results: 3 flight options returned and displayed."
+          ],
+          "limitations": [
+            "Some returned option details appear internally inconsistent (e.g., departure/arrival airport codes and durations don’t align with an SFO→Tokyo itinerary), so the displayed cards should be treated cautiously until refreshed against consistent inventory."
+          ],
+          "missingInformation": [],
+          "nextStep": "Ask what matters most (non-stop only, max price, preferred airline, or preferred departure/arrival time window) and I can filter the current options accordingly.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 one-way options from SFO to Tokyo for Nov 7, for 1 adult in economy.\n\nNote: Prices shown are per person.\n\nℹ️ The displayed options include some inconsistent details, so I’d treat them cautiously until refreshed.\n\nIf you want, I can narrow these by non-stop, price, airline, or departure time.",
+      "traceId": "trace_6ecc0463c2444d4e8c7190905cf0b486",
+      "latencyMs": 24763
+    }
+  ]
+}

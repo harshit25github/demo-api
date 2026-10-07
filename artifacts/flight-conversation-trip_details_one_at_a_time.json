@@ -1,0 +1,209 @@
+{
+  "case": "trip_details_one_at_a_time",
+  "focus": "Suggestions that follow the trip as its details arrive, before and after the search",
+  "description": "A bare request for a flight, then the departure location, arrival location and dates in three separate messages. Tests that no turn guesses a missing detail or re-asks a supplied one, and that the suggestions track what is known: none while nothing is, then three grounded in each partial state, then three that fit the new round-trip search.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 4,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "I want to book a flight",
+      "understanding": "Flight intent with no route or timing at all. Ask for the departure location, arrival location and travel date together.",
+      "why": "Nothing can be searched yet, and nothing about the trip is known, so the suggestions update stores none.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "The traveler wants to book a flight. Please start by helping with a new flight search. If required details are missing, report exactly what information is needed and any suggested next step."
+      ],
+      "feedback": [
+        {
+          "status": "needs_input",
+          "completedTask": "Prepared to start a new flight search and identified the minimum required trip details to proceed.",
+          "summary": "No trip details (from/to and travel date) were provided yet, so a flight search cannot be run.",
+          "findings": [
+            "No existing search parameters or active flight results are available in context for reuse."
+          ],
+          "limitations": [],
+          "missingInformation": [
+            "Departure city/airport (where the traveler is flying from)",
+            "Arrival city/airport (where the traveler is flying to)",
+            "Departure date (YYYY-MM-DD preferred; must be at least tomorrow)"
+          ],
+          "nextStep": "Ask the traveler for: from, to, and departure date; optionally also ask if it’s one-way or round-trip (and if round-trip, the return date) plus number of travelers and cabin.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I can help book it — please send:\n\n- From\n- To\n- Departure date\n\nOptional: one-way or round-trip, return date, travelers, cabin",
+      "traceId": "trace_962a4c66a620431ab06e1fcf82d7396d",
+      "latencyMs": 18536
+    },
+    {
+      "turn": 2,
+      "user": "from Delhi",
+      "understanding": "The departure location is Delhi. The arrival location and travel date are still missing; ask only for those. Suggest discovery grounded in Delhi, such as weekend or beach getaways from it.",
+      "why": "Two blocking details remain. Searching would invent them, and asking again for the departure location just given is the failure to catch.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Weekend getaways from Delhi",
+        "Beach trips from Delhi",
+        "International trips from Delhi"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "The traveler has provided the departure city/airport only: from Delhi. Please continue the new flight search setup using this partial information, and report what other trip details are still needed to search."
+      ],
+      "feedback": [
+        {
+          "status": "needs_input",
+          "completedTask": "Captured the provided departure city (Delhi) and assessed what else is required to run a flight search.",
+          "summary": "We can’t run a flight search yet with only “from Delhi”; we still need at minimum where the traveler is flying to and when they want to depart.",
+          "findings": [
+            "Known trip detail: departure city/airport = Delhi (DEL area).",
+            "No existing active flight search or results to reuse.",
+            "Pending (not yet specified): destination, travel date(s), trip type/return timing, passenger counts, cabin class (defaults are possible for some, but not destination/date)."
+          ],
+          "limitations": [
+            "A flight search cannot be executed without an arrival location and an outbound travel date."
+          ],
+          "missingInformation": [
+            "Arrival city/airport (where they’re flying to).",
+            "Outbound date (departure date).",
+            "If round-trip: return date or trip duration (otherwise we can default to one-way)."
+          ],
+          "nextStep": "Ask the traveler for the destination and departure date; if they want a round trip, also ask for the return date (or how many days they plan to stay).",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Got it — from Delhi.\n\nPlease send:\n- To\n- Departure date\n\nOptional: round-trip return date, travelers, cabin",
+      "traceId": "trace_63b661743fee4cc8a7626e3fd8c6205d",
+      "latencyMs": 15246
+    },
+    {
+      "turn": 3,
+      "user": "going to Mumbai",
+      "understanding": "The arrival location is Mumbai. Only the travel date is missing; ask for it alone. Suggest price windows or concrete timing for Delhi to Mumbai.",
+      "why": "One blocker remains. Guessing a date would return options for a day the traveller never named.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Search Delhi to Mumbai next weekend",
+        "Cheapest Delhi–Mumbai dates this month",
+        "Make it a round trip"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "The traveler has now provided the destination only: going to Mumbai. Continue the new flight search setup with the known route from Delhi to Mumbai, and report what remaining trip details are still needed to search."
+      ],
+      "feedback": [
+        {
+          "status": "needs_input",
+          "completedTask": "Captured the route as Delhi → Mumbai and determined what information is still required before a flight search can be run.",
+          "summary": "We can’t run a flight search yet because the traveler hasn’t provided a travel date; everything else can be defaulted unless they have specific needs.",
+          "findings": [
+            "Known route: Delhi → Mumbai.",
+            "To start a search, the only blocking detail is the departure (outbound) date.",
+            "Trip type is not stated; if the traveler wants round-trip, we would also need a return date or length of stay.",
+            "If not specified, we can default to 1 adult in economy for a one-way search."
+          ],
+          "limitations": [],
+          "missingInformation": [
+            "Departure date for Delhi → Mumbai (YYYY-MM-DD or a range like “next weekend”)."
+          ],
+          "nextStep": "Ask for the departure date; if they want round-trip, also ask for return date or how many days they plan to stay.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Great — Delhi to Mumbai.\n\nPlease send the departure date.\nIf it’s round-trip, include the return date too.",
+      "traceId": "trace_b11609702e3b4488b26a80fdf044db7b",
+      "latencyMs": 18687
+    },
+    {
+      "turn": 4,
+      "user": "leaving November 20 and coming back November 27",
+      "understanding": "A round trip from Delhi to Mumbai, out on November 20 and back on November 27, with one adult in economy by default. Search without re-asking anything.",
+      "why": "The last blocker arrives, and every other detail came from the two messages before it. The suggestions should switch to the new round-trip results.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Show only IndiGo flights"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search flights for a round-trip itinerary from Delhi to Mumbai departing 2026-11-20 and returning 2026-11-27. Use the default traveler/cabin assumptions if needed."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a round-trip flight search for Delhi → Mumbai departing 2026-11-20 and returning 2026-11-27 using default passenger/cabin assumptions.",
+          "summary": "Search completed for DEL–BOM round trip (2026-11-20 to 2026-11-27) for 1 adult in economy; 3 options are available to display.",
+          "findings": [
+            "Search parameters used: Delhi → Mumbai, round trip, depart 2026-11-20 / return 2026-11-27.",
+            "Defaults applied: 1 adult, economy cabin.",
+            "Result count: 3 flight options available in the current result set.",
+            "No filters are applied yet (full unfiltered result set is showing)."
+          ],
+          "limitations": [
+            "The returned option details show airport codes that do not align with a Delhi (DEL) ↔ Mumbai (BOM) route (e.g., LAX/BUR/ONT/SNA appearing in segments), so airport-level details may be inconsistent on the cards."
+          ],
+          "missingInformation": [],
+          "nextStep": "Ask if you want me to filter (e.g., nonstop only, specific airlines, or preferred departure times).",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 flight options for Delhi → Mumbai, departing Nov 20 and returning Nov 27.\n\nNote: Prices shown are per person.\n\nIf you want, I can narrow these to nonstop, specific airlines, or a preferred time.",
+      "traceId": "trace_2a5b88b330d747468f31edf1f6b343e8",
+      "latencyMs": 34735
+    }
+  ]
+}

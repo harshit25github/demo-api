@@ -1,0 +1,330 @@
+{
+  "case": "filtered_option_out_of_range",
+  "focus": "An index that exists before a filter and not after it",
+  "description": "The same option number is asked for on both sides of a filter. Tests that Flight reports the real current count, keeps the options that do exist visible, and resolves a layover airport against the live source options.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 6,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "Pune to Dubai on March 3",
+      "understanding": "A complete one-way search on a date that resolves into next year.",
+      "why": "All inputs present.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Add a checked bag"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search flights from Pune to Dubai on March 3."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way economy flight search for Pune → Dubai on March 3 for 1 adult and returned matching options.",
+          "summary": "Search completed for Pune to Dubai on 2027-03-03 (interpreting “March 3” as the next upcoming occurrence). 3 flight options are available to display.",
+          "findings": [
+            "Searched itinerary: one-way, Pune → Dubai, outbound 2027-03-03.",
+            "Passengers/cabin used: 1 adult, economy.",
+            "Results found: 3 options (currently visible)."
+          ],
+          "limitations": [
+            "Some displayed airport codes in the results may not align with the requested cities (Pune/Dubai), so airport-level details may be inconsistent on the cards."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler shares a preference (nonstop vs 1 stop, baggage, departure time, or max price), we can filter the results accordingly.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 flights from Pune to Dubai on March 3.\n\nNote: Prices shown are per person.\n\nIf you want, I can narrow them by nonstop, baggage, departure time, or max price.",
+      "traceId": "trace_68e724094ce04b958b1e66e9d61ce744",
+      "latencyMs": 21262
+    },
+    {
+      "turn": 2,
+      "user": "nonstop only",
+      "understanding": "A stops filter that will likely shrink the result set considerably.",
+      "why": "Search inputs unchanged, so the existing results are narrowed.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Which option is fastest?",
+        "Show all airlines again",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Apply the nonstop filter to the current Pune to Dubai March 3 one-way economy results for 1 adult."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a nonstop (0 stops) filter to the current Pune → Dubai one-way search for Mar 3 (economy, 1 adult).",
+          "summary": "Nonstop-only is now active and reduced the results to 1 matching option.",
+          "findings": [
+            "Search context used: Pune → Dubai, one-way, 2027-03-03, economy, 1 adult.",
+            "Filter applied this turn: Stops = nonstop (0 stops).",
+            "Result count changed from 3 to 1 after applying the filter."
+          ],
+          "limitations": [
+            "No other preferences (price cap, time window, airline) were applied in this request."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want more choices, we can relax to “up to 1 stop” or remove the nonstop filter.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I narrowed it to 1 nonstop flight. If you want, I can also filter by time, airline, or price.",
+      "traceId": "trace_953ef87609ee4eca864eb6d3f8b682e7",
+      "latencyMs": 17011
+    },
+    {
+      "turn": 3,
+      "user": "show me option 4",
+      "understanding": "An index that may no longer exist after filtering. Report the real current count and keep the options that do exist on screen rather than clearing the view.",
+      "why": "Only the current contracts know how many options survived. Answering from the pre-filter count would claim an option that is not there, and showing nothing at all would leave a traveller who asked to see a flight with an empty screen.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show option 1 details",
+        "Remove the nonstop filter",
+        "Show morning departures only"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "Show option 4 for the current Pune to Dubai March 3 nonstop one-way economy results for 1 adult."
+      ],
+      "feedback": [
+        {
+          "status": "partial",
+          "completedTask": "Attempted to display flight option 4 from the current Pune → Dubai (Mar 3) nonstop one-way economy search results.",
+          "summary": "Option 4 is not available in the current results set; only option 1 is available/visible with the current nonstop filter.",
+          "findings": [
+            "Current trip context: Pune → Dubai, one-way, 2027-03-03, economy, 1 adult.",
+            "A nonstop (0 stops) filter is currently applied to this result set.",
+            "The active result set has 1 available option total (available indexes: 1 through 1).",
+            "Requested option index 4 is out of range and could not be shown."
+          ],
+          "limitations": [
+            "Cannot display option 4 because it does not exist in the current filtered results."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to show option 1 instead, or (if the traveler wants more choices) ask whether to remove the nonstop filter to expand the results.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I can’t show option 4 because there’s only 1 result right now. I can show option 1, or remove the nonstop filter to see more options.",
+      "traceId": "trace_77ed704546024d67b72e594bfd55533a",
+      "latencyMs": 21426
+    },
+    {
+      "turn": 4,
+      "user": "remove the nonstop filter",
+      "understanding": "Drop the stops constraint, restoring the wider result set without re-searching.",
+      "why": "Removing a filter is a filter operation. A new search would also restore the options but discards and rebuilds state for no reason.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Which option is cheapest?",
+        "Show flights with 1 stop",
+        "Show option 2 details"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Remove the nonstop filter from the current Pune to Dubai March 3 one-way economy search for 1 adult."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Removed the nonstop/stops-only constraint from the active Pune → Dubai one-way search on 2027-03-03 (economy, 1 adult).",
+          "summary": "The nonstop filter has been cleared; results now include flights with any number of stops.",
+          "findings": [
+            "Trip context preserved: Pune → Dubai, one-way, 2027-03-03, economy, 1 adult.",
+            "Stops filter state after update: no stops-related filters active (nonstop restriction removed).",
+            "Result count after removing the nonstop filter: 3 options visible (same as before removal in this result set)."
+          ],
+          "limitations": [
+            "None."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler wants fewer layovers, offer applying a specific stops limit (e.g., nonstop only or max 1 stop) or sort/compare by cheapest/fastest among the current options.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I removed the nonstop filter, and you’re back to 3 flight options.",
+      "traceId": "trace_a01eb5c8262744699bb1fa3e86dd035e",
+      "latencyMs": 18690
+    },
+    {
+      "turn": 5,
+      "user": "no layovers longer than 2 hours",
+      "understanding": "A maximum layover-duration filter in minutes, on the results now restored.",
+      "why": "Layover duration is a maximum-only filter on the current set, so it narrows rather than re-searches. Named by duration rather than by airport on purpose: an airport filter resolves against the source options the live search returned, so whether a given city is among them decides the turn, and the agent is then right either to apply it or to say it is not there.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is fastest?",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Apply a layover-duration filter to the current Pune to Dubai March 3 one-way economy search for 1 adult: no layovers longer than 2 hours."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a layover-duration constraint to the current Pune → Dubai one-way search (Mar 3, economy, 1 adult).",
+          "summary": "Layovers are now limited to 2 hours max; results narrowed from 3 options to 2 matching options.",
+          "findings": [
+            "Filter applied: layover duration max 120 minutes (“no layovers longer than 2 hours”).",
+            "Search context preserved: Pune → Dubai, 2027-03-03, one-way, economy, 1 adult.",
+            "Result count changed from 3 total options to 2 options matching the layover limit.",
+            "Active filters after this action include the layover-duration ≤ 2 hours constraint."
+          ],
+          "limitations": [
+            "Some returned flight cards show airport codes that don’t align with the Pune → Dubai route, so airport-level details may be inconsistent in the displayed results."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want to narrow further, you can add a stops filter (e.g., nonstop only) or a departure-time window.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I narrowed it to 2 flights with layovers of 2 hours or less. If you want, I can also filter by departure time or nonstop only.",
+      "traceId": "trace_759fbf38a59b4da7b6cfb68961ec25ac",
+      "latencyMs": 19498
+    },
+    {
+      "turn": 6,
+      "user": "clear that",
+      "understanding": "Reset the active filter and restore the full result set.",
+      "why": "Removing a filter is filter work on the results that exist, never a reason to run the search again.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Which option is cheapest?",
+        "Show evening departures",
+        "Show flights with 1 stop"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Remove the layover-duration filter from the current Pune to Dubai March 3 one-way economy search for 1 adult."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Removed the layover-duration constraint from the active Pune → Dubai one-way search on 2027-03-03 (economy, 1 adult).",
+          "summary": "Layover-duration filtering is now cleared; there are currently no active filters on the result set and 3 options remain visible.",
+          "findings": [
+            "Search context used: Pune → Dubai, one-way, 2027-03-03, economy, 1 adult.",
+            "Layover-duration filter removed; active filters list is now empty.",
+            "Result count after change: 3 (unchanged from before)."
+          ],
+          "limitations": [
+            "Some displayed airport codes in the current result cards may not align with the Pune → Dubai route; verify airports/times before booking."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want, share your max layover time (e.g., “no layovers over 3 hours”) or preferred stops (nonstop/1 stop) and I can filter accordingly.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Cleared — you’re back to 3 flights.",
+      "traceId": "trace_ad111908ec49426dbe760bb8632add54",
+      "latencyMs": 20454
+    }
+  ]
+}

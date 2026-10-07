@@ -1,0 +1,360 @@
+{
+  "testSuite": "Manager Agent Realistic Flight Conversations",
+  "timestamp": "2026-09-30T20:32:05.876Z",
+  "fixedNow": "2026-09-19T10:00:00.000Z",
+  "totalConversations": 1,
+  "totalTurns": 5,
+  "conversationsPassedAll": 1,
+  "totalErrors": 0,
+  "totalWarnings": 4,
+  "totalInputTokens": 162075,
+  "totalOutputTokens": 3802,
+  "traceExportStatuses": [
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204,
+    204
+  ],
+  "conversations": [
+    {
+      "id": "ambiguous_followups_resolution",
+      "description": "Vague follow-ups requiring strong context understanding",
+      "turns": [
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 1,
+          "traceId": "trace_5b1b8a00f97a4854bb4973f7ae132edd",
+          "user": "LA to Vegas Oct 10",
+          "output": "✈️ I found 3 flight options from Los Angeles to Las Vegas for Oct 10.\n\nNote: Prices shown are per person.",
+          "outputPreview": "✈️ I found 3 flight options from Los Angeles to Las Vegas for Oct 10.\n\nNote: Prices shown are per person.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "flight_search",
+            "update_flight_suggested_questions"
+          ],
+          "subtasks": [
+            {
+              "tool": "flight_agent",
+              "input": "Search flights from LA to Las Vegas for Oct 10. Use the current search context if needed, and return the current flight options."
+            }
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Flight search completed for LA (Los Angeles) to Las Vegas on Oct 10 (interpreted as 2026-10-10 based on current clock). 3 options are available and should be shown as flight cards.",
+              "completedTask": "Ran a one-way economy flight search using the current context for Los Angeles → Las Vegas on 2026-10-10 (Oct 10) for 1 adult and returned the current flight options.",
+              "missingInformation": [],
+              "presentation": "flight_cards_with_price_note"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "flight_search",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 1,
+          "inputTokens": 27286,
+          "outputTokens": 735,
+          "modelCalls": 5,
+          "latencyMs": 27564,
+          "validationChecks": [],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 2,
+          "traceId": "trace_b082a1e2ebfe430f987ffa1068c5297a",
+          "user": "earlier one",
+          "output": "✈️ The earlier option is Option 3: departs 05:45.\n\nIt’s a 2-stop flight, 7h 55m total.",
+          "outputPreview": "✈️ The earlier option is Option 3: departs 05:45.\n\nIt’s a 2-stop flight, 7h 55m total.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "getGeneratedContractsContext"
+          ],
+          "subtasks": [
+            {
+              "tool": "flight_agent",
+              "input": "Show the earlier departure option from the current Los Angeles → Las Vegas Oct 10 flight results."
+            }
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Earlier departure option is Option 3 (departs 05:45). Display has been narrowed to show only this option from the existing results.",
+              "completedTask": "Identified the earliest-departing option in the current Los Angeles → Las Vegas (Oct 10, 2026) one-way results and set the view to show only that option.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": null,
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 28391,
+          "outputTokens": 614,
+          "modelCalls": 5,
+          "latencyMs": 19842,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "warning",
+              "message": "Emoji overuse detected (2 emojis in 86 chars)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 3,
+          "traceId": "trace_1bcce4c1f4c04b48906d92f383e60ae0",
+          "user": "any cheaper?",
+          "output": "💰 Yes — the cheapest current option is Option 3 at $149.\n\nI can check nearby dates if you want, but I couldn’t verify cheaper dates from the available price data.",
+          "outputPreview": "💰 Yes — the cheapest current option is Option 3 at $149.\n\nI can check nearby dates if you want, but I couldn’t verify cheaper dates from the available price data.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "price_prediction_tool",
+            "getGeneratedContractsContext",
+            "update_flight_suggested_questions"
+          ],
+          "subtasks": [
+            {
+              "tool": "flight_agent",
+              "input": "Find the cheapest current flight option in the existing Los Angeles → Las Vegas Oct 10 results, and if possible note whether any cheaper travel dates are available."
+            }
+          ],
+          "managerResults": [
+            {
+              "status": "partial",
+              "summary": "Cheapest option in the current Oct 10 results is Option 3 at USD 149. Price/date intelligence could not confirm whether any nearby dates are cheaper for LAX→LAS in the Oct 3–Oct 17 window (prediction unavailable), so no cheaper-date claim can be made from the data available right now.",
+              "completedTask": "Reviewed the existing Los Angeles → Las Vegas (Oct 10, 2026; one-way; 1 adult; economy) results to identify the cheapest current option, and attempted to check for cheaper nearby travel dates via price intelligence. Also set the visible set",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "price_prediction_tool",
+              "ok": false,
+              "code": "NO_PREDICTIONS",
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": "NO_PREDICTIONS",
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 46867,
+          "outputTokens": 1308,
+          "modelCalls": 7,
+          "latencyMs": 36957,
+          "validationChecks": [
+            {
+              "category": "tool_selection",
+              "severity": "warning",
+              "message": "Potentially excessive tool calls: 4 tools used"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 4,
+          "traceId": "trace_8e2860671d2c4f08af3039014a17eb75",
+          "user": "show that one",
+          "output": "✈️ Shown: Option 3, the cheapest one at $149.",
+          "outputPreview": "✈️ Shown: Option 3, the cheapest one at $149.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "update_flight_suggested_questions"
+          ],
+          "subtasks": [
+            {
+              "tool": "flight_agent",
+              "input": "Show only the current cheapest Los Angeles → Las Vegas Oct 10 option (Option 3 at $149) in the existing results."
+            }
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Existing results are now restricted to a single visible card: Option 3 (the current cheapest) priced at $149 per person.",
+              "completedTask": "Selected and displayed only Option 3 from the existing Los Angeles → Las Vegas one-way Oct 10, 2026 results.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "update_flight_suggested_questions",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": "NO_PREDICTIONS",
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 28665,
+          "outputTokens": 578,
+          "modelCalls": 5,
+          "latencyMs": 24468,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "warning",
+              "message": "Emoji overuse detected (2 emojis in 45 chars)"
+            }
+          ],
+          "passedValidation": true
+        },
+        {
+          "chat": "ambiguous_followups_resolution",
+          "turn": 5,
+          "traceId": "trace_0379707b42cd4d8c8e5cbfbf3e8102db",
+          "user": "different airline",
+          "output": "✈️ I’ve shown the non-Emirates options: Option 1 and Option 2.",
+          "outputPreview": "✈️ I’ve shown the non-Emirates options: Option 1 and Option 2.",
+          "finalAgent": "Manager Agent",
+          "specialistsUsed": [
+            "flight_agent"
+          ],
+          "flightTools": [
+            "getGeneratedContractsContext",
+            "getGeneratedContractsContext"
+          ],
+          "subtasks": [
+            {
+              "tool": "flight_agent",
+              "input": "From the current Los Angeles → Las Vegas Oct 10 one-way economy results, show flight options on a different airline than the currently displayed Option 3 (Emirates), if any are available."
+            }
+          ],
+          "managerResults": [
+            {
+              "status": "success",
+              "summary": "Option 3 is on Emirates. There are other airlines available in the current result set; I limited the display to the non-Emirates options (Options 1 and 2).",
+              "completedTask": "Checked the current LAX-area → Las Vegas (Oct 10, 2026) one-way economy results, identified Option 3’s airline (Emirates), and displayed only the available options on other airlines by selecting Options 1 and 2.",
+              "missingInformation": [],
+              "presentation": "flight_cards"
+            }
+          ],
+          "toolFeedback": [
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            },
+            {
+              "tool": "getGeneratedContractsContext",
+              "ok": true,
+              "code": null,
+              "affectedFields": []
+            }
+          ],
+          "predictionStatus": "NO_PREDICTIONS",
+          "renderFlightOptions": true,
+          "resultCount": 3,
+          "noteCount": 0,
+          "inputTokens": 30866,
+          "outputTokens": 567,
+          "modelCalls": 5,
+          "latencyMs": 25718,
+          "validationChecks": [
+            {
+              "category": "response_quality",
+              "severity": "warning",
+              "message": "Emoji overuse detected (2 emojis in 62 chars)"
+            }
+          ],
+          "passedValidation": true
+        }
+      ],
+      "overallPass": true,
+      "errorCount": 0,
+      "warningCount": 4,
+      "summary": "✅ All 5 turns passed"
+    }
+  ]
+}

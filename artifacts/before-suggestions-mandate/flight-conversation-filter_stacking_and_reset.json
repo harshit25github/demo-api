@@ -1,0 +1,280 @@
+{
+  "case": "filter_stacking_and_reset",
+  "focus": "Stacking three filters, removing one by name, then clearing all in a single reset",
+  "description": "Tests the difference between a targeted removal and a full reset, and specifically that \"clear everything\" is one call with one reset entry rather than one call per active filter.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 6,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "Chennai to Singapore on Jan 20",
+      "understanding": "A complete one-way search on a date that resolves into next year.",
+      "why": "All inputs present; the bare date has to resolve forward from the clock.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search flights from Chennai to Singapore for Jan 20. Show current options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way flight search for Chennai → Singapore on Jan 20 and kept the current results visible.",
+          "summary": "Search results are now available for Chennai to Singapore on 2027-01-20 (Jan 20 interpreted as the next upcoming Jan 20) for 1 adult in Economy; 3 options were returned and are ready to view.",
+          "findings": [
+            "Route used: Chennai → Singapore.",
+            "Date used: 2027-01-20 (interpreted as the next upcoming Jan 20 based on today’s date).",
+            "Trip setup: one-way, 1 adult, economy.",
+            "Results: 3 flight options returned; no filters applied."
+          ],
+          "limitations": [
+            "Some displayed airport codes in the options may not align with the Chennai/Singapore route and should be verified before booking."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you share a preference (non-stop only, specific airline, or max price), I can filter these results.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 one-way flights from Chennai to Singapore for Jan 20.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_81fd80231201437aadd27f0befc5ba58",
+      "latencyMs": 21749
+    },
+    {
+      "turn": 2,
+      "user": "at most one stop",
+      "understanding": "A stops constraint on the current results.",
+      "why": "Search inputs are unchanged, so the existing options are narrowed rather than rebuilt.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Filter the current Chennai to Singapore Jan 20 one-way results to at most one stop."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied an “at most one stop” filter to the current Chennai → Singapore one-way search for 2027-01-20.",
+          "summary": "Stops filter was applied successfully and narrowed the results from 3 flights to 1 flight that meets the at-most-one-stop constraint.",
+          "findings": [
+            "Route/date used: Chennai → Singapore, one-way, 2027-01-20 (economy, 1 adult).",
+            "Filter applied: Stops = at most 1 stop.",
+            "Result set changed from 3 options to 1 option after filtering."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "If you want, I can further narrow it by departure time window (e.g., morning), airline (e.g., Emirates/Qatar), or a max budget.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I narrowed it to 1 flight with at most one stop.",
+      "traceId": "trace_243fef30da72463b85ffb205ae389a12",
+      "latencyMs": 16600
+    },
+    {
+      "turn": 3,
+      "user": "and nothing over $600",
+      "understanding": "Add a maximum-price filter while the stops constraint stays active.",
+      "why": "Filters accumulate, and \"and\" is explicit that the first one stays. Price is a maximum-only filter.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Filter the current Chennai to Singapore Jan 20 one-way results to a maximum price of $600, keeping the at-most-one-stop constraint."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied filters to the existing Chennai → Singapore one-way search for Jan 20 to enforce a maximum price of $600 while keeping the at-most-one-stop constraint.",
+          "summary": "Filters were applied successfully; results narrowed from 3 options to 1 option under $600 while preserving the at-most-one-stop requirement.",
+          "findings": [
+            "Route/date preserved: Chennai → Singapore, one-way, 2027-01-20.",
+            "Active constraints after update: at most one stop + max price $600.",
+            "Result count changed from 3 to 1 option after filtering."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "If you want more choices, you can relax either the $600 cap or the at-most-one-stop limit; tell me which you’d prefer.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 1 flight under $600 with at most one stop.",
+      "traceId": "trace_164024992f794fb99169bded01fd7418",
+      "latencyMs": 21145
+    },
+    {
+      "turn": 4,
+      "user": "carry-on included as well",
+      "understanding": "Add a baggage constraint on top of the two already active.",
+      "why": "Third filter, same reasoning. Dropping either earlier constraint is a state-management bug.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Add a carry-on included filter to the current Chennai → Singapore one-way Jan 20 results, keeping the at-most-one-stop and max $600 constraints."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a carry-on included baggage filter to the existing Chennai → Singapore one-way Jan 20 results while keeping the at-most-one-stop and max $600 constraints.",
+          "summary": "Carry-on included is now applied alongside the existing stops and price filters; the result set narrowed down accordingly.",
+          "findings": [
+            "Route/date kept: Chennai → Singapore, one-way, 2027-01-20; cabin economy; 1 adult.",
+            "Active filters now include: at most one stop, max price $600, and carry-on included.",
+            "Filtered results count changed from 3 options to 1 option after adding carry-on included."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "Offer to relax/remove the carry-on filter or the $600 cap if they want more options, or add a departure-time window to refine further.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 1 flight with carry-on included, at most one stop, and under $600.",
+      "traceId": "trace_73168b1f79c4467e8782314dbd48bc5b",
+      "latencyMs": 16688
+    },
+    {
+      "turn": 5,
+      "user": "what's the price on the cheapest of those?",
+      "understanding": "A fare for a specific option within the set surviving all three filters.",
+      "why": "A per-option fare lives on the contracts and has never been stated, so unlike a result count it cannot be recalled from the previous turn.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Among the current Chennai → Singapore one-way Jan 20 results with at most one stop, max $600, and carry-on included, what is the cheapest price?"
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Inspected the currently displayed filtered Chennai → Singapore one-way results for Jan 20 to identify the lowest price.",
+          "summary": "The cheapest currently shown option is USD 179.",
+          "findings": [
+            "Current results set shows 1 visible option under the stated filters (≤1 stop, ≤$600, carry-on included).",
+            "Cheapest price in the current results: USD 179 (Option 1)."
+          ],
+          "limitations": [
+            "The displayed option shows airport codes (BUR → ONT) that do not match the Chennai → Singapore route, suggesting an inconsistency in the visible result details."
+          ],
+          "missingInformation": [],
+          "nextStep": null,
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "💰 The cheapest one is $179.",
+      "traceId": "trace_debb792aa1184d539827f67c60335bec",
+      "latencyMs": 12948
+    },
+    {
+      "turn": 6,
+      "user": "drop the price cap but keep the rest",
+      "understanding": "Remove only the price filter, leaving the stops and baggage constraints in place.",
+      "why": "A targeted removal, not a reset and not a re-search. Clearing everything would discard two constraints the traveller just asked to keep, and re-searching would throw away results that are still valid.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Remove the max price filter from the current Chennai → Singapore one-way Jan 20 results, while keeping the at-most-one-stop and carry-on included filters."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Removed the max price constraint from the current Chennai → Singapore (one-way, Jan 20) results while keeping the at-most-one-stop and carry-on-included filters active.",
+          "summary": "Filters were refreshed by clearing existing filters and then re-applying only: at most one stop + carry-on included; the max price filter is no longer applied.",
+          "findings": [
+            "Route/date preserved: Chennai → Singapore, one-way on 2027-01-20.",
+            "Filter change executed as: reset all filters, then applied Stops=at most one stop and Baggage=carry-on included (no price cap).",
+            "Result set after reapplying the two filters: 1 option remains visible (from 3 previously)."
+          ],
+          "limitations": [
+            "Some cards may display airport codes that don’t align with the Chennai → Singapore city pair; traveler should verify airport details before booking."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to relax filters (e.g., allow 2+ stops or remove the carry-on requirement) if the traveler wants more options.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I kept carry-on included and at most one stop, and removed the price cap. 1 flight remains.",
+      "traceId": "trace_16395ef54a2946049515a3fc0bb22fcd",
+      "latencyMs": 32388
+    }
+  ]
+}

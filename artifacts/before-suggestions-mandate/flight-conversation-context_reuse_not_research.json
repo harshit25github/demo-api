@@ -1,0 +1,248 @@
+{
+  "case": "context_reuse_not_research",
+  "focus": "Reading existing results instead of searching again, and answering from context instead of at all",
+  "description": "Six questions in a row about an unchanged search. Tests the two opposite failure modes directly: re-running a search that nothing invalidated, and calling a tool for a fact already in the prompt.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 7,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "Kolkata to Bangkok on Feb 10",
+      "understanding": "A complete one-way search on a date that resolves into next year.",
+      "why": "All inputs present.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search flights from Kolkata to Bangkok departing Feb 10. Show available options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way flight search for Kolkata → Bangkok departing Feb 10 and returned the available options.",
+          "summary": "Search completed for Kolkata to Bangkok on 2027-02-10 (economy, 1 adult) and 3 options are available to display.",
+          "findings": [
+            "Search used: Kolkata → Bangkok, one-way, depart 2027-02-10, 1 adult, economy.",
+            "3 flight options were returned and should be shown to the traveler.",
+            "Cheapest returned option is priced at USD 149; other returned prices include USD 179 and USD 199 (per person)."
+          ],
+          "limitations": [
+            "The traveler provided 'Feb 10' without a year; the search used 2027-02-10 based on the existing context/upcoming date.",
+            "Some returned option details show airport codes that do not match the requested cities (e.g., LAX/BUR/ONT/SNA shown despite Kolkata/Bangkok route), so airport-level details may be unreliable in the displayed cards."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to refine results (e.g., non-stop only, preferred airline, or departure time window) or confirm if the intended departure year for Feb 10 is different than 2027.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 flights from Kolkata to Bangkok for Feb 10, 2027.\n\n💰 Prices start at USD 149 per person.\n\nNote: Prices shown are per person.\n\nIf you want, I can narrow these to nonstop flights or a preferred time window.",
+      "traceId": "trace_eacd4acf763b4b978fe168abe0ef7e75",
+      "latencyMs": 24183
+    },
+    {
+      "turn": 2,
+      "user": "how long is the shortest one?",
+      "understanding": "A duration question about the options that already exist; nothing about the search has changed.",
+      "why": "Durations are per-contract. Re-running the search would discard a valid result set and rebuild the same one, which is the waste this script is built to expose.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "For the current Kolkata → Bangkok Feb 10 search results, tell me the duration of the shortest flight option."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Inspected the current Kolkata → Bangkok one-way Feb 10, 2027 search results to identify the shortest-duration option.",
+          "summary": "The shortest flight option in the current results has a total duration of 2h 10m (130 minutes).",
+          "findings": [
+            "Route/date inspected: Kolkata → Bangkok, one-way, 2027-02-10, 1 adult, economy.",
+            "Shortest-duration option shown: 2h 10m total duration (130 minutes), non-stop."
+          ],
+          "limitations": [
+            "The displayed airport codes in the current option details appear inconsistent with the Kolkata → Bangkok route (e.g., showing LAX/BUR/ONT/SNA)."
+          ],
+          "missingInformation": [],
+          "nextStep": null,
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ The shortest option is 2h 10m.",
+      "traceId": "trace_03e69d87547a49b39edb696cfeb5e492",
+      "latencyMs": 11610
+    },
+    {
+      "turn": 3,
+      "user": "which airlines showed up?",
+      "understanding": "The carriers present across the current options.",
+      "why": "The airlines in the results are contract data. The airline filter source options describe what could be filtered on, which is a different question from what the results actually contain.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "For the current Kolkata → Bangkok Feb 10 search results, list which airlines appeared in the available options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Inspected the current Kolkata → Bangkok (2027-02-10, one-way, 1 adult, economy) generated options and extracted the distinct operating airlines shown.",
+          "summary": "The currently available options show 3 airlines: Air Canada, Air China, and Emirates.",
+          "findings": [
+            "Route/date inspected: Kolkata → Bangkok on 2027-02-10 (one-way).",
+            "Distinct airlines appearing in the visible options: Air Canada (AC), Air China (CA), Emirates (EK).",
+            "Total visible options reviewed: 3."
+          ],
+          "limitations": [
+            "Airline list reflects only the currently visible options in the existing results set (not a broader market scan)."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to filter the results to one of these airlines (e.g., only Emirates) or show only non-stop options, if the traveler wants to narrow choices.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ The airlines shown were Air Canada, Air China, and Emirates.",
+      "traceId": "trace_434b32a61b344b73a2196ecb14f68d96",
+      "latencyMs": 14798
+    },
+    {
+      "turn": 4,
+      "user": "what date did I give you?",
+      "understanding": "A restatement of the committed outbound date.",
+      "why": "The date is a stable search parameter in the prompt. Reading it back through a tool is a false positive.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "specialistsUsed": [],
+      "renderFlightOptions": false,
+      "subtasks": [],
+      "feedback": [],
+      "specialistFailures": [],
+      "output": "🗓️ Feb 10.",
+      "traceId": "trace_4b1d514c9c634a6db55a3c1cbee2e1a0",
+      "latencyMs": 2616
+    },
+    {
+      "turn": 5,
+      "user": "how many passengers is this for?",
+      "understanding": "A restatement of the passenger count, which has never been changed.",
+      "why": "Also an injected search parameter, and not volatile like a result count is.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "specialistsUsed": [],
+      "renderFlightOptions": false,
+      "subtasks": [],
+      "feedback": [],
+      "specialistFailures": [],
+      "output": "1 adult.",
+      "traceId": "trace_5ae496bf64124f67bec86199162a376f",
+      "latencyMs": 2250
+    },
+    {
+      "turn": 6,
+      "user": "filter to the airline on the shortest one",
+      "understanding": "The shortest option was identified earlier, but its airline may never have been named aloud. Establish which carrier it is, then filter to it against the current search’s source options.",
+      "why": "The results are still valid and only the view narrows, so re-searching to \"search that airline\" is wrong — airline is not a search input. Reading the contracts first is allowed because the carrier is often not in the earlier duration answer, leaving nothing to resolve the reference against.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Inspect the current Kolkata → Bangkok Feb 10 search results, identify the airline operating the shortest-duration option, and filter the results to that airline."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Reviewed the current Kolkata → Bangkok one-way (Feb 10, 2027) results, identified the shortest-duration option’s operating airline, and applied an airline filter to show only that carrier.",
+          "summary": "The shortest-duration itinerary is operated by Air Canada (2h 10m). Results are now filtered to Air Canada only, reducing the list from 3 options to 1.",
+          "findings": [
+            "Search inspected: Kolkata → Bangkok, one-way, 2027-02-10, 1 adult, economy.",
+            "Shortest-duration option: Air Canada, total duration 2h 10m (130 minutes).",
+            "Applied airline filter for Air Canada (mapped to airline codes AC and AC+).",
+            "Result set changed from 3 options to 1 option after filtering."
+          ],
+          "limitations": [
+            "The displayed airport codes in the current option cards appear inconsistent with the stated route (e.g., LAX/BUR/ONT/SNA showing under a Kolkata → Bangkok search), so airport-level details may be unreliable on-screen."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want, I can remove the airline filter to bring back all airlines and then filter by a different constraint (nonstop only, max price, or preferred departure time window).",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✅ Filtered to Air Canada — that’s the airline on the shortest flight.",
+      "traceId": "trace_c0c74a52bb634c478a8e803a1d55f9d6",
+      "latencyMs": 27072
+    },
+    {
+      "turn": 7,
+      "user": "still Feb 10, right?",
+      "understanding": "A confirmation of the outbound date, which the filter did not touch.",
+      "why": "A filter cannot move a date, so nothing needs checking. This catches a tool call made out of caution rather than need.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "specialistsUsed": [],
+      "renderFlightOptions": false,
+      "subtasks": [],
+      "feedback": [],
+      "specialistFailures": [],
+      "output": "Yes — Feb 10.",
+      "traceId": "trace_f94fc46d6d7c4620830d40e30595ee41",
+      "latencyMs": 3129
+    }
+  ]
+}

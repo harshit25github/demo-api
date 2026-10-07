@@ -1,0 +1,383 @@
+{
+  "case": "reference_chain",
+  "focus": "Ordinal and comparative references resolved against the live result set",
+  "description": "Every turn after the first refers to an option obliquely. Tests that Flight binds \"option 2\", \"the cheaper one\", \"same flight\" and \"the first one\" to the current contracts, and knows which of those needs a new search.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 7,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "San Francisco to Tokyo on Nov 7",
+      "understanding": "A complete one-way search.",
+      "why": "All inputs present.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is fastest?",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search flights from San Francisco to Tokyo departing Nov 7. Use the current search with that route and date."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way flight search for San Francisco → Tokyo departing 2026-11-07 (economy, 1 adult) using the existing trip details.",
+          "summary": "Search results are available for San Francisco to Tokyo on Nov 7, 2026; 3 flight options were returned and are ready to display.",
+          "findings": [
+            "Search used: San Francisco → Tokyo, depart 2026-11-07, one-way, 1 adult, economy.",
+            "Returned 3 matching flight options (visible).",
+            "No filters are currently applied to these results."
+          ],
+          "limitations": [
+            "Returned option details may show inconsistent airport codes versus the requested cities; treat the cards as the authoritative display for airports/times until refreshed with live inventory."
+          ],
+          "missingInformation": [],
+          "nextStep": "Ask whether you want nonstop only, lowest price, or shortest duration and I can narrow/sort the current results accordingly.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 flights from San Francisco to Tokyo for Nov 7, 2026.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_306bc6d7d7144365b301320a5342c897",
+      "latencyMs": 18226
+    },
+    {
+      "turn": 2,
+      "user": "show me option 2",
+      "understanding": "An ordinal reference into the current result set, which may or may not hold that many options.",
+      "why": "Option numbering is a property of the generated contracts. Re-searching would renumber them, and answering from memory risks an index that no longer exists.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show all options again",
+        "Compare option 2 vs option 1",
+        "Show only nonstop flights"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Show option 2 from the current San Francisco to Tokyo Nov 7 search results."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Displayed option 2 from the current San Francisco → Tokyo one-way search on Nov 7, 2026.",
+          "summary": "Option 2 is now the only visible flight card (selected from 3 total available options) for the SFO-area → Tokyo search dated 2026-11-07.",
+          "findings": [
+            "Current search: San Francisco → Tokyo, one-way, outbound 2026-11-07, 1 adult, economy.",
+            "Option 2 selected and shown; total available options in this result set: 3; visible now: option 2 only.",
+            "Option 2 details (high level): Air China (CA 204), 1 stop, departs 14:30 and arrives 17:05, total duration 2h 35m, baggage included: personal item + carry-on; checked bag not included."
+          ],
+          "limitations": [
+            "Displayed option 2 reflects only what is present in the current result set; if the traveler wants to see other options again, visibility must be restored (no filters are currently applied)."
+          ],
+          "missingInformation": [],
+          "nextStep": "If they want to browse again, restore all options (or ask which other option number they want to view/compare).",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Option 2 is Air China CA 204.\n\n- 1 stop\n- Departs 14:30\n- Arrives 17:05\n- Total duration: 2h 35m\n- Baggage included: personal item + carry-on",
+      "traceId": "trace_aac9ce4947ee42fe9df613d7f1f7014a",
+      "latencyMs": 17812
+    },
+    {
+      "turn": 3,
+      "user": "is the cheaper one also faster?",
+      "understanding": "A comparison between options already in view, on both price and duration.",
+      "why": "Both attributes are per-contract. The search summary carries neither, so the contracts have to be read.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show option 3 details",
+        "Show option 1 details",
+        "Max 1 stop only"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Compare the current San Francisco to Tokyo Nov 7 results and tell me whether the cheapest option is also the fastest."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Reviewed the current San Francisco → Tokyo one-way results for Nov 7 and compared the cheapest itinerary to the fastest itinerary.",
+          "summary": "In the current result set, the cheapest option is not the fastest; they are different options.",
+          "findings": [
+            "Trip context used: San Francisco → Tokyo, one-way, 2026-11-07, 1 adult, economy.",
+            "Current result set contains 3 total options.",
+            "Cheapest option: Option 3 (USD 149) with total duration 7h 55m.",
+            "Fastest (shortest duration) option: Option 1 with total duration 2h 10m (USD 199).",
+            "Conclusion: the cheapest option (Option 3) is not also the fastest (Option 1 is fastest)."
+          ],
+          "limitations": [
+            "Some itinerary fields shown in the current option data (e.g., airport codes) appear inconsistent with the stated route; comparison above is based on the provided option durations and prices."
+          ],
+          "missingInformation": [],
+          "nextStep": "If speed matters most, prioritize Option 1; if price matters most, prioritize Option 3 (or ask to filter to 1 stop max as a compromise).",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "💰 No — the cheapest option is not the fastest.\n\n- Cheapest: Option 3, $149, 7h 55m\n- Fastest: Option 1, 2h 10m, $199",
+      "traceId": "trace_b08efc84f29e420c8a542a0223ef4555",
+      "latencyMs": 21401
+    },
+    {
+      "turn": 4,
+      "user": "stick with option 2's airline, but a day later",
+      "understanding": "Option 2 was named two turns ago, so resolve it to that carrier before delegating. The date moves forward one day, and the airline becomes a preference on the new results — it cannot be promised, because the new date may not offer it.",
+      "why": "The date change forces a new search, and the airline is not a search input so it becomes a filter once results exist. Passing \"option 2’s airline\" through unresolved is the routing failure to catch: the specialist has no conversation to resolve it against, and will either guess or ask the traveller for something the Manager already knew.",
+      "expectedTools": [
+        "flight_search",
+        "apply_filter"
+      ],
+      "actualTools": [
+        "flight_search",
+        "apply_filter"
+      ],
+      "rawTools": [
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is fastest?",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search the current San Francisco to Tokyo one-way trip for Nov 8, 2026, keeping the same airline as option 2: Air China."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a fresh one-way search for San Francisco → Tokyo on 2026-11-08 (economy, 1 adult) and applied an airline filter to keep only Air China options.",
+          "summary": "Search completed for Nov 8, 2026 and results were filtered to Air China; 1 matching option remains visible.",
+          "findings": [
+            "Search used: San Francisco → Tokyo, one-way, outbound 2026-11-08, 1 adult, economy.",
+            "Airline constraint applied: Air China (resolved to airline code CA).",
+            "Results: 3 options before filtering; 1 option after filtering (Air China only)."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "If you want more choices, you can remove the Air China-only filter or add another preference (nonstop, max 1 stop, preferred departure time, etc.).",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 1 Air China option for Nov 8, 2026.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_20975c6885d64079a7d70dac2fb1aaf0",
+      "latencyMs": 17411
+    },
+    {
+      "turn": 5,
+      "user": "what about the first one now?",
+      "understanding": "The first option in the result set as it stands after the new date and the airline filter.",
+      "why": "\"First\" means first in the current list, which the re-search and filter have both changed.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show all options again",
+        "Show nonstop flights only",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Show the first option in the current San Francisco to Tokyo Nov 8 search filtered to Air China only."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Selected and displayed option 1 from the current San Francisco → Tokyo (Nov 8, 2026) one-way results with the Air China-only filter in place.",
+          "summary": "Option 1 is available under the Air China-only filter, and it’s now the only visible result.",
+          "findings": [
+            "Search context used: San Francisco → Tokyo, one-way, 2026-11-08; 1 adult; economy.",
+            "Active filter confirmed: Airline = Air China only.",
+            "Option 1 is visible and selected; visible results count is now 1 (option 1 only)."
+          ],
+          "limitations": [
+            "Only option 1 is currently shown because the view is restricted to the selected index (not because other options don’t exist in the broader result set)."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want the full Air China-filtered list back, use “Show all options again.”",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ The first Air China option is now the only visible result for Nov 8.\n\nIf you want, I can show all options again.",
+      "traceId": "trace_8d5548418d89431caae78ba2e5c8a167",
+      "latencyMs": 16754
+    },
+    {
+      "turn": 6,
+      "user": "go back to Nov 7",
+      "understanding": "Return the outbound date to the original day, keeping route and passengers.",
+      "why": "A date revert is still a date change. The earlier results for that day were discarded and have to be rebuilt.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Show afternoon departures"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Go back to the San Francisco to Tokyo one-way search for Nov 7, 2026. Keep economy and 1 adult."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a fresh flight search returning to San Francisco → Tokyo (one-way) on 2026-11-07 for 1 adult in economy.",
+          "summary": "Search reset to the requested Nov 7, 2026 one-way SFO/San Francisco to Tokyo itinerary (economy, 1 adult) and results are available to display.",
+          "findings": [
+            "Searched: San Francisco → Tokyo, one-way, outbound 2026-11-07",
+            "Passengers/cabin: 1 adult, economy",
+            "Returned 3 flight options (no filters applied on this refreshed search)"
+          ],
+          "limitations": [
+            "In the returned results, some option cards show airport codes that do not match the stated city route (e.g., LAX/BUR/ONT/SNA appearing for a San Francisco → Tokyo search); the Manager may want to flag this as a data/display inconsistency if visible to the traveler."
+          ],
+          "missingInformation": [],
+          "nextStep": "If they want to narrow results, ask whether they prefer nonstop only, a max number of stops, or a departure-time window.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Back to Nov 7, 2026 — I found 3 flight options from San Francisco to Tokyo.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_730a0012b0024325b18c61e3bcb49429",
+      "latencyMs": 23417
+    },
+    {
+      "turn": 7,
+      "user": "cheapest one there?",
+      "understanding": "A ranking question about the rebuilt result set for the original date.",
+      "why": "The options are freshly generated, so any price recalled from the first visit to this date is stale.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show 1 stop or less",
+        "Compare options 2 and 3",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "From the current San Francisco → Tokyo one-way Nov 7, 2026 results, tell me which option is cheapest and its price."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Reviewed the current San Francisco → Tokyo one-way results for Nov 7, 2026 and identified the cheapest option with its price.",
+          "summary": "The cheapest itinerary in the current result set is option 3, priced at USD 149.",
+          "findings": [
+            "Trip context used: San Francisco → Tokyo, one-way, 2026-11-07, 1 adult, economy; 3 options visible.",
+            "Cheapest option: Option 3 (Emirates EK 309) at USD 149."
+          ],
+          "limitations": [
+            "Some displayed airport codes in the option details do not match the stated San Francisco → Tokyo route, so airport-specific fields may be unreliable in these results."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want, I can compare the cheapest option (3) against another option (e.g., 2) on stops, duration, and baggage.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "💰 The cheapest is Option 3 at $149.",
+      "traceId": "trace_07ee8620426244aa9c5877c7dfbead78",
+      "latencyMs": 21919
+    }
+  ]
+}

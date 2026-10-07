@@ -1,0 +1,355 @@
+{
+  "case": "origin_change_midstream",
+  "focus": "Replacing an endpoint after filters are already stacked",
+  "description": "Two filters are active when the origin changes. Tests that the endpoint change re-searches rather than filters, that constraints the traveller stated and never withdrew survive the change, and that a later removal takes out one of them without disturbing the other.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 8,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "Mumbai to Dubai on Dec 12",
+      "understanding": "A complete one-way search with a concrete date.",
+      "why": "Nothing is missing, so the search runs directly.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search flights from Mumbai to Dubai departing Dec 12."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way flight search for Mumbai → Dubai on 2026-12-12 for 1 adult in economy and returned the available options.",
+          "summary": "Search completed for Mumbai to Dubai departing Dec 12 (2026) one-way; 3 flight options are available to display.",
+          "findings": [
+            "Search parameters used: Mumbai → Dubai, one-way, depart 2026-12-12, 1 adult, economy.",
+            "3 itinerary options were returned and should be shown as results cards.",
+            "No filters were applied."
+          ],
+          "limitations": [
+            "Some results show airport codes that don’t match the Mumbai→Dubai route (e.g., LAX/BUR/ONT/SNA), so airport details may appear inconsistent on the cards."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to filter the results (e.g., nonstop only, specific airlines like Emirates/Qatar, or a max price).",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "output": "✈️ I found 3 flight options for Mumbai → Dubai on Dec 12, 2026.\n\nNote: Prices shown are per person.\n\nIf you want, I can narrow them to nonstop, a specific airline, or a max price.",
+      "traceId": "trace_843436b9e1b14d609d575e674e931eb9",
+      "latencyMs": 18606
+    },
+    {
+      "turn": 2,
+      "user": "only with checked baggage",
+      "understanding": "A baggage filter on the current results, using the checked-baggage code rather than a remembered one.",
+      "why": "The search is unchanged, so this narrows the existing options.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Apply a baggage-included filter to the current Mumbai → Dubai results for Dec 12, 2026, showing only flights with checked baggage included."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a checked-baggage-included filter to the active Mumbai → Dubai one-way search for Dec 12, 2026.",
+          "summary": "Filter applied successfully; results are now restricted to itineraries that include checked baggage.",
+          "findings": [
+            "Route/date remained Mumbai → Dubai on 2026-12-12 (one-way), 1 adult, economy.",
+            "Applied filter: baggage = checked baggage included.",
+            "Result count changed from 3 options to 1 option after filtering."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "Offer to also filter by non-stop/1-stop, preferred airlines (e.g., Emirates/Qatar), or a max price if they want to narrow further.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "output": "✅ I narrowed it to 1 flight with checked baggage included.",
+      "traceId": "trace_a8f4d6652393477b922d16b86d01b7dc",
+      "latencyMs": 13668
+    },
+    {
+      "turn": 3,
+      "user": "and nothing over 8 hours total",
+      "understanding": "Add a maximum total-duration filter in minutes, keeping the baggage filter active.",
+      "why": "Total duration is a maximum-only filter on the current set, and the earlier baggage constraint must stay on.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "On the current Mumbai → Dubai Dec 12, 2026 one-way search, add a maximum total duration filter of 8 hours while keeping the checked-baggage-included filter."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a maximum total duration filter of 8 hours to the active Mumbai → Dubai one-way search on 2026-12-12 while keeping the checked-baggage-included filter.",
+          "summary": "Filters are now set to checked baggage included + total trip duration ≤ 8 hours; the visible results updated accordingly.",
+          "findings": [
+            "Search context used: Mumbai → Dubai, one-way, 2026-12-12, 1 adult, economy.",
+            "Active filters after update: checked baggage included + maximum total duration 480 minutes (8 hours).",
+            "Result set changed from 3 options to 1 option after applying the 8-hour cap."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "If you want more choices, you can relax or remove the 8-hour duration cap (while keeping checked-baggage-included) or add other constraints like nonstop-only or preferred airline.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "output": "✅ I kept the checked-baggage filter and narrowed it to flights under 8 hours total.",
+      "traceId": "trace_c0eae8b32be249fc9dd5d0ba35243f59",
+      "latencyMs": 18575
+    },
+    {
+      "turn": 4,
+      "user": "actually I'm leaving from Delhi, not Mumbai",
+      "understanding": "The origin is replaced; destination, date, passengers and cabin carry over. The traveller stated the baggage and duration constraints two turns ago and has not withdrawn them, so they are still requirements — but a new search discards the filters attached to the old results, so they have to be put back for the Delhi set.",
+      "why": "An endpoint is a search input: filtering cannot change where a flight departs from, and the old results describe a route the traveller is no longer taking. Order matters, since filters need results to narrow. Dropping the two constraints silently would quietly widen a search the traveller had already narrowed.",
+      "expectedTools": [
+        "flight_search",
+        "apply_filter"
+      ],
+      "actualTools": [
+        "flight_search",
+        "apply_filter"
+      ],
+      "rawTools": [
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Update the current flight search to depart from Delhi instead of Mumbai, keeping the destination Dubai and the date Dec 12, 2026. Preserve the checked-baggage-included and maximum total duration of 8 hours filters if possible."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a new one-way flight search for Delhi → Dubai on 2026-12-12 (1 adult, economy) and re-applied the existing filters (checked-baggage included; max total duration 8 hours).",
+          "summary": "Search updated to depart from Delhi (destination Dubai, Dec 12, 2026 kept) and the two requested filters were successfully preserved; results narrowed to 1 option after filtering.",
+          "findings": [
+            "Search parameters used: one-way, Delhi → Dubai, 2026-12-12, 1 adult, economy.",
+            "Filters applied successfully: checked baggage included; maximum total duration 480 minutes (8 hours).",
+            "Result counts: 3 options before filters; 1 option after filters."
+          ],
+          "limitations": [
+            "The displayed airport codes in the returned options appear inconsistent with the Delhi → Dubai route, so the Manager should be cautious if the UI shows mismatched airports."
+          ],
+          "missingInformation": [],
+          "nextStep": "If 1 option is too limiting, offer to remove the checked-baggage filter and/or raise the max-duration cap to reveal more flights (or apply a stops filter like nonstop only).",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "output": "✈️ I updated it to Delhi → Dubai on Dec 12, 2026 and kept the checked-baggage + under-8-hours filters.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_bebe7ef8eaa84b4a8b9fd9c4a4b00545",
+      "latencyMs": 21683
+    },
+    {
+      "turn": 5,
+      "user": "are my baggage and duration filters still active?",
+      "understanding": "They were carried across to the Delhi search, and the applied-filter list for the current search shows that.",
+      "why": "Flight’s own context lists the filters attached to the current search, so the answer is already there to read. Delegating to reach that context is fine; spending a domain tool call on it is the false positive.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "Confirm whether the current Delhi → Dubai search for Dec 12, 2026 still has the checked-baggage-included filter and the maximum total duration of 8 hours active."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Checked the current Delhi → Dubai (2026-12-12) search state for active filters mentioned by the traveler.",
+          "summary": "Yes—both the checked-baggage-included filter and the 8-hour maximum total-duration filter are currently active for this search.",
+          "findings": [
+            "Current route/date context: Delhi → Dubai, one-way, 2026-12-12, 1 adult, economy.",
+            "Active filters listed for this search: checked baggage included.",
+            "Active filters listed for this search: maximum total duration of 8 hours."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "Offer to remove/relax either filter (checked baggage or 8-hour max duration) if they want to see more options.",
+          "presentation": null
+        }
+      ],
+      "output": "✅ Yes — both are still active: checked baggage included and max total duration of 8 hours.",
+      "traceId": "trace_482eb36b9d6240b692eeb643af6663c1",
+      "latencyMs": 10168
+    },
+    {
+      "turn": 6,
+      "user": "drop the 8 hour limit but keep the bag",
+      "understanding": "Remove only the total-duration constraint, leaving the checked-baggage filter active on the Delhi results.",
+      "why": "A targeted removal, not a reset and not a re-search. Clearing both would discard a constraint the traveller just asked to keep, and re-searching would throw away results that are still valid.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "On the current Delhi → Dubai search for Dec 12, 2026, remove the maximum total duration 8-hour filter but keep the checked-baggage-included filter active."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Updated the active filters on the existing Delhi → Dubai (Dec 12, 2026) results to remove the max total duration (8-hour) constraint while keeping the checked-baggage-included filter.",
+          "summary": "The total-duration cap was removed; checked baggage included remains the only active filter on this search, and the results list refreshed accordingly.",
+          "findings": [
+            "Search context kept: Delhi → Dubai, one-way, Dec 12, 2026, 1 adult, economy.",
+            "Active filters after the change: checked baggage included.",
+            "The max total duration (8-hour) filter is no longer applied.",
+            "Result set refreshed under the remaining baggage filter (count changed from 3 to 1 in the refreshed view)."
+          ],
+          "limitations": [],
+          "missingInformation": [],
+          "nextStep": "If you want more options, you can remove the checked-baggage-included filter, or add a different constraint (e.g., nonstop only, preferred airline, or a max price).",
+          "presentation": "flight_cards"
+        }
+      ],
+      "output": "✅ Done — the 8-hour limit is off, and checked baggage is still included.",
+      "traceId": "trace_12a454c7ec7d4f49808836367cb9199f",
+      "latencyMs": 29902
+    },
+    {
+      "turn": 7,
+      "user": "show me the second option",
+      "understanding": "Inspect the option at that index in the current filtered set, which may hold fewer options than before.",
+      "why": "Only the current contracts know what sits at that index, and whether the index exists at all after two filters.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Show the second flight option from the current Delhi → Dubai search on Dec 12, 2026 with the checked-baggage-included filter active."
+      ],
+      "feedback": [
+        {
+          "status": "partial",
+          "completedTask": "Tried to display (select) the 2nd flight option from the current Delhi → Dubai, Dec 12, 2026 search while keeping the checked-baggage-included filter active.",
+          "summary": "Only 1 flight option is currently available/visible under the active checked-baggage-included filter, so there isn’t a “2nd option” to show right now.",
+          "findings": [
+            "Current search context: one-way Delhi → Dubai on 2026-12-12, 1 adult, economy.",
+            "Checked-baggage-included filter is active; with it applied, only option #1 is available (no option #2 exists in the current results view)."
+          ],
+          "limitations": [
+            "Cannot display flight option #2 because the current results set contains only 1 available option under the active filter."
+          ],
+          "missingInformation": [],
+          "nextStep": "Ask whether they want to (a) view option #1, or (b) remove/relax the checked-baggage-included filter to potentially surface additional options (including a #2).",
+          "presentation": "flight_cards"
+        }
+      ],
+      "output": "ℹ️ There isn’t a second option right now — with the checked-baggage filter on, only 1 flight is showing.\n\nIf you want, I can show option 1 or loosen the filter to look for more.",
+      "traceId": "trace_db549fae3ae34259b572c02da3a5d42c",
+      "latencyMs": 17409
+    },
+    {
+      "turn": 8,
+      "user": "does any of them land at DWC instead of DXB?",
+      "understanding": "A question about the arrival airports present in the options currently visible.",
+      "why": "Per-option airport detail is contract data. Answering from the route codes in the search parameters would not distinguish the two Dubai airports in the actual results.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext"
+      ],
+      "passed": true,
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Check the current Delhi → Dubai flight results for Dec 12, 2026 with checked baggage included, and tell me whether any option lands at DWC instead of DXB."
+      ],
+      "feedback": [
+        {
+          "status": "partial",
+          "completedTask": "Inspected the current visible Delhi → Dubai (Dec 12, 2026) one-way results with checked baggage included to check the arrival airport (DXB vs DWC).",
+          "summary": "In the current results, there are no options showing an arrival at DWC; however, the only visible option’s arrival airport code is neither DXB nor DWC, so the current result set does not reliably reflect Dubai-airport arrivals.",
+          "findings": [
+            "Current itinerary context: one-way, 1 adult, economy, Delhi → Dubai on 2026-12-12; checked baggage included filter is present.",
+            "Visible results count: 1 option.",
+            "The only visible option’s arrival airport code is ONT (not DXB and not DWC), so no option currently indicates arrival at DWC instead of DXB."
+          ],
+          "limitations": [
+            "Because the visible option’s arrival airport code does not match Dubai airports (DXB/DWC), the current results cannot be used to reliably confirm DXB vs DWC arrivals for this route/date."
+          ],
+          "missingInformation": [],
+          "nextStep": "Refresh/re-run the Delhi (DEL) → Dubai (DXB/DWC) search for Dec 12, 2026, then I can confirm whether any options arrive at DWC and optionally filter to DWC-only arrivals.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "output": "ℹ️ I can’t confirm DWC from the current result set — the only visible option shows an arrival code that isn’t DXB or DWC, so the Dubai-airport info looks inconsistent.\n\nIf you want, I can refresh the Delhi → Dubai search and check specifically for DWC arrivals.",
+      "traceId": "trace_62afc5aa3e084c57b2dedeb0ab382192",
+      "latencyMs": 19660
+    }
+  ]
+}

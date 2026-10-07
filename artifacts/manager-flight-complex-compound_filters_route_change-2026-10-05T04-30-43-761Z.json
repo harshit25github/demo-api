@@ -1,0 +1,617 @@
+{
+  "fixedNow": "2026-10-05T10:00:00.000Z",
+  "models": {
+    "manager": "gpt-5.2",
+    "flight": "gpt-5.2",
+    "tripPlanner": "gpt-5.2"
+  },
+  "reasoningEffort": "low",
+  "registeredFlightTools": [
+    "flight_search",
+    "getGeneratedContractsContext",
+    "apply_filter",
+    "price_prediction_tool",
+    "update_flight_suggested_questions"
+  ],
+  "scenario": {
+    "id": "compound_filters_route_change",
+    "title": "Compound filters, replacements, removals, prediction, and route change",
+    "focus": "Filter stacking and replacement, current-option reasoning, prediction-to-search sequencing, and distinguishing a departure-location change from an airport filter.",
+    "turns": [
+      {
+        "user": "Find one-way flights from New York to Los Angeles on October 20, 2026 for one adult in economy.",
+        "expectedIntent": "Start a new exact-date one-way flight search.",
+        "expectedTools": [
+          "flight_search",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The route, exact date, passengers, trip type, and cabin are complete, so a new search is required without price prediction.",
+        "expectedStateChange": "Create a new search key, store three current options, and start with no active filters.",
+        "validates": "Manager delegates a complete flight request once and Flight does not over-trigger prediction for an exact date.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": []
+      },
+      {
+        "user": "Show only nonstop morning departures under $220 with carry-on baggage.",
+        "expectedIntent": "Apply four constraints to the current result set in one mutation.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Stops, departure time, maximum price, and baggage are supported filters and do not change the search inputs.",
+        "expectedStateChange": "Keep the search key and activate stops, departureTime, price, and baggage filters.",
+        "validates": "One compound apply_filter call, no unnecessary re-search, and complete filter stacking.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime",
+          "price",
+          "baggage"
+        ]
+      },
+      {
+        "user": "Make it evening instead, drop the price cap, and remove the carry-on requirement.",
+        "expectedIntent": "Replace one active filter and remove two others while preserving nonstop.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "This is an in-place filter update: evening replaces morning, while price and baggage are removed.",
+        "expectedStateChange": "Keep the search key with only stops and evening departure active.",
+        "validates": "Indirect replacement wording and multi-filter removal without losing unrelated state.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime"
+        ]
+      },
+      {
+        "user": "Remove the nonstop filter, show only Air China, and keep total trip duration under four hours.",
+        "expectedIntent": "Remove stops and add airline plus total-duration constraints.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "All requested changes operate on the existing cards; evening departure remains unchanged because it was not removed.",
+        "expectedStateChange": "Keep the search key with evening departure, Air China, and maximum total duration active.",
+        "validates": "Targeted removal, named-airline resolution, duration filtering, and preservation of an unmentioned active filter.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "departureTime",
+          "airline",
+          "totalDuration"
+        ]
+      },
+      {
+        "user": "Which current option is cheapest, and why?",
+        "expectedIntent": "Reason over current generated options without changing visibility or search state.",
+        "expectedTools": [
+          "getGeneratedContractsContext",
+          "update_flight_suggested_questions"
+        ],
+        "why": "A current-option ranking requires fresh contract evidence, not a new search or another filter.",
+        "expectedStateChange": "Keep the search key and all active filters unchanged.",
+        "validates": "Fresh contract retrieval, context reuse, and no state mutation for option reasoning.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "departureTime",
+          "airline",
+          "totalDuration"
+        ]
+      },
+      {
+        "user": "Check for better travel dates between October 21 and October 28, then show flights on the strongest date with Air China still applied.",
+        "expectedIntent": "Evaluate a flexible date window, search the strongest or bounded fallback date, then reapply the explicitly retained airline.",
+        "expectedTools": [
+          "price_prediction_tool",
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The flexible bracket requires prediction before the requested search; the new search clears old filters, so only the explicitly retained Air China filter is reapplied.",
+        "expectedStateChange": "Create a new search key on an in-window date and leave only the Air China filter active.",
+        "validates": "Prediction-to-search-to-filter ordering, bounded failure fallback, and selective filter carry-forward.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "airline"
+        ]
+      },
+      {
+        "user": "Start the trip in Newark instead of New York, using the same date, passengers, and cabin. Keep Air China and remove every other filter.",
+        "expectedIntent": "Change the departure endpoint, run a new search, and reapply only the requested airline filter.",
+        "expectedTools": [
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Starting in Newark changes the search route; it is not merely a departure-airport filter on the old New York search.",
+        "expectedStateChange": "Create a new search key for Newark to Los Angeles and keep only Air China active.",
+        "validates": "Filter-looking route changes, reuse of prior date/passengers/cabin, and removal of stale filters after re-search.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "airline"
+        ]
+      }
+    ]
+  },
+  "coverage": {
+    "flight_search": true,
+    "getGeneratedContractsContext": true,
+    "apply_filter": true,
+    "price_prediction_tool": false,
+    "update_flight_suggested_questions": true
+  },
+  "turns": [
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 1,
+      "traceId": "trace_c2f417c215a44ffcade452b630433444",
+      "user": "Find one-way flights from New York to Los Angeles on October 20, 2026 for one adult in economy.",
+      "expectedIntent": "Start a new exact-date one-way flight search.",
+      "expectedTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "why": "The route, exact date, passengers, trip type, and cabin are complete, so a new search is required without price prediction.",
+      "expectedStateChange": "Create a new search key, store three current options, and start with no active filters.",
+      "validates": "Manager delegates a complete flight request once and Flight does not over-trigger prediction for an exact date.",
+      "output": "✈️ Here are the available one-way economy flights for **1 adult** from **New York (NYC-area airports)** to **Los Angeles (LAX-area airports)** on **October 20, 2026**:\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Search one-way economy flights for 1 adult from New York (NYC area airports) to Los Angeles (LAX area) on October 20, 2026. Show the available options."
+        }
+      ],
+      "observedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Search completed for NYC → LAX on Oct 20, 2026 (one-way, economy, 1 adult); 3 options are available to show.",
+          "completedTask": "Ran a one-way economy flight search for 1 adult from NYC-area airports to LAX-area airports on 2026-10-20 and retrieved available options.",
+          "findings": [
+            "Search parameters used: one-way NYC → LAX, outbound 2026-10-20, 1 adult, economy.",
+            "Result count: 3 available flight options (visible)."
+          ],
+          "limitations": [
+            "Some returned option records show inconsistent airport fields (e.g., origin/destination vs airport codes) which may make individual airport details unreliable in this dataset."
+          ],
+          "nextStep": "If the traveler has a preference (nonstop only, specific NYC airport like JFK/EWR/LGA, or specific LA airport like LAX/BUR/ONT/SNA), apply that filter to narrow the 3 options.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "",
+      "searchKeyAfter": "search_demo-user_1791174527237",
+      "activeFilterTypes": [],
+      "suggestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Show JFK departures only"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 44764,
+      "outputTokens": 497,
+      "modelCalls": 5,
+      "latencyMs": 16942,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 2,
+      "traceId": "trace_0a9d100dfd9340c099198d8eea8c6022",
+      "user": "Show only nonstop morning departures under $220 with carry-on baggage.",
+      "expectedIntent": "Apply four constraints to the current result set in one mutation.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Stops, departure time, maximum price, and baggage are supported filters and do not change the search inputs.",
+      "expectedStateChange": "Keep the search key and activate stops, departureTime, price, and baggage filters.",
+      "validates": "One compound apply_filter call, no unnecessary re-search, and complete filter stacking.",
+      "output": "✅ I’ve narrowed it to **nonstop + morning departures + under $220 + carry-on included**. **1 flight** matches:",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current NYC → LAX one-way economy search for 1 adult on 2026-10-20, apply filters: nonstop only; morning departures only; price under $220; and include carry-on baggage. Then show the remaining options (or report if none match) while preserving any other active filters."
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "All four requested filters are now active; 1 option remains matching them (from 3 original).",
+          "completedTask": "Applied the requested filters to the current NYC → LAX one-way search and updated the visible results accordingly.",
+          "findings": [
+            "Trip context preserved: NYC → LAX, one-way, economy, 1 adult, outbound 2026-10-20.",
+            "Filters applied (and preserved alongside any others already active): nonstop only; morning departures only; price ≤ $220; include carry-on baggage.",
+            "Result after filtering: 1 matching option remains (original 3 → filtered 1)."
+          ],
+          "limitations": [
+            "The remaining option’s airport-code fields in the result data appear inconsistent (e.g., departure/arrival airport code shown as LAX for an NYC → LAX trip), so airport-code accuracy on the card should be treated with caution."
+          ],
+          "nextStep": "If you want more choices, relax one constraint (e.g., remove the morning-departure filter or raise the $220 cap) and re-check results.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791174527237",
+      "searchKeyAfter": "search_demo-user_1791174527237",
+      "activeFilterTypes": [
+        "stops",
+        "departureTime",
+        "price",
+        "baggage"
+      ],
+      "suggestions": [
+        "Remove the morning filter",
+        "Include 1 checked bag",
+        "Show the fastest option"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 45561,
+      "outputTokens": 1018,
+      "modelCalls": 5,
+      "latencyMs": 22979,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 3,
+      "traceId": "trace_29f1ae5516ac45e5833ad9572ee49c6d",
+      "user": "Make it evening instead, drop the price cap, and remove the carry-on requirement.",
+      "expectedIntent": "Replace one active filter and remove two others while preserving nonstop.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "This is an in-place filter update: evening replaces morning, while price and baggage are removed.",
+      "expectedStateChange": "Keep the search key with only stops and evening departure active.",
+      "validates": "Indirect replacement wording and multi-filter removal without losing unrelated state.",
+      "output": "🔄 Updated filters to **evening nonstop** (and removed the **$220 cap** and **carry-on requirement**).\nℹ️ There are **no matching flights** in the current results.\n\nWant to (a) allow **1 stop**, or (b) include **afternoon/night** departures to see options?",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current NYC → LAX one-way economy search for 1 adult on 2026-10-20, modify the existing filters as follows: change departure time filter from morning to evening; remove the price cap filter (under $220); remove the carry-on baggage requirement filter. Keep nonstop-only filter as-is, and preserve any other currently active filters. Then show the resulting options (or report if none match)."
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "After switching the departure-time filter to evening and removing both the <$220 price cap and the carry-on requirement (while keeping nonstop-only), there are no matching options left to show.",
+          "completedTask": "Applied the requested filter modifications to the existing NYC → LAX one-way search and checked the resulting availability.",
+          "findings": [
+            "Search context used: NYC → LAX, one-way, economy, 1 adult, outbound 2026-10-20.",
+            "Kept active filter: nonstop-only (0 stops).",
+            "Updated active filter: departure time is now EVENING (replacing the prior morning constraint).",
+            "Removed filters as requested: the <$220 price cap is no longer applied; the carry-on baggage requirement is no longer applied.",
+            "Result after these changes: 0 matching options (filteredCount=0 from an original 3 in the current result set)."
+          ],
+          "limitations": [],
+          "nextStep": "Offer to relax either the evening-only constraint or the nonstop-only constraint (or both) to bring results back.",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791174527237",
+      "searchKeyAfter": "search_demo-user_1791174527237",
+      "activeFilterTypes": [
+        "stops",
+        "departureTime"
+      ],
+      "suggestions": [
+        "Remove the evening filter",
+        "Remove the nonstop filter",
+        "Add a max price"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 46245,
+      "outputTokens": 1329,
+      "modelCalls": 5,
+      "latencyMs": 28165,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 4,
+      "traceId": "trace_3aa9140c4d2940d49a01da87c67af9a6",
+      "user": "Remove the nonstop filter, show only Air China, and keep total trip duration under four hours.",
+      "expectedIntent": "Remove stops and add airline plus total-duration constraints.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "All requested changes operate on the existing cards; evening departure remains unchanged because it was not removed.",
+      "expectedStateChange": "Keep the search key with evening departure, Air China, and maximum total duration active.",
+      "validates": "Targeted removal, named-airline resolution, duration filtering, and preservation of an unmentioned active filter.",
+      "output": "ℹ️ With filters set to **Air China only**, **evening departures**, and **total trip duration < 4 hours** (and **stops allowed**), there are **no matching flights** for NYC → LAX on **Oct 20, 2026**.\n\nWhich constraint should I relax: **duration**, **departure time**, or **airline**?",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current NYC → LAX one-way economy search for 1 adult on 2026-10-20, modify filters: remove the nonstop-only filter (allow stops); add airline filter to show only Air China; add total trip duration filter under 4 hours. Preserve the currently active evening-departure filter and any other active filters. Then show resulting options or report if none match."
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Nonstop-only was removed (stops allowed) while keeping the evening-departure filter, and adding Air China-only plus total duration < 4 hours; no options match all active filters.",
+          "completedTask": "Applied the requested filter changes on the existing NYC → LAX (2026-10-20) one-way search and checked the resulting option set.",
+          "findings": [
+            "Trip context used: NYC → LAX, one-way, economy, 1 adult, outbound 2026-10-20 (existing search).",
+            "Active filters after modification: departure time = evening; airline = Air China only; total trip duration max = 240 minutes; stops = allowed (nonstop-only removed).",
+            "Result count after filters: 0 matching options (was 3 before filtering)."
+          ],
+          "limitations": [
+            "With the current combination of evening-only + Air China-only + under-4-hours, there are no matching flights to display."
+          ],
+          "nextStep": "Ask whether to relax the 4-hour duration cap, broaden departure time beyond evening, or allow additional airlines to see results.",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791174527237",
+      "searchKeyAfter": "search_demo-user_1791174527237",
+      "activeFilterTypes": [
+        "departureTime",
+        "airline",
+        "totalDuration"
+      ],
+      "suggestions": [
+        "Relax the 4-hour limit",
+        "Show all airlines again",
+        "Widen the departure time window"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 46862,
+      "outputTokens": 1126,
+      "modelCalls": 5,
+      "latencyMs": 24822,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 5,
+      "traceId": "trace_c9a0aadbf5cd472882502a50a7e49541",
+      "user": "Which current option is cheapest, and why?",
+      "expectedIntent": "Reason over current generated options without changing visibility or search state.",
+      "expectedTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "why": "A current-option ranking requires fresh contract evidence, not a new search or another filter.",
+      "expectedStateChange": "Keep the search key and all active filters unchanged.",
+      "validates": "Fresh contract retrieval, context reuse, and no state mutation for option reasoning.",
+      "output": "There isn’t a “cheapest” current option because **no flights match your current filters** (Air China only + evening only + total duration under 4 hours).\n\nIf you relax one constraint (airline, time window, or duration), I can show the cheapest option and explain why it’s cheapest among the matching results.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Inspect the current flight result set under the currently active filters for NYC → LAX one-way economy 1 adult on 2026-10-20 (Air China only, evening departures, total duration < 4 hours; stops allowed). Determine whether any options exist; if so, identify the cheapest current option and summarize what makes it cheapest (e.g., fewer amenities, longer layover, less convenient times) based only on what is shown in the listings. If none exist, report that there is no current option to compare."
+        }
+      ],
+      "observedFlightTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "There are zero current options matching the active filters, so there is no cheapest option to compare or characterize within this filtered result set.",
+          "completedTask": "Inspected the current NYC → LAX one-way economy result set for 1 adult on 2026-10-20 under the active filters (Air China only, evening departures, total duration < 4 hours).",
+          "findings": [
+            "Route/date inspected: NYC → LAX, one-way, economy, 1 adult, outbound 2026-10-20.",
+            "Active filters in effect during inspection: evening departure time window; airline restricted to Air China; total trip duration max 240 minutes (<4 hours).",
+            "Result under these filters: 0 visible options (no cheapest option available in the listings)."
+          ],
+          "limitations": [
+            "Because there are no matching listings under the current filters, it’s not possible to identify or explain what makes a cheapest option cheaper (amenities/timing/layover tradeoffs) from the listings."
+          ],
+          "nextStep": "If the traveler wants options to compare, the next actionable step is to relax or change at least one constraint (airline restriction, evening-only window, or the <4-hour max duration), or try a different travel date.",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791174527237",
+      "searchKeyAfter": "search_demo-user_1791174527237",
+      "activeFilterTypes": [
+        "departureTime",
+        "airline",
+        "totalDuration"
+      ],
+      "suggestions": [
+        "Clear all filters",
+        "Search flights on Oct 21",
+        "Try premium economy instead"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 47284,
+      "outputTokens": 930,
+      "modelCalls": 5,
+      "latencyMs": 24610,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "compound_filters_route_change",
+      "turn": 6,
+      "traceId": "trace_84575d6f816c4b1696288def57bea834",
+      "user": "Check for better travel dates between October 21 and October 28, then show flights on the strongest date with Air China still applied.",
+      "expectedIntent": "Evaluate a flexible date window, search the strongest or bounded fallback date, then reapply the explicitly retained airline.",
+      "expectedTools": [
+        "price_prediction_tool",
+        "flight_search",
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "The flexible bracket requires prediction before the requested search; the new search clears old filters, so only the explicitly retained Air China filter is reapplied.",
+      "expectedStateChange": "Create a new search key on an in-window date and leave only the Air China filter active.",
+      "validates": "Prediction-to-search-to-filter ordering, bounded failure fallback, and selective filter carry-forward.",
+      "output": "",
+      "finalAgent": null,
+      "specialistsUsed": [],
+      "specialistSubtasks": [],
+      "observedFlightTools": [],
+      "comparedFlightTools": [],
+      "managerResults": [],
+      "toolFeedback": [],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791174527237",
+      "searchKeyAfter": "search_demo-user_1791174527237",
+      "activeFilterTypes": [],
+      "suggestions": [],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": null,
+      "outputTokens": null,
+      "modelCalls": 0,
+      "latencyMs": 5212,
+      "classification": "unexpected_failure",
+      "checks": [
+        "turn failed"
+      ],
+      "error": "Error:credit_balance_exhausted:429 You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/."
+    }
+  ]
+}

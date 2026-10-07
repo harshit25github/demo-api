@@ -1,0 +1,355 @@
+{
+  "case": "prediction_then_commit",
+  "focus": "Price intelligence before a date exists, and again once one is chosen",
+  "description": "Prediction opens the conversation and returns to it after a search and a filter. Tests that Flight separates \"which date is cheapest\" from \"is this price good\", and never answers either from contract prices.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 7,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "When is it cheapest to fly Bengaluru to Dubai in the next couple of months?",
+      "understanding": "Explicit cheapest-date intent over a vague window. Derive a bounded range from the turn clock that stays inside the prediction tool’s reach, and use the city codes for the route.",
+      "why": "No search exists yet and none would help: a search prices one date, while the question spans a range. This is the tool’s core case.",
+      "expectedTools": [
+        "price_prediction_tool"
+      ],
+      "actualTools": [
+        "price_prediction_tool"
+      ],
+      "rawTools": [
+        "price_prediction_tool",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Search flights next weekend",
+        "Search flights in November",
+        "Show lowest fares in December"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "Find the cheapest travel dates for a flight from Bengaluru to Dubai over the next couple of months. I want price-date intelligence for this route, with no specific departure date given yet."
+      ],
+      "feedback": [
+        {
+          "status": "failure",
+          "completedTask": "Requested price-date intelligence for Bengaluru (BLR) to Dubai (DXB) over the next couple of months using the available prediction window.",
+          "summary": "Price-date prediction data was not available for BLR→DXB for 2026-10-06 to 2026-12-05, so I can’t verify the cheapest travel dates for that period.",
+          "findings": [
+            "Route evaluated for date-intelligence: BLR → DXB (one-way).",
+            "Date range evaluated: 2026-10-06 through 2026-12-05 (\"next couple of months\" from 2026-10-05).",
+            "No predicted cheapest dates/combinations were returned for this route/date range."
+          ],
+          "limitations": [
+            "Cheapest-date guidance for BLR→DXB in the requested range could not be verified from prediction data, so I can’t rank specific travel dates."
+          ],
+          "missingInformation": [],
+          "nextStep": "Offer to either (a) run a normal flight search for a few candidate weeks/dates the traveler prefers, or (b) try a different/broader outbound date range within the next 3 months to see if predictions become available.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "💰 I can’t verify the cheapest Bengaluru → Dubai dates for the next couple of months right now.\n\nIf you want, I can:\n- search flights for a few specific weeks/dates you’re considering, or\n- try a broader date range up to 3 months out.",
+      "traceId": "trace_85b88dcf434e4ba08953c51f6bd5936d",
+      "latencyMs": 19852
+    },
+    {
+      "turn": 2,
+      "user": "then just search December 3",
+      "understanding": "The traveller supplies a concrete date instead. Search it for the route already established, with defaults for passengers and cabin.",
+      "why": "Actual options for a specific day come only from a search: the prediction turn produced guidance at best, never bookable results. The date is given outright, so nothing here needs resolving or asking for.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Filter to morning departures"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search one-way flights from Bengaluru (BLR) to Dubai (DXB) departing on 2026-12-03."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a new one-way flight search for BLR → DXB on 2026-12-03 for 1 adult in economy.",
+          "summary": "Search completed and returned 3 available flight options for the requested route/date.",
+          "findings": [
+            "Search parameters used: one-way BLR → DXB, depart 2026-12-03, 1 adult, economy.",
+            "3 flight options are available and should be displayable as result cards.",
+            "Available filter dimensions include airlines (e.g., Emirates, Qatar Airways, Air China, Air Canada), stops, departure/arrival time windows, baggage, and arrival airport (DXB vs DWC)."
+          ],
+          "limitations": [
+            "Some displayed airport codes in the returned options appear inconsistent with the BLR → DXB route (e.g., LAX/BUR/ONT/SNA shown as departure/arrival airports), so airport-specific details should be treated cautiously."
+          ],
+          "missingInformation": [],
+          "nextStep": "Ask the traveler if they prefer nonstop vs 1+ stop, and/or a preferred departure time window, to narrow the 3 options.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 flight options for Bengaluru → Dubai on December 3.\n\nNote: Prices shown are per person.\n\nIf you want, I can narrow them by nonstop, airline, or departure time.",
+      "traceId": "trace_ff7814e4baf3468d8f3c84a547951148",
+      "latencyMs": 15936
+    },
+    {
+      "turn": 3,
+      "user": "make it business class",
+      "understanding": "Cabin changes; route, date and passengers carry over.",
+      "why": "Cabin is a search input, not a filter, so the economy result set cannot be narrowed into a business one.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Any cheaper dates nearby?",
+        "Show only Emirates flights"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Update the current BLR → DXB one-way search for 2026-12-03 to business class for 1 adult."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran an updated flight search for BLR → DXB on 2026-12-03 as a one-way in business class for 1 adult.",
+          "summary": "Search updated to business class, 1 adult for BLR → DXB (one-way) on 2026-12-03; 3 flight options returned and are ready to display.",
+          "findings": [
+            "Search parameters used: BLR → DXB, one-way, outbound 2026-12-03, 1 adult, business cabin.",
+            "Results: 3 matching options returned (no filters applied)."
+          ],
+          "limitations": [
+            "Some result records show inconsistent airport codes versus the BLR → DXB route (e.g., LAX/BUR/ONT/SNA appear), so airport-specific details may be unreliable in these options."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler has a preference (nonstop only, specific airline like Emirates/Qatar, or DXB vs DWC arrival), I can filter and re-rank the current results accordingly.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Updated to business class for Bengaluru → Dubai on December 3.\n\nNote: Prices shown are per person.\n\nIf you want, I can narrow it further by nonstop, airline, or departure time.",
+      "traceId": "trace_6cbf04b7040d4fe7b07318019fed58a6",
+      "latencyMs": 13527
+    },
+    {
+      "turn": 4,
+      "user": "nonstop",
+      "understanding": "Narrow the business-class results to itineraries without stops.",
+      "why": "Search inputs are unchanged, so a filter is sufficient.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show all flights again",
+        "Show only Emirates flights",
+        "Which option is fastest?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Filter the current BLR → DXB one-way business class search for 2026-12-03 to nonstop flights only."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a nonstop-only filter to the current BLR → DXB one-way business-class results for 2026-12-03.",
+          "summary": "Nonstop-only filtering is now active and reduced the visible results to only nonstop options.",
+          "findings": [
+            "Search context used: BLR → DXB, one-way, business, outbound 2026-12-03.",
+            "Filter applied: stops = 0 (nonstop flights only).",
+            "Result count changed from 3 total options to 1 nonstop option visible."
+          ],
+          "limitations": [
+            "The filtered flight data includes internal inconsistencies (e.g., airport codes shown as LAX despite BLR → DXB route), so airport-level details should be treated as unreliable in this output."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want more choices, remove the nonstop-only filter (show all flights again) or loosen to allow 1 stop.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I narrowed it to 1 nonstop business-class flight for Bengaluru → Dubai on December 3.\n\nIf you want more options, I can also show 1-stop flights.",
+      "traceId": "trace_ebc718d6b6644725bbe470f48f25b2fe",
+      "latencyMs": 12725
+    },
+    {
+      "turn": 5,
+      "user": "is this a good price or should I wait?",
+      "understanding": "Book-now-or-wait intent for the route and date now committed, answered from fare intelligence rather than the visible fares. Reading the current fare first to have something to compare against is fine; concluding from it alone is not.",
+      "why": "The options on screen show what today costs, not whether it is a good time to buy. Deciding from contract prices without asking the tool is the failure.",
+      "expectedTools": [
+        "price_prediction_tool"
+      ],
+      "actualTools": [
+        "price_prediction_tool"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "price_prediction_tool",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Include 1-stop flights too",
+        "Show fare rules for option 1",
+        "Search economy class prices"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "For the current BLR → DXB one-way business-class nonstop flight on 2026-12-03, assess whether this is a good price or whether it would be better to wait. Use the current search context and current options."
+      ],
+      "feedback": [
+        {
+          "status": "partial",
+          "completedTask": "Reviewed the current BLR→DXB one-way business search results (with the active nonstop-only filter) and attempted price/book-now-wait guidance for the Dec 3, 2026 departure.",
+          "summary": "Only one nonstop business option is currently visible; price-prediction data was unavailable for this route/date range, so I can’t verify whether it’s a particularly good price or whether waiting is likely to help.",
+          "findings": [
+            "Current trip context: BLR → DXB, one-way, business class, 2026-12-03; active filter: nonstop flights only.",
+            "Visible results under nonstop-only: 1 option (option 1).",
+            "Option 1 (nonstop) price shown: USD 199 (per current option display).",
+            "Because only one nonstop option is visible, there’s no same-screen nonstop price competition to benchmark against without relaxing the nonstop constraint."
+          ],
+          "limitations": [
+            "Price/date prediction for BLR→DXB (checked 2026-11-26 to 2026-12-10) returned no available predictions, so “good price” / “better to wait” cannot be verified with predictive data.",
+            "The displayed flight card details contain an internal inconsistency (airport codes shown as LAX for a BLR→DXB trip), so itinerary-field accuracy in the current option display is questionable."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler wants a practical benchmark, offer to relax the nonstop-only constraint (e.g., include 1-stop) to compare business-class prices on the same date, or switch cabin to compare price sensitivity.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "💰 I can’t verify whether it’s a good price or if waiting would help.\n\nThe nonstop business option currently shown is **$199**, but there’s no prediction data to compare against. If you want, I can also look at **1-stop business flights** on the same date to judge the price better.",
+      "traceId": "trace_45c51c0865a9475ca4f46511ce929802",
+      "latencyMs": 31742
+    },
+    {
+      "turn": 6,
+      "user": "what's the price on the top option?",
+      "understanding": "The fare on the first option of the current filtered set.",
+      "why": "A specific option’s fare is contract data, and the prediction answer does not contain it.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show baggage for option 1",
+        "Show Emirates flights only",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "For the current BLR → DXB one-way business-class search on 2026-12-03 with nonstop-only filter active, what is the price of the top visible option?"
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Checked the currently visible results for the active BLR→DXB one-way business search (2026-12-03) with the nonstop-only filter and identified the top visible option’s price.",
+          "summary": "Only option 1 is currently visible under the nonstop-only filter, and its displayed price is USD 199.",
+          "findings": [
+            "Current search: BLR → DXB, one-way, business, 2026-12-03; active filter: nonstop only.",
+            "Visible options count: 1 (visible index: option 1).",
+            "Top visible option price: USD 199 (option 1)."
+          ],
+          "limitations": [
+            "The displayed contract details show a departure/arrival airport code mismatch (LAX shown despite BLR→DXB route), which may indicate inconsistent airport metadata in the current option card."
+          ],
+          "missingInformation": [],
+          "nextStep": null,
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ The top option is **$199**.",
+      "traceId": "trace_8786a45d92d7477e8d19436ac81b3871",
+      "latencyMs": 20190
+    },
+    {
+      "turn": 7,
+      "user": "what cabin are we searching?",
+      "understanding": "A restatement of a stable search parameter.",
+      "why": "Cabin is in the injected search parameters and has not moved since it was set. Any tool call here is a false positive.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show baggage for option 1",
+        "Show Emirates flights only",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [],
+      "renderFlightOptions": false,
+      "subtasks": [],
+      "feedback": [],
+      "specialistFailures": [],
+      "output": "We’re searching **business class**.",
+      "traceId": "trace_5de6b1e00e8a41c8b183af80c31f0032",
+      "latencyMs": 3462
+    }
+  ]
+}

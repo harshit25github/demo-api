@@ -1,0 +1,2063 @@
+{
+  "fixedNow": "2026-10-05T10:00:00.000Z",
+  "models": {
+    "manager": "gpt-5.2",
+    "flight": "gpt-5.2",
+    "tripPlanner": "gpt-5.2"
+  },
+  "reasoningEffort": "low",
+  "registeredFlightTools": [
+    "flight_search",
+    "getGeneratedContractsContext",
+    "apply_filter",
+    "price_prediction_tool",
+    "update_flight_suggested_questions"
+  ],
+  "scenario": {
+    "id": "normalization_fewshots",
+    "title": "Separated location payloads and stateful tool-intelligence replay",
+    "focus": "Actual Manager -> Flight payloads, all five tools, empty-state inspection, mixed reset/add, flexible-date fallback, and endpoint changes.",
+    "turns": [
+      {
+        "user": "Find one-way flights from Delhi DEL to New York NYC on October 20, 2026 for one adult in economy.",
+        "expectedIntent": "Search an exact date with city names and IATA constraints separated.",
+        "expectedTools": [
+          "flight_search",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Complete exact-date search inputs require one search, not prediction; code constraints belong in dedicated fields.",
+        "expectedStateChange": "Create a Delhi/DEL -> New York/NYC search without combined name values or active filters.",
+        "validates": "Live normalization, nullable airport names, Manager delegation, and no unnecessary prediction.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": []
+      },
+      {
+        "user": "Show only nonstop morning departures under $220 with carry-on baggage.",
+        "expectedIntent": "Apply four constraints in one mutation of the existing results.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Stops, departure time, maximum price, and baggage do not change core search inputs.",
+        "expectedStateChange": "Keep the search key with nonstop, morning, maximum price, and carry-on filters.",
+        "validates": "Compound filter payloads, stacking, and no redundant search.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime",
+          "price",
+          "baggage"
+        ]
+      },
+      {
+        "user": "Make it evening instead, drop the price cap, and remove the carry-on requirement.",
+        "expectedIntent": "Replace departure time and remove two filters while retaining nonstop.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Indirect wording changes the current filters, not the route or travel date.",
+        "expectedStateChange": "Preserve the search key with nonstop and evening only, leaving zero fixture matches.",
+        "validates": "Replacement rather than union, selective removal, and empty-result feedback.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime"
+        ]
+      },
+      {
+        "user": "Which current option is cheapest, and why?",
+        "expectedIntent": "Read the current empty filtered set without changing state.",
+        "expectedTools": [
+          "getGeneratedContractsContext",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Ranking requires fresh generated records; an empty result does not authorize removing filters.",
+        "expectedStateChange": "Keep core search, filters, and the empty set unchanged.",
+        "validates": "Read-only ranking, no unfiltered fallback, and no invented recommendation.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "stops",
+          "departureTime"
+        ]
+      },
+      {
+        "user": "Clear all filters and use only Air Canada or Emirates, with a layover under 90 minutes.",
+        "expectedIntent": "Reset and add named-airline plus layover-duration constraints in one call.",
+        "expectedTools": [
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The mixed reset/add request operates on existing inventory and requires both outcomes.",
+        "expectedStateChange": "Keep the search key with Air Canada/Emirates and maximum layover duration only.",
+        "validates": "Clause-local reset/add semantics, source-array name resolution, and duration units.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "airline",
+          "layoverDuration"
+        ]
+      },
+      {
+        "user": "Show the cheapest current option.",
+        "expectedIntent": "Read to identify the cheapest current option, then select it for display.",
+        "expectedTools": [
+          "getGeneratedContractsContext",
+          "getGeneratedContractsContext",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The option has not been ranked in this state; fresh read evidence must precede selection.",
+        "expectedStateChange": "Select the identified current option without clearing filters or searching again.",
+        "validates": "Read -> select mode ownership and evidence-backed indexing.",
+        "expectedSearchKeyChange": "same",
+        "expectedFilterTypes": [
+          "airline",
+          "layoverDuration"
+        ]
+      },
+      {
+        "user": "Find flights between October 21 and October 28, keeping only Air Canada.",
+        "expectedIntent": "Infer date intelligence from a flexible window, then search and retain the requested airline.",
+        "expectedTools": [
+          "price_prediction_tool",
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "Implicit flexibility requires prediction first; after no-data feedback, requested results permit one disclosed in-window fallback search.",
+        "expectedStateChange": "Search October 21 with Delhi/DEL -> New York/NYC preserved and Air Canada only; drop unrequested old layover limit.",
+        "validates": "Implicit prediction intent, exact bounds, honest fallback, separated endpoint carry-forward, and serial search/filter sequencing.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "airline"
+        ]
+      },
+      {
+        "user": "Same date, passengers and cabin, but fly to London Heathrow Airport (LHR) instead; keep Air Canada.",
+        "expectedIntent": "Change destination and run a new search with separated city/code/airport name.",
+        "expectedTools": [
+          "flight_search",
+          "apply_filter",
+          "update_flight_suggested_questions"
+        ],
+        "why": "The destination route changes; this is not an airport filter on the previous New York results.",
+        "expectedStateChange": "Create Delhi/DEL -> London/LHR search, retain October 21 and passenger/cabin values, and apply Air Canada.",
+        "validates": "Production airport-name example, clearing stale NYC metadata, contextual date reuse, and no unnecessary prediction.",
+        "expectedSearchKeyChange": "new",
+        "expectedFilterTypes": [
+          "airline"
+        ]
+      }
+    ]
+  },
+  "coverage": {
+    "flight_search": true,
+    "getGeneratedContractsContext": true,
+    "apply_filter": true,
+    "price_prediction_tool": false,
+    "update_flight_suggested_questions": true
+  },
+  "turns": [
+    {
+      "chat": "normalization_fewshots",
+      "turn": 1,
+      "traceId": "trace_4f86cf3f45fb453896c173c944656dba",
+      "user": "Find one-way flights from Delhi DEL to New York NYC on October 20, 2026 for one adult in economy.",
+      "expectedIntent": "Search an exact date with city names and IATA constraints separated.",
+      "expectedTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Complete exact-date search inputs require one search, not prediction; code constraints belong in dedicated fields.",
+      "expectedStateChange": "Create a Delhi/DEL -> New York/NYC search without combined name values or active filters.",
+      "validates": "Live normalization, nullable airport names, Manager delegation, and no unnecessary prediction.",
+      "output": "✈️ Here are the available one-way Economy flights for **1 adult** from **Delhi (DEL) → New York City (NYC)** on **Oct 20, 2026**:\n\nNote: Prices shown are per person.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Search for one-way flights from Delhi (DEL) to New York City (NYC) on October 20, 2026 for 1 adult in Economy. Show available options."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_HM55ShKiRc4ERLeF7owvOD3k",
+          "tool": "flight_search",
+          "input": {
+            "onds": [
+              {
+                "origin": "Delhi",
+                "destination": "New York City",
+                "origin_iata": "DEL",
+                "destination_iata": "NYC",
+                "origin_airport_name": null,
+                "destination_airport_name": null,
+                "outbound_date": "2026-10-20",
+                "return_date": null
+              }
+            ],
+            "trip_type": "oneway",
+            "passengers": {
+              "adults": 1,
+              "children": 0,
+              "infants": 0
+            },
+            "cabin_class": "economy"
+          },
+          "completed": true,
+          "output": {
+            "source": "dummy",
+            "message": "Sample flight results only. No live API was called.",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Delhi",
+                  "destination": "New York City",
+                  "origin_iata": "DEL",
+                  "destination_iata": "NYC",
+                  "origin_airport_name": null,
+                  "destination_airport_name": null,
+                  "outbound_date": "2026-10-20",
+                  "return_date": null
+                }
+              ],
+              "trip_type": "oneway",
+              "passengers": {
+                "adults": 1,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "economy"
+            },
+            "summary": {
+              "route": "Delhi to New York City",
+              "passengerCount": 1,
+              "optionCount": 3
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-2",
+                "airline": "Air China",
+                "airline_code": "CA",
+                "flight_number": "CA 204",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "BUR",
+                "arrival_airport_code": "ONT",
+                "departure_time": "14:30",
+                "arrival_time": "17:05",
+                "departure_time_window": "AFTERNOON",
+                "arrival_time_window": "EVENING",
+                "duration": "2h 35m",
+                "total_duration_hours": 2.58,
+                "total_duration_minutes": 155,
+                "layover_duration_hours": 0.75,
+                "layover_duration_minutes": 45,
+                "layover_airport_codes": [
+                  "AMS",
+                  "DXB"
+                ],
+                "stops": 1,
+                "baggage": [
+                  "2",
+                  "1",
+                  "0"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 179,
+                  "currency": "USD"
+                },
+                "display": true
+              },
+              {
+                "id": "dummy-flight-3",
+                "airline": "Emirates",
+                "airline_code": "EK",
+                "flight_number": "EK 309",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "SNA",
+                "arrival_airport_code": "SNA",
+                "departure_time": "05:45",
+                "arrival_time": "13:40",
+                "departure_time_window": "EARLYMORNING",
+                "arrival_time_window": "AFTERNOON",
+                "duration": "7h 55m",
+                "total_duration_hours": 7.92,
+                "total_duration_minutes": 475,
+                "layover_duration_hours": 2.25,
+                "layover_duration_minutes": 135,
+                "layover_airport_codes": [
+                  "DXB",
+                  "DOH"
+                ],
+                "stops": 2,
+                "baggage": [
+                  "2"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 149,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ],
+            "UID": "demo-user",
+            "searchKey": "search_demo-user_1791202078385",
+            "airlineFilterOptions": [
+              {
+                "Code": "AC",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "AC+",
+                "Text": "Air Canada",
+                "Name": "Air Canada",
+                "IsDisabled": false
+              },
+              {
+                "Code": "CA",
+                "Text": "Air China",
+                "Name": "Air China",
+                "IsDisabled": false
+              },
+              {
+                "Code": "EK",
+                "Text": "Emirates",
+                "Name": "Emirates",
+                "IsDisabled": false
+              },
+              {
+                "Code": "QR",
+                "Text": "Qatar Airways",
+                "Name": "Qatar Airways",
+                "IsDisabled": false
+              },
+              {
+                "Code": "6E",
+                "Text": "IndiGo",
+                "Name": "IndiGo",
+                "IsDisabled": true
+              },
+              {
+                "Code": "UA",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              },
+              {
+                "Code": "UA+",
+                "Text": "United",
+                "Name": "United",
+                "IsDisabled": false
+              }
+            ],
+            "layoverAirportFilterOptions": [
+              {
+                "Code": "AMS",
+                "Text": "Amsterdam Schiphol",
+                "Name": null,
+                "AirportCityName": "Amsterdam",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DXB",
+                "Text": "Dubai",
+                "Name": null,
+                "AirportCityName": "Dubai",
+                "IsDisabled": false
+              },
+              {
+                "Code": "DOH",
+                "Text": "Doha Hamad International Airport",
+                "Name": null,
+                "AirportCityName": "Doha",
+                "IsDisabled": false
+              },
+              {
+                "Code": "FRA",
+                "Text": "Frankfurt Airport",
+                "Name": null,
+                "AirportCityName": "Frankfurt",
+                "IsDisabled": false
+              },
+              {
+                "Code": "SIN",
+                "Text": "Singapore Changi",
+                "Name": null,
+                "AirportCityName": "Singapore",
+                "IsDisabled": true
+              }
+            ],
+            "DepartAirports": [
+              {
+                "Code": "DEL",
+                "Price": 730.15,
+                "Text": "Indira Gandhi International",
+                "Name": null,
+                "Count": 190,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "Delhi"
+              }
+            ],
+            "DepLandAirports": [
+              {
+                "Code": "JFK",
+                "Price": 520.1,
+                "Text": "John F Kennedy Intl",
+                "Name": null,
+                "Count": 210,
+                "IsNearby": false,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              },
+              {
+                "Code": "EWR",
+                "Price": 498.4,
+                "Text": "Newark Liberty Intl",
+                "Name": null,
+                "Count": 178,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "Newark"
+              },
+              {
+                "Code": "LGA",
+                "Price": 530.2,
+                "Text": "LaGuardia",
+                "Name": null,
+                "Count": 96,
+                "IsNearby": true,
+                "IsDisabled": false,
+                "AirportCityName": "New York"
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_qjs1lUohzQS6qHfqL9eG8D7z",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Any cheaper dates nearby?"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Show nonstop flights only",
+              "Which option is cheapest?",
+              "Any cheaper dates nearby?"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [],
+        "outbound_date": null,
+        "return_date": null,
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [],
+      "observedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Search completed for DEL→NYC on Oct 20, 2026 (one-way, 1 adult, economy) and 3 options are available to display.",
+          "completedTask": "Ran a one-way flight search for Delhi (DEL) → New York City (NYC) on 2026-10-20 for 1 adult in Economy and returned available options.",
+          "findings": [
+            "Route/date searched: Delhi (DEL) → New York City (NYC), one-way, 2026-10-20.",
+            "Passengers/cabin: 1 adult, Economy.",
+            "Result count: 3 available options (no filters applied).",
+            "Arrival airport choices present in the result set’s airport options include JFK (main) plus nearby EWR and LGA."
+          ],
+          "limitations": [
+            "Some option-level airport-code fields in the returned results appear inconsistent with the requested DEL→NYC route (e.g., showing non-NYC/DEL airport codes), so option cards should be relied on for the correct routing/airport details."
+          ],
+          "nextStep": "If the traveler has a preference, we can filter to nonstop only, specific arrival airport (JFK/EWR/LGA), or a max price/duration.",
+          "missingInformation": [],
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "flight_search",
+          "ok": null,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "",
+      "searchKeyAfter": "search_demo-user_1791202078385",
+      "activeFilterTypes": [],
+      "suggestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Any cheaper dates nearby?"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 3,
+      "noteCount": 1,
+      "inputTokens": 51090,
+      "outputTokens": 565,
+      "modelCalls": 5,
+      "latencyMs": 22374,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "normalization_fewshots",
+      "turn": 2,
+      "traceId": "trace_8845eca6847a4adcba1b4af8490ab86e",
+      "user": "Show only nonstop morning departures under $220 with carry-on baggage.",
+      "expectedIntent": "Apply four constraints in one mutation of the existing results.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Stops, departure time, maximum price, and baggage do not change core search inputs.",
+      "expectedStateChange": "Keep the search key with nonstop, morning, maximum price, and carry-on filters.",
+      "validates": "Compound filter payloads, stacking, and no redundant search.",
+      "output": "✈️ I filtered to **nonstop + morning departures + under $220 + carry-on included**. Here’s the **1** matching option:",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current DEL → NYC one-way search for 2026-10-20 (1 adult, Economy), filter results to: nonstop only; morning departures only; price under $220; and options that include carry-on baggage. Show matching options (or report none), preserving all active filters."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_n138KWE5y3wVCjRhG3zDyCtx",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "nonstop only"
+              },
+              {
+                "filterType": "departureTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "morning departures only"
+              },
+              {
+                "filterType": "price",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": 220,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "price under $220"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": "1",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "options that include carry-on baggage"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791202078385",
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "nonstop only"
+              },
+              {
+                "filterType": "departureTime",
+                "filterCode": "MORNING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "morning departures only"
+              },
+              {
+                "filterType": "price",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": 0,
+                "maxPrice": 220,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "price under $220"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": "1",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "options that include carry-on baggage"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "stop",
+                "Values": [
+                  "0"
+                ]
+              },
+              {
+                "filterType": "departtimeslotfilter",
+                "Values": [
+                  "MORNING"
+                ]
+              },
+              {
+                "filterType": "baggage",
+                "Values": [
+                  "1"
+                ]
+              },
+              {
+                "filterType": "price",
+                "Values": [
+                  0,
+                  220
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791202078385",
+              "filters": [
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "0"
+                  ]
+                },
+                {
+                  "filterType": "departtimeslotfilter",
+                  "Values": [
+                    "MORNING"
+                  ]
+                },
+                {
+                  "filterType": "baggage",
+                  "Values": [
+                    "1"
+                  ]
+                },
+                {
+                  "filterType": "price",
+                  "Values": [
+                    0,
+                    220
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 1
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_yWzChkRUxhTRRhHGzwJMTvNQ",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Allow 1-stop flights",
+              "Remove the price cap",
+              "Show all departure times"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Allow 1-stop flights",
+              "Remove the price cap",
+              "Show all departure times"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "stops",
+          "filterCode": "0",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "nonstop only"
+        },
+        {
+          "filterType": "departureTime",
+          "filterCode": "MORNING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "morning departures only"
+        },
+        {
+          "filterType": "price",
+          "filterCode": null,
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": 0,
+          "maxPrice": 220,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "price under $220"
+        },
+        {
+          "filterType": "baggage",
+          "filterCode": "1",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "options that include carry-on baggage"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "All requested filters (nonstop, morning departures, price < $220, includes carry-on) are now active; 1 option matches.",
+          "completedTask": "Applied the requested four filters to the current DEL → NYC one-way results for 2026-10-20 and prepared the matching options for display.",
+          "findings": [
+            "Search context preserved: DEL → NYC, one-way, 2026-10-20, 1 adult, Economy.",
+            "Filters applied/retained as requested: nonstop only; morning departures only; price max $220; includes carry-on baggage.",
+            "Filtered results count: 1 matching option remains visible to show."
+          ],
+          "limitations": [],
+          "nextStep": "If you want more choices, relax one constraint (e.g., allow 1-stop flights or raise/remove the $220 cap).",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791202078385",
+      "searchKeyAfter": "search_demo-user_1791202078385",
+      "activeFilterTypes": [
+        "stops",
+        "departureTime",
+        "price",
+        "baggage"
+      ],
+      "suggestions": [
+        "Allow 1-stop flights",
+        "Remove the price cap",
+        "Show all departure times"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 51963,
+      "outputTokens": 953,
+      "modelCalls": 5,
+      "latencyMs": 24505,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "normalization_fewshots",
+      "turn": 3,
+      "traceId": "trace_9df41672d79d4062981168a84e7ec86d",
+      "user": "Make it evening instead, drop the price cap, and remove the carry-on requirement.",
+      "expectedIntent": "Replace departure time and remove two filters while retaining nonstop.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Indirect wording changes the current filters, not the route or travel date.",
+      "expectedStateChange": "Preserve the search key with nonstop and evening only, leaving zero fixture matches.",
+      "validates": "Replacement rather than union, selective removal, and empty-result feedback.",
+      "output": "✈️ Updated filters to **evening departures** and removed the **price cap** and **carry-on requirement** (kept **nonstop only**).\nThere are **no matching flights** with **nonstop + evening** for **DEL → NYC on Oct 20, 2026**.\n\n🔄 Want to **allow 1 stop**, or keep nonstop and **open up to all departure times**?",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current DEL → NYC one-way search for 2026-10-20 (1 adult, Economy), update filters: change time-of-day from morning to evening departures only; remove the price cap filter; remove the carry-on-included requirement. Keep the nonstop-only filter as currently active unless the user asked to remove it (they did not). Show the matching options."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_WWHvdM2VND55L3z9obrN3cG4",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "departureTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "change time-of-day from morning to evening departures only"
+              },
+              {
+                "filterType": "price",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "remove the price cap filter"
+              },
+              {
+                "filterType": "baggage",
+                "filterCode": "CARRY_ON_1",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "remove the carry-on-included requirement"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791202078385",
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "nonstop only"
+              },
+              {
+                "filterType": "departureTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "change time-of-day from morning to evening departures only"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "stop",
+                "Values": [
+                  "0"
+                ]
+              },
+              {
+                "filterType": "departtimeslotfilter",
+                "Values": [
+                  "EVENING"
+                ]
+              },
+              {
+                "filterType": "baggage",
+                "Values": []
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791202078385",
+              "filters": [
+                {
+                  "filterType": "stop",
+                  "Values": [
+                    "0"
+                  ]
+                },
+                {
+                  "filterType": "departtimeslotfilter",
+                  "Values": [
+                    "EVENING"
+                  ]
+                },
+                {
+                  "filterType": "baggage",
+                  "Values": []
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 0
+            },
+            "flights": []
+          }
+        },
+        {
+          "callId": "call_1UKjwYcD1foES56PncPEWDoS",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Allow 1-stop flights",
+              "Remove the evening filter",
+              "Any cheaper dates nearby?"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Allow 1-stop flights",
+              "Remove the evening filter",
+              "Any cheaper dates nearby?"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "stops",
+          "filterCode": "0",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "nonstop only"
+        },
+        {
+          "filterType": "departureTime",
+          "filterCode": "EVENING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "change time-of-day from morning to evening departures only"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Nonstop-only + evening-departure filters are now active; price-cap and carry-on-included constraints were removed. With these active filters, there are currently 0 matching options to show.",
+          "completedTask": "Applied the requested filter updates to the active DEL → NYC one-way search for 2026-10-20 and refreshed the matching result set.",
+          "findings": [
+            "Search context used: DEL → NYC, one-way, 2026-10-20, 1 adult, Economy.",
+            "Filters now active: nonstop only; evening departures only.",
+            "Filters removed as requested: price cap; carry-on-included requirement.",
+            "Filtered results count: 0 matches (from 3 total before filtering)."
+          ],
+          "limitations": [
+            "No itineraries currently match the combination of nonstop-only + evening departures for this search/date; to see options, at least one of these constraints would need to be relaxed."
+          ],
+          "nextStep": "Ask whether you want to relax either constraint first (e.g., allow 1-stop flights or expand to all departure times).",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791202078385",
+      "searchKeyAfter": "search_demo-user_1791202078385",
+      "activeFilterTypes": [
+        "stops",
+        "departureTime"
+      ],
+      "suggestions": [
+        "Allow 1-stop flights",
+        "Remove the evening filter",
+        "Any cheaper dates nearby?"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 51992,
+      "outputTokens": 1058,
+      "modelCalls": 5,
+      "latencyMs": 26954,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "normalization_fewshots",
+      "turn": 4,
+      "traceId": "trace_65b5b6811f3a496a943dd9bbf562bc53",
+      "user": "Which current option is cheapest, and why?",
+      "expectedIntent": "Read the current empty filtered set without changing state.",
+      "expectedTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "why": "Ranking requires fresh generated records; an empty result does not authorize removing filters.",
+      "expectedStateChange": "Keep core search, filters, and the empty set unchanged.",
+      "validates": "Read-only ranking, no unfiltered fallback, and no invented recommendation.",
+      "output": "There isn’t a “cheapest current option” because your **current filters (nonstop + evening departures)** leave **0 matching flights**—so there are no options to price-compare.\n\nIf you tell me which to relax first (**allow 1 stop** or **remove evening-only**), I can show the cheapest option from the updated results.",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "Inspect the current options in the active DEL→NYC one-way search for 2026-10-20 (1 adult, Economy), preserving the currently active filters (nonstop only + evening departures only). Report which current option is cheapest; if there are no current options, report that clearly."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_qcayHy3Eg1Sf7uMaezYna6XT",
+          "tool": "getGeneratedContractsContext",
+          "input": {
+            "mode": "read",
+            "indexes": null
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "resultSource": "searchResults",
+            "message": "The current result set has zero options. Preserve the active search and filters; report no matching options rather than starting a new search or removing filters.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791202078385",
+            "searchParams": {
+              "onds": [
+                {
+                  "origin": "Delhi",
+                  "destination": "New York City",
+                  "outbound_date": "2026-10-20",
+                  "return_date": null,
+                  "origin_iata": "DEL",
+                  "origin_airport_name": null,
+                  "destination_iata": "NYC",
+                  "destination_airport_name": null
+                }
+              ],
+              "trip_type": "oneway",
+              "passengers": {
+                "adults": 1,
+                "children": 0,
+                "infants": 0
+              },
+              "cabin_class": "economy"
+            },
+            "resultState": "empty",
+            "filters": [
+              {
+                "filterType": "stops",
+                "filterCode": "0",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "nonstop only"
+              },
+              {
+                "filterType": "departureTime",
+                "filterCode": "EVENING",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "change time-of-day from morning to evening departures only"
+              }
+            ],
+            "originalCount": 3,
+            "selectedIndexes": [],
+            "visibleIndexes": [],
+            "visibleCount": 0,
+            "requestedIndexes": null,
+            "contracts": [],
+            "summary": {
+              "totalAvailable": 0,
+              "cheapestOption": null,
+              "shortestDurationOption": null,
+              "bestValueOption": null
+            }
+          }
+        },
+        {
+          "callId": "call_SwzzrWUw1G0zTdRUF2yV1xgm",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Allow 1-stop flights",
+              "Remove the nonstop filter",
+              "Show all airlines"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Allow 1-stop flights",
+              "Remove the nonstop filter",
+              "Show all airlines"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "stops",
+          "filterCode": "0",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "nonstop only"
+        },
+        {
+          "filterType": "departureTime",
+          "filterCode": "EVENING",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "change time-of-day from morning to evening departures only"
+        }
+      ],
+      "observedFlightTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "There are no current options matching the active filters (nonstop only + evening departures), so there is no cheapest option to report within the current result set.",
+          "completedTask": "Inspected the active DEL→NYC one-way results for 2026-10-20 with the current filters preserved and checked for the cheapest available option.",
+          "findings": [
+            "Active search confirmed: Delhi (DEL) → New York City (NYC), one-way, 2026-10-20; 1 adult; Economy.",
+            "Active filters preserved: nonstop only; evening departures only.",
+            "Current filtered result set: 0 options visible (0 total available under current filters).",
+            "Because there are zero matching options, no “cheapest current option” exists for the current filtered results."
+          ],
+          "limitations": [],
+          "nextStep": "If you want results, the most direct relaxations are to allow 1-stop itineraries or remove the evening-departure constraint (either change may restore options).",
+          "missingInformation": [],
+          "presentation": null
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "getGeneratedContractsContext",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791202078385",
+      "searchKeyAfter": "search_demo-user_1791202078385",
+      "activeFilterTypes": [
+        "stops",
+        "departureTime"
+      ],
+      "suggestions": [
+        "Allow 1-stop flights",
+        "Remove the nonstop filter",
+        "Show all airlines"
+      ],
+      "renderFlightOptions": false,
+      "resultCount": 0,
+      "noteCount": 0,
+      "inputTokens": 52103,
+      "outputTokens": 496,
+      "modelCalls": 5,
+      "latencyMs": 16522,
+      "classification": "stable",
+      "checks": []
+    },
+    {
+      "chat": "normalization_fewshots",
+      "turn": 5,
+      "traceId": "trace_232fa45b03a6457d898901c73ab63ea8",
+      "user": "Clear all filters and use only Air Canada or Emirates, with a layover under 90 minutes.",
+      "expectedIntent": "Reset and add named-airline plus layover-duration constraints in one call.",
+      "expectedTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "why": "The mixed reset/add request operates on existing inventory and requires both outcomes.",
+      "expectedStateChange": "Keep the search key with Air Canada/Emirates and maximum layover duration only.",
+      "validates": "Clause-local reset/add semantics, source-array name resolution, and duration units.",
+      "output": "✈️ Cleared all filters, then applied **Air Canada or Emirates only** + **layover under 90 minutes**. Here’s the **1** matching option:",
+      "finalAgent": "Manager Agent",
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "specialistSubtasks": [
+        {
+          "tool": "flight_agent",
+          "input": "On the current DEL → NYC one-way search for 2026-10-20 (1 adult, Economy), clear all existing filters. Then apply filters: airline only Air Canada or Emirates; layover duration under 90 minutes. Show matching options (or report none)."
+        }
+      ],
+      "flightToolCalls": [
+        {
+          "callId": "call_Nc6lDpSnFQXsUCzzw028qOzd",
+          "tool": "apply_filter",
+          "input": {
+            "filters": [
+              {
+                "filterType": "reset",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "clear all existing filters"
+              },
+              {
+                "filterType": "airline",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air Canada",
+                  "Emirates"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "airline only Air Canada or Emirates"
+              },
+              {
+                "filterType": "layoverDuration",
+                "filterCode": null,
+                "minDurationMinutes": null,
+                "maxDurationMinutes": 90,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "layover duration under 90 minutes"
+              }
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "source": "dummy",
+            "message": "Sample filtered flight results only. No live API was called.",
+            "UID": "",
+            "searchKey": "search_demo-user_1791202078385",
+            "filters": [
+              {
+                "filterType": "airline",
+                "filterCode": "AC",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air Canada",
+                  "Emirates"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "airline only Air Canada or Emirates"
+              },
+              {
+                "filterType": "airline",
+                "filterCode": "AC+",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air Canada",
+                  "Emirates"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "airline only Air Canada or Emirates"
+              },
+              {
+                "filterType": "airline",
+                "filterCode": "EK",
+                "minDurationMinutes": null,
+                "maxDurationMinutes": null,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": [
+                  "Air Canada",
+                  "Emirates"
+                ],
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "airline only Air Canada or Emirates"
+              },
+              {
+                "filterType": "layoverDuration",
+                "filterCode": null,
+                "minDurationMinutes": 0,
+                "maxDurationMinutes": 90,
+                "minPrice": null,
+                "maxPrice": null,
+                "airlineNames": null,
+                "layoverAirportNames": null,
+                "departureAirportNames": null,
+                "arrivalAirportNames": null,
+                "rawUserFilter": "layover duration under 90 minutes"
+              }
+            ],
+            "finalFilterPayload": [
+              {
+                "filterType": "reset",
+                "Values": []
+              },
+              {
+                "filterType": "airline",
+                "Values": [
+                  "AC,AC+,EK"
+                ]
+              },
+              {
+                "filterType": "departlayoverfilter",
+                "Values": [
+                  0,
+                  90
+                ]
+              }
+            ],
+            "apiPayload": {
+              "UID": "",
+              "searchKey": "search_demo-user_1791202078385",
+              "filters": [
+                {
+                  "filterType": "reset",
+                  "Values": []
+                },
+                {
+                  "filterType": "airline",
+                  "Values": [
+                    "AC,AC+,EK"
+                  ]
+                },
+                {
+                  "filterType": "departlayoverfilter",
+                  "Values": [
+                    0,
+                    90
+                  ]
+                }
+              ]
+            },
+            "feedback": [],
+            "summary": {
+              "originalCount": 3,
+              "filteredCount": 1
+            },
+            "flights": [
+              {
+                "id": "dummy-flight-1",
+                "airline": "Air Canada",
+                "airline_code": "AC",
+                "flight_number": "AC 101",
+                "origin": "Delhi",
+                "destination": "New York City",
+                "departure_airport_code": "LAX",
+                "arrival_airport_code": "LAX",
+                "departure_time": "09:00",
+                "arrival_time": "11:10",
+                "departure_time_window": "MORNING",
+                "arrival_time_window": "MORNING",
+                "duration": "2h 10m",
+                "total_duration_hours": 2.17,
+                "total_duration_minutes": 130,
+                "layover_duration_hours": 0,
+                "layover_duration_minutes": 0,
+                "layover_airport_codes": [],
+                "stops": 0,
+                "baggage": [
+                  "2",
+                  "1"
+                ],
+                "cabin_class": "economy",
+                "price": {
+                  "amount": 199,
+                  "currency": "USD"
+                },
+                "display": true
+              }
+            ]
+          }
+        },
+        {
+          "callId": "call_A3Tbig6Du3hVltaBT6vToAvV",
+          "tool": "update_flight_suggested_questions",
+          "input": {
+            "suggestedQuestions": [
+              "Any cheaper dates nearby?",
+              "Remove the 90-minute layover cap",
+              "Show nonstop flights only"
+            ]
+          },
+          "completed": true,
+          "output": {
+            "ok": true,
+            "suggestedQuestions": [
+              "Any cheaper dates nearby?",
+              "Remove the 90-minute layover cap",
+              "Show nonstop flights only"
+            ]
+          }
+        }
+      ],
+      "searchStateBefore": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "searchStateAfter": {
+        "onds": [
+          {
+            "origin": "Delhi",
+            "destination": "New York City",
+            "outbound_date": "2026-10-20",
+            "return_date": null,
+            "origin_iata": "DEL",
+            "origin_airport_name": null,
+            "destination_iata": "NYC",
+            "destination_airport_name": null
+          }
+        ],
+        "outbound_date": "2026-10-20",
+        "return_date": null,
+        "origin_iata": "DEL",
+        "origin_airport_name": null,
+        "origin": "Delhi",
+        "destination_iata": "NYC",
+        "destination_airport_name": null,
+        "destination": "New York City",
+        "trip_type": "oneway",
+        "passengers": {
+          "adults": 1,
+          "children": 0,
+          "infants": 0
+        },
+        "cabin_class": "economy"
+      },
+      "activeFilters": [
+        {
+          "filterType": "airline",
+          "filterCode": "AC",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": [
+            "Air Canada",
+            "Emirates"
+          ],
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "airline only Air Canada or Emirates"
+        },
+        {
+          "filterType": "airline",
+          "filterCode": "AC+",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": [
+            "Air Canada",
+            "Emirates"
+          ],
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "airline only Air Canada or Emirates"
+        },
+        {
+          "filterType": "airline",
+          "filterCode": "EK",
+          "minDurationMinutes": null,
+          "maxDurationMinutes": null,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": [
+            "Air Canada",
+            "Emirates"
+          ],
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "airline only Air Canada or Emirates"
+        },
+        {
+          "filterType": "layoverDuration",
+          "filterCode": null,
+          "minDurationMinutes": 0,
+          "maxDurationMinutes": 90,
+          "minPrice": null,
+          "maxPrice": null,
+          "airlineNames": null,
+          "layoverAirportNames": null,
+          "departureAirportNames": null,
+          "arrivalAirportNames": null,
+          "rawUserFilter": "layover duration under 90 minutes"
+        }
+      ],
+      "observedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "comparedFlightTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "managerResults": [
+        {
+          "status": "success",
+          "summary": "Filters were reset and re-applied as requested; 1 option matches the Air Canada/Emirates + <90-minute layover constraint.",
+          "completedTask": "Cleared all current filters on the existing DEL → NYC one-way (2026-10-20) results, then applied: only Air Canada/Emirates + layover duration < 90 minutes, and refreshed the matching option set.",
+          "findings": [
+            "Trip context used: DEL → NYC, one-way, 2026-10-20, 1 adult, Economy.",
+            "All existing filters were cleared (reset), then airline restricted to Air Canada and Emirates, plus layover duration capped at 90 minutes.",
+            "Post-filter result count: 1 matching option (filteredCount=1)."
+          ],
+          "limitations": [],
+          "nextStep": "If you want more choices, relax either the airline-only constraint or the 90-minute maximum layover rule.",
+          "missingInformation": [],
+          "presentation": "flight_cards"
+        }
+      ],
+      "toolFeedback": [
+        {
+          "tool": "apply_filter",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        },
+        {
+          "tool": "update_flight_suggested_questions",
+          "ok": true,
+          "code": null,
+          "affectedFields": []
+        }
+      ],
+      "predictionStatus": null,
+      "searchKeyBefore": "search_demo-user_1791202078385",
+      "searchKeyAfter": "search_demo-user_1791202078385",
+      "activeFilterTypes": [
+        "airline",
+        "layoverDuration"
+      ],
+      "suggestions": [
+        "Any cheaper dates nearby?",
+        "Remove the 90-minute layover cap",
+        "Show nonstop flights only"
+      ],
+      "renderFlightOptions": true,
+      "resultCount": 1,
+      "noteCount": 0,
+      "inputTokens": 54043,
+      "outputTokens": 820,
+      "modelCalls": 5,
+      "latencyMs": 24166,
+      "classification": "unexpected_failure",
+      "checks": [
+        "suggestions recycled the used-and-reset nonstop action on the unchanged trip"
+      ]
+    }
+  ]
+}

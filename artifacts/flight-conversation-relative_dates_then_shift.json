@@ -1,0 +1,353 @@
+{
+  "case": "relative_dates_then_shift",
+  "focus": "Resolving relative timing, then moving it twice without losing the rest of the search",
+  "description": "Timing arrives vague and changes twice. Tests that Flight commits to a concrete date from the clock instead of asking, and that a date change re-searches while an unchanged route does not.",
+  "clock": "2026-10-05T10:00:00.000Z",
+  "turnsRun": 7,
+  "failures": 0,
+  "turns": [
+    {
+      "turn": 1,
+      "user": "I need to get to Bengaluru from Delhi sometime next week",
+      "understanding": "Route is complete and the timing is vague but resolvable from the turn clock. Commit to a concrete outbound date inside that window; assume one-way, one adult, economy until told otherwise.",
+      "why": "Ordinary search intent with timing the clock can settle. Asking the traveller which day, or reaching for price intelligence because the date is loose, both fail this turn.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Which option is cheapest?",
+        "Search flights on Oct 15"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Search one-way flights from Delhi to Bengaluru sometime next week. Use the current search context if needed, and show available options for that flexible date window."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran a one-way flight search for Delhi → Bengaluru in the requested “next week” window and returned available options.",
+          "summary": "Searched DEL → BLR for next week and, using the flexible window, selected the earliest valid date (2026-10-12) to display available one-way economy options for 1 adult; 3 options found.",
+          "findings": [
+            "User requested a flexible window: “sometime next week” (relative to 2026-10-05).",
+            "Resolved “next week” as Mon–Sun: 2026-10-12 to 2026-10-18, and searched the earliest date in-window: 2026-10-12.",
+            "Search details used: one-way, DEL → BLR, 2026-10-12, 1 adult, economy.",
+            "Result count: 3 flight options are available/visible for the searched date."
+          ],
+          "limitations": [
+            "Some returned option details show airport codes that do not align with the DEL → BLR route (e.g., LAX/BUR/ONT/SNA appearing as departure/arrival airports), so airport-level details may be unreliable in these cards."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler wants other days within 2026-10-12 to 2026-10-18 (instead of the earliest date), ask which date(s) to search (or whether to try midweek vs weekend) and rerun the search.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I found 3 one-way flights from Delhi to Bengaluru for next week, starting on 2026-10-12.\n\nNote: Prices shown are per person.\n\nIf you want, I can check a different day within 2026-10-12 to 2026-10-18.",
+      "traceId": "trace_ed01ab0084da4553970a2c57ac5d6eec",
+      "latencyMs": 21309
+    },
+    {
+      "turn": 2,
+      "user": "make it Wednesday instead",
+      "understanding": "Only the outbound date moves, to the Wednesday of the window already established. Route, passengers and cabin carry over untouched.",
+      "why": "A date is a search input, so the existing result set no longer describes the request. Only a fresh search can produce options for the new day; no filter expresses a date change.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show morning departures",
+        "Which option is fastest?",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Update the one-way DEL → BLR search to Wednesday next week, which is 2026-10-14, for 1 adult in economy, and show available options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran an updated one-way flight search for DEL → BLR on 2026-10-14 for 1 adult in economy and retrieved available options.",
+          "summary": "Search updated to Wed, 2026-10-14 (one-way, 1 adult, economy) for DEL → BLR; 3 options are available to display.",
+          "findings": [
+            "Search parameters used: one-way DEL → BLR, outbound 2026-10-14, 1 adult, economy.",
+            "3 flight options returned and marked displayable (no filters applied)."
+          ],
+          "limitations": [
+            "Some returned airport codes/times in the options data appear inconsistent with the DEL → BLR route (e.g., LAX/BUR/ONT/SNA shown as airports), so airport-level details may not be reliable in these results."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler shares a preference (nonstop only, specific departure window, or max price), we can filter the current results accordingly.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Updated to Wednesday, 2026-10-14.\n\nI found 3 one-way flights from Delhi to Bengaluru.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_d6c7639c503b4b4a824cb1f77742248f",
+      "latencyMs": 16262
+    },
+    {
+      "turn": 3,
+      "user": "what route and date are we on now?",
+      "understanding": "A restatement of the committed search parameters, which are already in context.",
+      "why": "Route, date, passengers and cabin are stable search parameters injected into the prompt. Reading them back through a tool is unnecessary work and a false positive here.",
+      "expectedTools": [],
+      "actualTools": [],
+      "rawTools": [],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show morning departures",
+        "Which option is fastest?",
+        "Any cheaper dates nearby?"
+      ],
+      "specialistsUsed": [],
+      "renderFlightOptions": false,
+      "subtasks": [],
+      "feedback": [],
+      "specialistFailures": [],
+      "output": "✈️ We’re on Delhi → Bengaluru for Wednesday, 2026-10-14.",
+      "traceId": "trace_31b469f3d99041c5a2bf7eb5d469b0ac",
+      "latencyMs": 2773
+    },
+    {
+      "turn": 4,
+      "user": "push the whole thing a week later",
+      "understanding": "Shift the committed outbound date forward by seven days, keeping everything else.",
+      "why": "Same reason as the earlier move: the date changed, so the results must be rebuilt rather than filtered.",
+      "expectedTools": [
+        "flight_search"
+      ],
+      "actualTools": [
+        "flight_search"
+      ],
+      "rawTools": [
+        "flight_search",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show nonstop flights only",
+        "Show the cheapest option",
+        "Change to business class"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Move the current one-way DEL → BLR search one week later from 2026-10-14 to 2026-10-21 for 1 adult in economy, and show available options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Ran an updated one-way flight search for DEL → BLR on 2026-10-21 (1 adult, economy) and retrieved available options for display.",
+          "summary": "Search moved to 2026-10-21 as requested; 3 flight options are available to show.",
+          "findings": [
+            "Search parameters used: one-way DEL → BLR on 2026-10-21, 1 adult, economy.",
+            "Result count: 3 available flight options (no filters applied)."
+          ],
+          "limitations": [
+            "The returned option data shows airport codes (e.g., LAX/BUR/ONT/SNA) that do not align with the DEL → BLR route; this inconsistency may affect how airports are displayed on the cards."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want, share a preference (nonstop only, specific departure window, max price), and I can narrow these 3 options.",
+          "presentation": "flight_cards_with_price_note"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ Moved to 2026-10-21 for Delhi → Bengaluru.\n\nI found 3 available flights.\n\nNote: Prices shown are per person.",
+      "traceId": "trace_d103c4e107314e0ca53b30efb0268744",
+      "latencyMs": 15765
+    },
+    {
+      "turn": 5,
+      "user": "morning departures only",
+      "understanding": "A narrowing of the current result set by departure time slot, with route and date unchanged.",
+      "why": "The search inputs did not move, so the existing results are still valid and a filter is enough. Re-searching would discard a usable result set to rebuild the same one.",
+      "expectedTools": [
+        "apply_filter"
+      ],
+      "actualTools": [
+        "apply_filter"
+      ],
+      "rawTools": [
+        "apply_filter",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Which option is fastest?",
+        "Any cheaper dates nearby?",
+        "Remove the morning filter"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Apply a morning departures only filter to the current one-way DEL → BLR search on 2026-10-21 for 1 adult in economy, and show the updated available options."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Applied a morning-departures-only filter to the active one-way DEL → BLR search on 2026-10-21 (1 adult, economy) and refreshed the visible options.",
+          "summary": "Morning-departure filter is now active; 1 option remains available after filtering (down from 3).",
+          "findings": [
+            "Trip context used: one-way DEL → BLR on 2026-10-21; 1 adult; economy.",
+            "Filter applied: departure time = MORNING (\"morning departures only\").",
+            "Result count changed from 3 total options to 1 matching option; updated options are ready to display."
+          ],
+          "limitations": [
+            "The refreshed option data shows an airport-code mismatch (it lists LAX for both departure/arrival airports despite DEL → BLR route), so airport-specific details in the card may be unreliable."
+          ],
+          "missingInformation": [],
+          "nextStep": "If you want more choices, you can relax the morning-only constraint or add another preference (e.g., nonstop only, max price, specific airline).",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "✈️ I narrowed it to morning departures only.\n\nThere’s 1 flight left on Delhi → Bengaluru for 2026-10-21.",
+      "traceId": "trace_0ba11c3b3d0f4a089ff6a626b056f492",
+      "latencyMs": 17468
+    },
+    {
+      "turn": 6,
+      "user": "which of these is cheapest?",
+      "understanding": "A ranking question about the options currently visible after the morning filter.",
+      "why": "Prices live on the generated contracts, not in the search summary, and the filter changed which ones are visible. Only reading the current contracts can answer it.",
+      "expectedTools": [
+        "getGeneratedContractsContext"
+      ],
+      "actualTools": [
+        "getGeneratedContractsContext"
+      ],
+      "rawTools": [
+        "getGeneratedContractsContext",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Show details for option 1",
+        "Show nonstop flights only",
+        "Search round-trip instead"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": true,
+      "subtasks": [
+        "Among the current one-way DEL → BLR results on 2026-10-21 for 1 adult in economy with morning departures only, identify which option is cheapest."
+      ],
+      "feedback": [
+        {
+          "status": "success",
+          "completedTask": "Reviewed the current filtered DEL → BLR one-way results (2026-10-21, 1 adult, economy, morning departures only) and identified the cheapest option.",
+          "summary": "With the morning-departure filter applied, only one option is currently visible, so it is also the cheapest.",
+          "findings": [
+            "Route/date/pax/cabin in context: one-way DEL → BLR on 2026-10-21, 1 adult, economy.",
+            "Active filter in context: morning departures only (MORNING).",
+            "Visible results count under this filter: 1 option.",
+            "Cheapest visible option: Option 1 at USD 199 total. (Also the only morning option currently shown.)"
+          ],
+          "limitations": [
+            "The currently available contract data shows airport codes (e.g., LAX) that do not match the DEL → BLR route, so airport-level details in this snapshot may be inconsistent even though the option ranking/price is provided."
+          ],
+          "missingInformation": [],
+          "nextStep": "If they want a cheaper comparison across more flights, suggest removing the morning-only filter to see additional options and re-check the cheapest.",
+          "presentation": "flight_cards"
+        }
+      ],
+      "specialistFailures": [],
+      "output": "💰 The only morning option is also the cheapest: Option 1 at USD 199 total.",
+      "traceId": "trace_2fb6600ce00446dab03e512785c2ad61",
+      "latencyMs": 19188
+    },
+    {
+      "turn": 7,
+      "user": "any cheaper dates near that one?",
+      "understanding": "Explicit fare-and-date intelligence for the current route, built around the committed date and inside the prediction window. The date is already known, so a lookup that returns nothing is an answer — nothing cheaper was confirmed — not a reason to ask which dates to check.",
+      "why": "The prices of the options already found say nothing about other days. Comparing dates is what the prediction tool is for, and inventing a cheaper date from contract prices is the failure to catch.",
+      "expectedTools": [
+        "price_prediction_tool"
+      ],
+      "actualTools": [
+        "price_prediction_tool"
+      ],
+      "rawTools": [
+        "price_prediction_tool",
+        "update_flight_suggested_questions"
+      ],
+      "passed": true,
+      "coreToolsMatched": true,
+      "suggestionsCheck": "ok",
+      "suggestedQuestions": [
+        "Search flights on Oct 20",
+        "Remove morning departures filter",
+        "Which option is cheapest?"
+      ],
+      "specialistsUsed": [
+        "flight_agent"
+      ],
+      "renderFlightOptions": false,
+      "subtasks": [
+        "Find cheaper travel dates near the current one-way DEL → BLR search context (2026-10-21, 1 adult, economy). Compare dates around 2026-10-21 and identify any cheaper dates nearby."
+      ],
+      "feedback": [
+        {
+          "status": "partial",
+          "completedTask": "Requested nearby-date price intelligence for one-way DEL → BLR around 2026-10-21 using the prediction tool.",
+          "summary": "Could not verify whether any nearby travel dates are cheaper because price prediction data was unavailable for DEL → BLR in the checked window around 2026-10-21.",
+          "findings": [
+            "Price-intelligence check attempted for DEL → BLR (one-way) across 2026-10-14 to 2026-10-28 around the current 2026-10-21 travel date.",
+            "No predicted cheaper dates (or rankings) could be returned for this route/date window due to unavailable prediction data."
+          ],
+          "limitations": [
+            "Cannot identify or confirm cheaper nearby travel dates for DEL → BLR from predictions right now; any ‘cheaper date’ claim would be unverified.",
+            "I did not run new flight searches on alternative dates in this task, so there is no direct fare comparison across nearby dates."
+          ],
+          "missingInformation": [],
+          "nextStep": "If the traveler wants, we can run flight searches for a few nearby dates (e.g., Oct 20, Oct 22) and compare the returned fares, or expand to a wider range (±2 weeks) for manual comparison.",
+          "presentation": null
+        }
+      ],
+      "specialistFailures": [],
+      "output": "ℹ️ I can’t verify any cheaper nearby dates for 2026-10-21 right now.\n\nIf you want, I can search a few nearby dates and compare them directly.",
+      "traceId": "trace_7868260f89b34566b71f43f5a31349b3",
+      "latencyMs": 18741
+    }
+  ]
+}
