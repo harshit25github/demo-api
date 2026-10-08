@@ -10,7 +10,7 @@ const { ManagerAgent } = await import('../../src/agents/manager-orchestrator/age
 const { buildGatewayContext, runGatewayAgent } = await import('../../src/agents/manager-orchestrator/runner.js');
 const { beginFlightSuggestionTurn, finalizeFlightSuggestedQuestions, markFlightSuggestionRun } =
   await import('../../src/agents/flight/tools/suggested-questions-tool.js');
-const { flightAgentAsTool } = await import('../../src/agents/manager/tools.js');
+const { flightAgentAsTool } = await import('../../src/agents/manager/specialists/flight.js');
 const { FlightManagerAgent } = await import('../../src/agents/flight/agent.js');
 const { createRequestContext, getRequestState, getScopedRequestText } =
   await import('../../src/shared/runtime/request-context.js');

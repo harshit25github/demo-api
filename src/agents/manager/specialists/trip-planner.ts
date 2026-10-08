@@ -1,7 +1,7 @@
 import { TripPlannerAgent } from '../../trip-planner/agent.js';
 import { tripPlannerAgentConfig } from '../../trip-planner/config.js';
 import { finalizeTripPlannerTurn, prepareTripPlannerTurn } from '../../trip-planner/context/lifecycle.js';
-import { sanitizeGatewayOutputForFinalAgent } from '../../manager-orchestrator/output-guardrail.js';
+import { sanitizeTripPlannerOutput } from '../../trip-planner/scope-policy.js';
 import { getRequestState, getScopedRequestText } from '../../../shared/runtime/request-context.js';
 
 const TRIP_PLANNER_TOOL_DESCRIPTION =
@@ -28,11 +28,7 @@ export const tripPlannerAgentAsTool = TripPlannerAgent.asTool({
   runOptions: { maxTurns: tripPlannerAgentConfig.maxTurns },
   customOutputExtractor: (result) => {
     const context = getRequestState(result.runContext.context as Record<string, any>);
-    const guarded = sanitizeGatewayOutputForFinalAgent({
-      output: String(result.finalOutput ?? ''),
-      finalAgentName: TripPlannerAgent.name,
-      context,
-    });
+    const guarded = sanitizeTripPlannerOutput(String(result.finalOutput ?? ''), context);
     finalizeTripPlannerTurn({
       context,
       output: guarded.output,

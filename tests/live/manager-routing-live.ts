@@ -24,11 +24,12 @@ if (!process.env.OPENAI_API_KEY) {
 
 process.env.OPENAI_AGENTS_DISABLE_TRACING = '1';
 
-const [{ Runner, setDefaultOpenAIKey, tool }, { ManagerAgent }, { flightAgentAsTool, tripPlannerAgentAsTool }] =
+const [{ Runner, setDefaultOpenAIKey, tool }, { ManagerAgent }, { flightAgentAsTool }, { tripPlannerAgentAsTool }] =
   await Promise.all([
     import('@openai/agents'),
     import('../../src/agents/manager-orchestrator/agent.js'),
-    import('../../src/agents/manager/tools.js'),
+    import('../../src/agents/manager/specialists/flight.js'),
+    import('../../src/agents/manager/specialists/trip-planner.js'),
   ]);
 
 setDefaultOpenAIKey(process.env.OPENAI_API_KEY);

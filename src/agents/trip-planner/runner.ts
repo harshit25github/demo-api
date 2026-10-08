@@ -4,7 +4,7 @@ import type { Session } from '@openai/agents';
 import { ObservedModelProvider, observeModelInput, UsageCollector, withUsageCollector } from '../../shared/observability/model-usage.js';
 import { randomUUID } from 'node:crypto';
 import { assertOpenAIConfig } from '../flight/config.js';
-import { sanitizeGatewayOutputForFinalAgent } from '../manager-orchestrator/output-guardrail.js';
+import { sanitizeTripPlannerOutput } from './scope-policy.js';
 import { log } from '../../shared/logging/logger.js';
 import {
   createTripPlannerSummaryContext,
@@ -343,11 +343,7 @@ async function runTripPlannerAgentInternal({
     await result.completed;
 
     const lastAgent = result.lastAgent?.name || TripPlannerAgent.name;
-    const guardedOutput = sanitizeGatewayOutputForFinalAgent({
-      output: result.finalOutput || '',
-      finalAgentName: lastAgent,
-      context: appContext,
-    });
+    const guardedOutput = sanitizeTripPlannerOutput(result.finalOutput || '', appContext);
     const output = guardedOutput.output;
     const recordedCalls = appContext.tripPlanner.currentTurnToolCalls || [];
     const toolsCalled = orderTurnToolCalls(

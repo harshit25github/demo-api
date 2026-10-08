@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { sanitizeGatewayOutputForFinalAgent } from '../../src/agents/manager-orchestrator/output-guardrail.js';
 import { TRIP_PLANNER } from '../../src/agents/trip-planner/prompt.js';
 import { buildTripPlannerPlanningBrief } from '../../src/agents/trip-planner/context/planning-brief.js';
 import { createTripPlannerSummaryContext } from '../../src/agents/trip-planner/context/summary-context.js';
@@ -13,6 +12,7 @@ import {
 import {
   classifyTripPlannerScopeRequest,
   sanitizeTripPlannerFinalOutput,
+  sanitizeTripPlannerOutput,
   validateTripPlannerScopeText,
   validateTripPlannerSuggestedQuestions,
 } from '../../src/agents/trip-planner/scope-policy.js';
@@ -166,12 +166,7 @@ describe('Trip Planner optimization and scope policy', () => {
   });
 
   it('applies scope validation before the existing link guardrail', () => {
-    const context = {};
-    const result = sanitizeGatewayOutputForFinalAgent({
-      output: 'Use a taxi, then see https://example.com/details',
-      finalAgentName: 'Trip Planner Agent',
-      context,
-    });
+    const result = sanitizeTripPlannerOutput('Use a taxi, then see https://example.com/details', {});
 
     assert.match(result.output, /day-wise itineraries/);
     assert.doesNotMatch(result.output, /https?:\/\//);

@@ -45,12 +45,12 @@ pinManagerLiveModels();
 const [
   { OpenAIConversationsSession },
   { generateTraceId, getGlobalTraceProvider },
-  { runGatewayAgentTextStream },
+  { runGatewayAgent },
   { hydrateGatewayContext, snapshotGatewayContext }
 ] = await Promise.all([
   import('@openai/agents-openai'),
   import('@openai/agents'),
-  import('../../src/agents/manager-orchestrator/streaming.js'),
+  import('../../src/agents/manager-orchestrator/runner.js'),
   import('../../src/api/chat/context-hydration.js'),
 ]);
 
@@ -419,7 +419,7 @@ for (const scenario of scenarios.filter(s => !chatId || s.id === chatId)) {
 
     try {
       const context = hydrateGatewayContext(runtimeContext);
-      const run = runGatewayAgentTextStream({
+      const result = await runGatewayAgent({
         input: user,
         requestId: `manager-realistic-${scenario.id}-${index + 1}`,
         traceId,
@@ -430,17 +430,6 @@ for (const scenario of scenarios.filter(s => !chatId || s.id === chatId)) {
         timeZone: 'Asia/Kolkata',
         maxTurns: 12,
       });
-
-      let streamed = '';
-      const streamDone = (async () => {
-        for await (const chunk of run.stream) streamed += String(chunk);
-      })();
-
-      const [streamResult, completionResult] = await Promise.allSettled([streamDone, run.completed]);
-      if (completionResult.status === 'rejected') throw completionResult.reason;
-      if (streamResult.status === 'rejected') throw streamResult.reason;
-
-      const result = completionResult.value;
       runtimeContext = snapshotGatewayContext(result.context);
 
       const output = String(result.output || '');

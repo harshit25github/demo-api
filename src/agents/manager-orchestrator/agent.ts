@@ -1,7 +1,8 @@
 import { Agent } from '@openai/agents';
 import { gatewayAgentConfig } from './config.js';
 import { buildManagerInstructions } from './manager-prompt.js';
-import { flightAgentAsTool, tripPlannerAgentAsTool } from '../manager/tools.js';
+import { flightAgentAsTool } from '../manager/specialists/flight.js';
+import { tripPlannerAgentAsTool } from '../manager/specialists/trip-planner.js';
 
 /** Configured once; request state and conversation history belong to each run. */
 export const ManagerAgent = Agent.create({

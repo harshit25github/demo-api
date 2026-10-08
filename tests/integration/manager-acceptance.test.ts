@@ -8,8 +8,7 @@ process.env.FLIGHT_AGENT_LOG_LEVEL ||= 'error';
 
 const { MaxTurnsExceededError, RunContext, Runner, Usage } = await import('@openai/agents');
 const { ManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
-const { buildGatewayContext } = await import('../../src/agents/manager-orchestrator/runner.js');
-const { runGatewayAgentTextStream } = await import('../../src/agents/manager-orchestrator/streaming.js');
+const { buildGatewayContext, runGatewayAgent } = await import('../../src/agents/manager-orchestrator/runner.js');
 const { FlightManagerAgent } = await import('../../src/agents/flight/agent.js');
 const { TripPlannerAgent } = await import('../../src/agents/trip-planner/agent.js');
 const { ApplyFilterTool: ApplyFilterToolDefinition } = await import('../../src/agents/flight/tools/filter/tool.js');
@@ -139,22 +138,16 @@ test('a second turn preserves hydrated route, dates, and result context without 
   assert.doesNotMatch(second.output, /Prices shown are per person|\[\[render:/);
 });
 
-test('client cancellation remains a terminal error without partial text', async () => {
+test('client cancellation remains a terminal error', async () => {
   const controller = new AbortController();
-  const run = runGatewayAgentTextStream({ input: 'Find flights', context: makeContext('Find flights'), signal: controller.signal,
+  await assert.rejects(() => runGatewayAgent({ input: 'Find flights', context: makeContext('Find flights'), signal: controller.signal,
     runner: { async run(_agent: unknown, _input: unknown, options: any) {
       controller.abort(); options.signal.throwIfAborted(); return { finalOutput: 'unused' };
-    } } as any });
-  await assert.rejects(() => run.completed);
-  let streamed = '';
-  await assert.rejects(async () => { for await (const chunk of run.stream) streamed += String(chunk); });
-  assert.equal(streamed, '');
+    } } as any }));
 });
 
 test('Manager max-turn errors remain terminal without recovery composition', async () => {
   const failure = new MaxTurnsExceededError('Manager turn limit reached');
-  const run = runGatewayAgentTextStream({ input: 'Find flights', context: makeContext('Find flights'),
-    runner: { async run() { throw failure; } } as any });
-  await assert.rejects(() => run.completed, (error: unknown) => error === failure);
-  await assert.rejects(async () => { for await (const _chunk of run.stream) { /* drain */ } });
+  await assert.rejects(() => runGatewayAgent({ input: 'Find flights', context: makeContext('Find flights'),
+    runner: { async run() { throw failure; } } as any }), (error: unknown) => error === failure);
 });

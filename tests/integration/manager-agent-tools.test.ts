@@ -8,8 +8,8 @@ const { MemorySession, MaxTurnsExceededError, RunContext, Runner, Usage } = awai
 const { ManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
 const { buildGatewayContext, runGatewayAgent } = await import('../../src/agents/manager-orchestrator/runner.js');
 const { buildManagerInstructions } = await import('../../src/agents/manager-orchestrator/manager-prompt.js');
-const { runGatewayAgentTextStream } = await import('../../src/agents/manager-orchestrator/streaming.js');
-const { flightAgentAsTool, tripPlannerAgentAsTool } = await import('../../src/agents/manager/tools.js');
+const { flightAgentAsTool } = await import('../../src/agents/manager/specialists/flight.js');
+const { tripPlannerAgentAsTool } = await import('../../src/agents/manager/specialists/trip-planner.js');
 const { flightManagerOutputSchema } = await import('../../src/agents/flight/manager-output.js');
 const { buildFlightAgentInstructions, FlightManagerAgent } = await import('../../src/agents/flight/agent.js');
 const { createRequestContext, getRequestState } = await import('../../src/shared/runtime/request-context.js');
@@ -203,17 +203,13 @@ test('concurrent runs of the same singleton keep request contexts and scoped inp
   assert.equal(b.currentUserMessage, 'Request B full turn');
 });
 
-test('the text-stream adapter forwards Manager text without rendering metadata', async () => {
+test('the Manager run returns its text without rendering metadata', async () => {
   const text = 'Here is your travel answer.';
-  const run = runGatewayAgentTextStream({ input: 'Help with my trip', context: makeContext(),
+  const completed = await runGatewayAgent({ input: 'Help with my trip', context: makeContext(),
     runner: { async run(agent: any) {
       assert.equal(agent, ManagerAgent);
       return { finalOutput: text, lastResponseId: 'resp_manager_test', rawResponses: [] };
     } } as any });
-  const chunks: string[] = [];
-  for await (const chunk of run.stream) chunks.push(String(chunk));
-  const completed = await run.completed;
-  assert.deepEqual(chunks, [text]);
   assert.equal(completed.output, text);
   assert.equal(completed.finalAgentName, 'Manager Agent');
   assert.equal('specialistsUsed' in completed, false);
@@ -222,10 +218,6 @@ test('the text-stream adapter forwards Manager text without rendering metadata',
 
 test('terminal Manager errors propagate without inventing a partial answer', async () => {
   const failure = new MaxTurnsExceededError('Manager turn limit reached');
-  const run = runGatewayAgentTextStream({ input: 'Find flights', context: makeContext(),
-    runner: { async run() { throw failure; } } as any });
-  await assert.rejects(() => run.completed, (error: unknown) => error === failure);
-  let streamed = '';
-  await assert.rejects(async () => { for await (const chunk of run.stream) streamed += String(chunk); });
-  assert.equal(streamed, '');
+  await assert.rejects(() => runGatewayAgent({ input: 'Find flights', context: makeContext(),
+    runner: { async run() { throw failure; } } as any }), (error: unknown) => error === failure);
 });

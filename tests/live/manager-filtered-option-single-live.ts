@@ -13,11 +13,11 @@ const { pinManagerLiveModels } = await import('./manager-live-model-policy.js');
 pinManagerLiveModels();
 
 const [{ generateTraceId, getGlobalTraceProvider }, { hydrateGatewayContext },
-  { runGatewayAgentTextStream }, { FlightSearchTool }, { ApplyFilterTool },
+  { runGatewayAgent }, { FlightSearchTool }, { ApplyFilterTool },
   { createRequestContext }, { createRequestClock }] = await Promise.all([
   import('@openai/agents'),
   import('../../src/api/chat/context-hydration.js'),
-  import('../../src/agents/manager-orchestrator/streaming.js'),
+  import('../../src/agents/manager-orchestrator/runner.js'),
   import('../../src/agents/flight/tools/search-tool.js'),
   import('../../src/agents/flight/tools/filter/tool.js'),
   import('../../src/shared/runtime/request-context.js'),
@@ -51,7 +51,7 @@ if (!Array.isArray(context.flight.searchResults) || context.flight.searchResults
 }
 
 const traceId = generateTraceId();
-const run = runGatewayAgentTextStream({
+const result = await runGatewayAgent({
   input: 'Show me option 2.',
   requestId: 'manager-filtered-option-live',
   traceId,
@@ -61,12 +61,6 @@ const run = runGatewayAgentTextStream({
   timeZone: 'Asia/Kolkata',
   maxTurns: 12,
 });
-let streamed = '';
-const streamDone = (async () => {
-  for await (const chunk of run.stream) streamed += String(chunk);
-})();
-const result = await run.completed;
-await streamDone;
 await getGlobalTraceProvider().forceFlush();
 const managerResults = (result.result?.newItems || [])
   .filter((item: any) => item?.type === 'tool_call_output_item')
@@ -81,7 +75,6 @@ const checks = {
   flightSpecialistUsed: managerSpecialistNames(result).includes('flight_agent'),
   explainsUnavailableOption: /option 2.*(?:not available|isn.t|unavailable)/i.test(output),
   doesNotAskDateAgain: !/what date|which date|when would you like to fly/i.test(output),
-  streamMatchesFinal: streamed === output,
 };
 console.log(JSON.stringify({ traceId, output, checks, managerResults }, null, 2));
 if (Object.values(checks).some((value) => !value)) process.exitCode = 1;

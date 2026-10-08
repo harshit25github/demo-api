@@ -1,7 +1,7 @@
 /** End-to-end check of the refactored Manager through the production stream path. */
 import 'dotenv/config';
 
-const { runGatewayAgentTextStream } = await import('../src/agents/manager-orchestrator/streaming.js');
+const { runGatewayAgent } = await import('../src/agents/manager-orchestrator/runner.js');
 const { ManagerAgent } = await import('../src/agents/manager-orchestrator/agent.js');
 const { FlightManagerAgent } = await import('../src/agents/flight/agent.js');
 const { TripPlannerAgent } = await import('../src/agents/trip-planner/agent.js');
@@ -45,16 +45,13 @@ function check(label: string, ok: boolean, detail = '') {
 
 for (const testCase of cases) {
   console.log(`\n=== [${testCase.id}] ${testCase.input}`);
-  const run = runGatewayAgentTextStream({
+  const done: any = await runGatewayAgent({
     input: testCase.input,
     sessionId: `e2e-${testCase.id}`,
     now: new Date('2026-09-29T10:00:00Z'),
     timeZone: 'Asia/Kolkata',
   });
 
-  let streamed = '';
-  for await (const chunk of run.stream) streamed += String(chunk);
-  const done: any = await run.completed;
 
   const flightCount = countFlightResults(done.context.flight?.searchResults);
   const calledSpecialists = specialistCalls(done.result);
@@ -62,7 +59,6 @@ for (const testCase of cases) {
   console.log(`   showFlight=${done.context.flight?.showFlight} | results=${flightCount}`);
   console.log(`   output: ${done.output.replace(/\s+/g, ' ').slice(0, 220)}...`);
 
-  check('streamed text equals completed.output', streamed === done.output);
   check('finalAgentName is Manager Agent', done.finalAgentName === 'Manager Agent');
   check('no unresolved render marker', !/\[\[render:/.test(done.output));
   check('no SDK tool-error sentinel', !/An error occurred while running the tool/.test(done.output));

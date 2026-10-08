@@ -56,7 +56,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
 const [
   { OpenAIConversationsSession },
   { generateTraceId, getGlobalTraceProvider },
-  { runGatewayAgentTextStream },
+  { runGatewayAgent },
   { hydrateGatewayContext, snapshotGatewayContext },
   { ManagerAgent },
   { TripPlannerAgent },
@@ -70,7 +70,7 @@ const [
 ] = await Promise.all([
   import('@openai/agents-openai'),
   import('@openai/agents'),
-  import('../../src/agents/manager-orchestrator/streaming.js'),
+  import('../../src/agents/manager-orchestrator/runner.js'),
   import('../../src/api/chat/context-hydration.js'),
   import('../../src/agents/manager-orchestrator/agent.js'),
   import('../../src/agents/trip-planner/agent.js'),
@@ -422,7 +422,7 @@ for (const [index, expectation] of scenario.turns.entries()) {
     ? context.flight.suggestedQuestions.map(String) : [];
 
   try {
-    const run = runGatewayAgentTextStream({
+    const result = await runGatewayAgent({
       input: expectation.user,
       requestId,
       traceId,
@@ -433,15 +433,6 @@ for (const [index, expectation] of scenario.turns.entries()) {
       timeZone: 'Asia/Kolkata',
       maxTurns: 12,
     });
-    let streamed = '';
-    const streamDone = (async () => {
-      for await (const chunk of run.stream) streamed += String(chunk);
-    })();
-    const [streamResult, completionResult] = await Promise.allSettled([streamDone, run.completed]);
-    if (completionResult.status === 'rejected') throw completionResult.reason;
-    if (streamResult.status === 'rejected') throw streamResult.reason;
-
-    const result = completionResult.value;
     const specialistsUsed = managerSpecialistNames(result);
     const renderFlightOptions = flightCardsVisible(result.context);
     const predictionAfter = JSON.stringify(result.context.flight?.lastPricePrediction || null);
@@ -488,7 +479,6 @@ for (const [index, expectation] of scenario.turns.entries()) {
     const checks: string[] = [];
 
     if (result.finalAgentName !== 'Manager Agent') checks.push('final agent was not Manager');
-    if (streamed !== output) checks.push('stream differs from finalized output');
     if (!output.trim()) checks.push('empty final output');
     if (/^\s*\{\s*"status"\s*:/.test(output)) checks.push('structured specialist JSON leaked to user');
     if (/\b(?:flight_search|apply_filter|price_prediction_tool|searchKey|toolCallLog)\b/.test(output)) {

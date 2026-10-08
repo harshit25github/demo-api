@@ -13,11 +13,11 @@ const { pinManagerLiveModels } = await import('./manager-live-model-policy.js');
 pinManagerLiveModels();
 
 const [{ generateTraceId, getGlobalTraceProvider }, { hydrateGatewayContext },
-  { runGatewayAgentTextStream }, { FlightSearchTool },
+  { runGatewayAgent }, { FlightSearchTool },
   { createRequestContext }, { createRequestClock }] = await Promise.all([
   import('@openai/agents'),
   import('../../src/api/chat/context-hydration.js'),
-  import('../../src/agents/manager-orchestrator/streaming.js'),
+  import('../../src/agents/manager-orchestrator/runner.js'),
   import('../../src/agents/flight/tools/search-tool.js'),
   import('../../src/shared/runtime/request-context.js'),
   import('../../src/shared/time/request-clock.js'),
@@ -38,7 +38,7 @@ await (FlightSearchTool as any).invoke({ context: requestContext }, JSON.stringi
 
 const priorPrediction = context.flight.lastPricePrediction;
 const traceId = generateTraceId();
-const run = runGatewayAgentTextStream({
+const result = await runGatewayAgent({
   input: 'Any cheaper dates?',
   requestId: 'manager-cheaper-dates-live',
   traceId,
@@ -48,12 +48,6 @@ const run = runGatewayAgentTextStream({
   timeZone: 'Asia/Kolkata',
   maxTurns: 12,
 });
-let streamed = '';
-const streamDone = (async () => {
-  for await (const chunk of run.stream) streamed += String(chunk);
-})();
-const result = await run.completed;
-await streamDone;
 await getGlobalTraceProvider().forceFlush();
 
 const prediction = result.context.flight.lastPricePrediction as
@@ -70,7 +64,6 @@ const checks = {
   flightSpecialistUsed: managerSpecialistNames(result).includes('flight_agent'),
   predictionCalled: prediction !== priorPrediction && Boolean(prediction?.status),
   noPrematureAirportQuestion: !/which .*airport|specific airport|lhr.*lgw/i.test(output),
-  streamMatchesFinal: streamed === output,
 };
 console.log(JSON.stringify({ traceId, output, checks,
   prediction: prediction ? {

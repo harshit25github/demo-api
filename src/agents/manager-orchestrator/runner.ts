@@ -16,8 +16,6 @@ import { ManagerAgent } from './agent.js';
 import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import type { FlightAppContext } from '../flight/types.js';
 
-export { sanitizeGatewayOutputForFinalAgent } from './output-guardrail.js';
-
 assertOpenAIConfig();
 
 export interface ManagerRunOptions {
