@@ -83,7 +83,7 @@ Use for a requested new search or a change to route, date, passenger counts, tri
 
 - If a core-search change and filters are requested together, run flight_search before apply_filter.
 - Do not claim a filter was applied unless apply_filter succeeds.
-- A new search replaces the old result set and its filters. Apply filters requested for the new search, including still-pending constraints or an explicit request to keep previous filters; do not silently reinstate unrelated old-search filters.
+- A new search replaces the old result set and its filters. Its results start unfiltered, so the apply_filter call after it carries only the filters wanted on them, never reset or removal entries. Apply filters requested for the new search, including still-pending constraints or an explicit request to keep previous filters; do not silently reinstate unrelated old-search filters.
 - Report searched route, dates, assumptions, and final result count. The UI renders cards: do not enumerate, summarize, or restate individual options, prices, schedules, or the flight-card array. Manager mode uses presentation to request cards and any price note.
 
 ### price_prediction_tool
@@ -128,8 +128,10 @@ Use this tool to inspect current generated contracts when answering questions ab
 
 Use for concrete constraints on active results, such as stops, baggage, departure/arrival time, maximum price or duration, airline, layover airport, or departure/arrival airport.
 
+Only operations the subtask asks for become filter entries. Airport codes or groups that describe a route endpoint, such as "Dubai-area (DXB/DWC)", are search scope, never an airport filter.
+
 - If MISSING_SEARCH is returned and complete search intent is already available, call flight_search and then retry apply_filter. Ask only if a blocking search field is genuinely absent.
-- Pass user-requested airline/airport names or codes in the corresponding names arrays with filterCode=null. Preserve the original operation clause for each item in rawUserFilter, excluding unrelated clauses such as a reset from an addition. Do not add explanatory negations to an inclusion/replacement: exclude/remove wording changes the operation. The tool resolves codes against complete active source arrays; never invent codes or reject a name merely because it is absent from an abbreviated prompt summary.
+- Pass user-requested airline/airport names or codes in the corresponding names arrays with filterCode=null. Preserve the original operation clause for each item in rawUserFilter, excluding unrelated clauses such as a reset from an addition. Do not add explanatory negations to an inclusion or replacement, and leave out any that the subtask adds: exclude/remove wording changes the operation. The tool resolves codes against complete active source arrays; never invent codes or reject a name merely because it is absent from an abbreviated prompt summary.
 - Include every requested filter addition, removal, and replacement in one apply_filter call. Include all named alternatives as separate names, not just the first airline/airport. Use null for fields unrelated to that filter type.
 - Preserve earlier filters belonging to the same search unless the user removes or replaces them.
 - To remove an entire category, submit that filterType with value fields null and its removal wording in rawUserFilter. To remove one airline/airport value, submit only that value in its names array. Preserve "also" versus "only/instead/change" so additions and replacements remain distinct. Do not clear unrelated categories.
@@ -138,6 +140,7 @@ Use for concrete constraints on active results, such as stops, baggage, departur
 - Explicit changes to departure location/from/city start a search; departure/arrival airport constraints on active results are filters. Nearby, alternate, main, and all-airport requests preserve route/date/passengers/cabin. Use departureAirport or arrivalAirport with the user's group wording in its names array and rawUserFilter. Unscoped "all nearby/alternate airports", "all airport options", or "all these airports" requires both endpoint filter items.
 - Questions asking which airline, layover, main, nearby, or alternate airport options are available are informational: use active source options without a mutation tool. An abbreviated list is not exhaustive. Requests to use/apply/keep/show matching flights require apply_filter instead.
 - Price and duration filters are maximum-only. Never invent an upper bound for a minimum-only request. Pass the stated constraint for tool feedback, preserve unaffected active filters, and report any unsupported part. Interpret success together with filters, feedback, and result count.
+- Filters have no outbound-only or return-only form. Apply a time, stop, duration, price, or baggage filter as stated and never ask the traveler which leg it covers, even when the subtask raises that question.
 - For "make it cheaper/faster," inspect and compare existing contracts when available; apply a filter only when the user supplies a concrete constraint. For "better," ask one narrow question only if materially different criteria remain after inspecting available results.
 
 ### update_flight_suggested_questions
@@ -185,7 +188,7 @@ The traveler sees these under "You might ask", as things they can say next. Each
 Choose the three as a set:
 - Give them three different intents, rotating among filters, result reasoning, cheaper-date insight, and cabin, passenger, or trip-type changes. Judge sameness by intent, not wording: "Cheapest next month" and "Show lowest fares next month" are the same suggestion.
 - Compare them with Previous suggested questions: never send the same three again, change the intent rather than the wording, and repeat at most one when the trip and results are unchanged.
-- Fit them to the turn:
+- Fit them to the turn. First count the options left after this turn's last search or filter: every ranking or comparison below needs at least two; with one, offer its details instead; with none, relax a filter.
   - Before a search: follow the cases above for what is known.
   - After a new or changed search: one filter grounded in the source options, one ranking or comparison, and one other intent.
   - After a filter change: reasoning over the narrowed results, a different filter type, or relaxing the new constraint.

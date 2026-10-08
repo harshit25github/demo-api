@@ -1,6 +1,6 @@
 import { tool } from '@openai/agents';
 import { z } from 'zod';
-import { ensureFlightRuntimeContext } from '../context/flight-context.js';
+import { ensureFlightRuntimeContext, resultCount } from '../context/flight-context.js';
 import { getRequestState } from '../../../shared/runtime/request-context.js';
 import { log } from '../../../shared/logging/logger.js';
 import type { FlightAppContext } from '../types.js';
@@ -39,6 +39,14 @@ const BLOCKED_FIELD_WORDING =
 /** Asking the traveler to fill in or change a route endpoint. */
 const ROUTE_ENDPOINT_REQUEST =
   /\b(add|provide|enter|share|give|choose|pick|select|change|update|set|switch)\b.*\b(departure|arrival) location\b|\bwhere (should|do|will|can) (i|we) fly\b/i;
+/**
+ * Ranking or comparing current options ("Which option is cheapest?"), as
+ * opposed to a price window ("Cheapest this week") or a date comparison
+ * ("Compare the promising dates"). Needs at least two options to rank.
+ */
+const RANKS_OPTIONS = /\b(cheapest|fastest|shortest|quickest|lowest|best|compare)\b/i;
+const NAMES_OPTIONS = /\b(options?|flights?|ones?)\b/i;
+const NAMES_TIMING = /\b(dates?|days?|weeks?|weekends?|months?|time)\b/i;
 
 const updateFlightSuggestedQuestionsSchema = z.object({
   suggestedQuestions: z
@@ -238,6 +246,8 @@ function normalizeSuggestion(value: string): string {
 export function findSuggestedQuestionIssues(
   suggestedQuestions: readonly unknown[],
   previousSuggestions: readonly string[] = [],
+  /** Options in the current result set; null when no result set is known. */
+  currentOptionCount: number | null = null,
 ): FlightToolFieldIssue[] {
   const issues: FlightToolFieldIssue[] = [];
   if (suggestedQuestions.length !== 3) {
@@ -271,6 +281,20 @@ export function findSuggestedQuestionIssues(
       issues.push({
         path,
         problem: 'Asks the traveler to fill in a trip detail, or uses an internal field name; offer a concrete next step instead, such as "Cheapest next month" or "Return after a week".',
+      });
+    }
+    if (
+      currentOptionCount !== null &&
+      currentOptionCount < 2 &&
+      RANKS_OPTIONS.test(text) &&
+      NAMES_OPTIONS.test(text) &&
+      !NAMES_TIMING.test(text)
+    ) {
+      issues.push({
+        path,
+        problem: currentOptionCount === 1
+          ? 'Ranks or compares options, but only one current option exists; offer its details instead, such as "Show details for option 1".'
+          : 'Ranks or compares options, but no current option matches; offer to relax a filter instead.',
       });
     }
     const key = normalizeSuggestion(text);
@@ -347,6 +371,7 @@ export function updateFlightSuggestedQuestions({
   const issues = findSuggestedQuestionIssues(
     suggestedQuestions,
     previousSuggestions ?? context.flight.suggestedQuestions,
+    context.flight.searchKey ? resultCount(context.flight.searchResults) : null,
   );
   if (issues.length > 0) {
     return createFlightToolFailure({
@@ -474,10 +499,4 @@ export function finalizeFlightSuggestedQuestions(context: unknown): FlightSugges
     ...outcome,
   });
   return outcome;
-}
-
-export function update_flight_suggested_questions(
-  input: Parameters<typeof updateFlightSuggestedQuestions>[0],
-) {
-  return updateFlightSuggestedQuestions(input);
 }

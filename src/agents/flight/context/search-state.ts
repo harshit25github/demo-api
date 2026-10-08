@@ -1,23 +1,19 @@
-import {
-  firstFlightSearchDate,
-  mergeFlightSearchDates,
-} from '../date/search-date-state.js';
 import type { FlightContext, PassengerData } from '../types.js';
 
 type MutableRecord = Record<string, any>;
 const endpointDetails = { iata: 'airportIATA', airport_name: 'airportName' } as const;
 
-function isRecord(value: unknown): value is MutableRecord {
+export function isRecord(value: unknown): value is MutableRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function nonEmptyString(value: unknown): string | null {
+export function nonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   return normalized || null;
 }
 
-function firstNonEmptyString(...values: unknown[]): string | null {
+export function firstNonEmptyString(...values: unknown[]): string | null {
   for (const value of values) {
     const normalized = nonEmptyString(value);
     if (normalized) return normalized;
@@ -25,12 +21,12 @@ function firstNonEmptyString(...values: unknown[]): string | null {
   return null;
 }
 
-function finiteNumber(value: unknown): number | null {
+export function finiteNumber(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function nonNegativeInteger(value: unknown, fallback = 0): number {
+export function nonNegativeInteger(value: unknown, fallback = 0): number {
   const parsed = finiteNumber(value);
   return parsed === null || parsed < 0 ? fallback : Math.trunc(parsed);
 }
@@ -167,14 +163,14 @@ function normalizeOnd(ond: unknown): MutableRecord | null {
   const normalized: MutableRecord = {
     origin: normalizeLocation(ond.origin),
     destination: normalizeLocation(ond.destination),
-    outbound_date: firstFlightSearchDate(
+    outbound_date: firstNonEmptyString(
       ond.outbound_date,
       ond.outboundDate,
       ond.departureDate,
       ond.departDate,
       ond.date,
     ),
-    return_date: firstFlightSearchDate(
+    return_date: firstNonEmptyString(
       ond.return_date,
       ond.returnDate,
       ond.inbound_date,
@@ -204,7 +200,7 @@ export function partialFlightSearchState(source: unknown): MutableRecord {
   const firstOnd = onds[0];
   const lastOnd = onds.at(-1);
   const tripType = normalizeTripType(source.trip_type ?? source.tripType);
-  const returnDate = firstFlightSearchDate(
+  const returnDate = firstNonEmptyString(
     source.return_date,
     source.returnDate,
     source.inbound_date,
@@ -227,7 +223,7 @@ export function partialFlightSearchState(source: unknown): MutableRecord {
       normalizeLocation(source.resolvedDestination) ||
       null,
     outbound_date:
-      firstFlightSearchDate(
+      firstNonEmptyString(
         source.outbound_date,
         source.outboundDate,
         source.departureDate,
@@ -360,7 +356,9 @@ export function mergeFlightSearchStates(
   if (update.trip_type) {
     merged.trip_type = update.trip_type;
   }
-  Object.assign(merged, mergeFlightSearchDates(base, update));
+  merged.outbound_date = update.outbound_date || base.outbound_date || null;
+  merged.return_date =
+    update.trip_type === 'oneway' ? null : update.return_date || base.return_date || null;
   if (update.passengers) {
     merged.passengers = { ...update.passengers };
   }

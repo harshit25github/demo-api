@@ -77,55 +77,7 @@ export interface FlightSearchRuntime {
   feedback: unknown[];
 }
 
-export interface AgentRunContext<TContext = unknown> {
-  context?: TContext;
-}
-
-export type FlightDateIntentKind =
-  | 'exact'
-  | 'weekday'
-  | 'week'
-  | 'weekend'
-  | 'month'
-  | 'range'
-  | 'flexible';
-
-export interface FlightDateIntentInput {
-  kind: FlightDateIntentKind;
-  relation?: 'this' | 'next' | null;
-  offset?: number | null;
-  weekday?: string | null;
-  month?: number | null;
-  year?: number | null;
-  exactDate?: string | null;
-  rangeStart?: string | null;
-  rangeEnd?: string | null;
-  tripDurationDays?: number | null;
-  tripType?: 'oneway' | 'roundtrip' | null;
-}
-
 export interface FlightDateRange {
   startDate: string;
   endDate: string;
-}
-
-export interface FlightDateResolution {
-  status: 'RESOLVED' | 'NEEDS_RETURN_TIMING' | 'OUTSIDE_SEARCH_WINDOW' | 'INVALID_INTENT';
-  range: FlightDateRange | null;
-  searchDate: string | null;
-  returnDate: string | null;
-  assumptionLabel: string;
-  recovery?: import('./tools/recovery.js').FlightToolRecovery;
-}
-
-export interface FlightSearchDates {
-  outbound_date: string | null;
-  return_date: string | null;
-  trip_type?: string | null;
-  outboundDate?: string | null;
-  departureDate?: string | null;
-  departDate?: string | null;
-  returnDate?: string | null;
-  inbound_date?: string | null;
-  inboundDate?: string | null;
 }

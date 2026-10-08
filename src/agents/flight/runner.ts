@@ -1,12 +1,11 @@
 import { generateTraceId, withTrace } from '@openai/agents';
 import { MaxTurnsExceededError, MemorySession, Runner } from '@openai/agents';
-import { ObservedModelProvider, UsageCollector, withUsageCollector } from '../../shared/observability/model-usage.js';
-import { createHistoryInputFilter } from '../manager-orchestrator/history-policy.js';
+import { ObservedModelProvider, observeModelInput, UsageCollector, withUsageCollector } from '../../shared/observability/model-usage.js';
 import { randomUUID } from 'node:crypto';
 import { FlightAgent } from './agent.js';
 import { flightAgentConfig } from './config.js';
 import {
-  hydrateFlightAgentContext,
+  ensureFlightRuntimeContext,
   mergeFlightAgentContext,
   prepareFlightAgentTurnContext,
 } from './context/flight-context.js';
@@ -24,7 +23,7 @@ import { buildFlightCoreSuccessFallback } from './context/recovery-outcome.js';
 
 export const flightAgentRunner = new Runner({
   modelProvider: new ObservedModelProvider(),
-  callModelInputFilter: createHistoryInputFilter(),
+  callModelInputFilter: observeModelInput,
   model: flightAgentConfig.model,
   modelSettings: { ...flightAgentConfig.modelSettings, preserveRawUsage: true },
   workflowName: 'flight-agent',
@@ -73,10 +72,10 @@ function getFlightAgentContext(
   }
 
   if (existingContext) {
-    return hydrateFlightAgentContext(existingContext) as FlightAppContext;
+    return ensureFlightRuntimeContext(existingContext);
   }
 
-  const appContext = hydrateFlightAgentContext({}) as FlightAppContext;
+  const appContext = ensureFlightRuntimeContext({});
   flightAgentContexts.set(sessionId, appContext);
   return appContext;
 }
@@ -95,20 +94,6 @@ export async function clearFlightAgentSession(sessionId = 'default') {
   flightAgentSessions.delete(sessionId);
   flightAgentContexts.delete(sessionId);
   return Boolean(session || hadContext);
-}
-
-export async function clearAllFlightAgentSessions() {
-  for (const session of flightAgentSessions.values()) {
-    // Clear all process-local MemorySession histories.
-    await session.clearSession();
-  }
-
-  for (const context of flightAgentContexts.values()) {
-    clearFlightSearchRuntime(context?.flight?.searchKey);
-  }
-
-  flightAgentSessions.clear();
-  flightAgentContexts.clear();
 }
 
 export async function runFlightAgent(options: RunFlightAgentOptions) {

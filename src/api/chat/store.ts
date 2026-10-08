@@ -4,10 +4,6 @@ import path from 'node:path';
 import { createEmptySummaryContext } from './context-hydration.js';
 import type { ChatDatabase, StoredChat } from './types.js';
 
-function clone<T>(value: T): T {
-  return structuredClone(value);
-}
-
 function nowIso() {
   return new Date().toISOString();
 }
@@ -74,7 +70,7 @@ export class JsonChatStore {
 
   getChat(chatId: string): StoredChat | null {
     const chat = this.data.chats[chatId];
-    return chat ? clone(chat) : null;
+    return chat ? structuredClone(chat) : null;
   }
 
   async createChat({ title = 'New chat' }: { title?: string } = {}): Promise<StoredChat> {
@@ -97,7 +93,7 @@ export class JsonChatStore {
     };
     this.data.chats[chatId] = chat;
     await this.#persist();
-    return clone(chat);
+    return structuredClone(chat);
   }
 
   async updateChat(
@@ -109,7 +105,7 @@ export class JsonChatStore {
     await updater(chat);
     chat.updatedAt = nowIso();
     await this.#persist();
-    return clone(chat);
+    return structuredClone(chat);
   }
 
   acquireTurn(chatId: string): (() => void) | null {

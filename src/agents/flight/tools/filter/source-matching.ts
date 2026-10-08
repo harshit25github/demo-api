@@ -29,7 +29,7 @@ interface ResolvedSourceFilter {
   normalizedFilters: FlightFilter[];
 }
 
-function toSearchText(value: unknown): string {
+export function toSearchText(value: unknown): string {
   return String(value || '').trim().toLowerCase();
 }
 function normalizeSourceOptionValue(value: unknown): string {
@@ -361,6 +361,15 @@ function getRequestedAirlineNames(
   // Fallback for model omissions: identify known airline names present in raw user text.
   const rawText = normalizeComparableSourceValue(filter.rawUserFilter);
   if (!rawText) {
+    return explicitNames;
+  }
+  // Raw text recovers airlines omitted from an inclusion ("Show Qatar and
+  // Emirates"). A replacement clause also names the old airline ("Show Air
+  // Canada instead of Air China"), so explicit names are the whole selection.
+  if (
+    explicitNames.length > 0 &&
+    /\b(instead|replace|replacing|switch|rather than)\b/.test(toSearchText(filter.rawUserFilter))
+  ) {
     return explicitNames;
   }
 
@@ -698,7 +707,7 @@ function buildAirportFeedbackLabel(filterType: FlightFilter['filterType']): stri
 function isGenericAirportSelectionRequest(value: unknown): boolean {
   const text = toSearchText(value);
   return (
-    /\b(all|every|each|these|available|options?|nearby|alternate|alternative|near\s*by|main|primary|current|non[-\s]?nearby|not\s+nearby)\b/.test(
+    /\b(all|any|every|each|these|available|options?|nearby|alternate|alternative|near\s*by|main|primary|current|non[-\s]?nearby|not\s+nearby)\b/.test(
       text,
     ) &&
     /\b(airport|airports|arrival|departure|arrive|depart|options?|area|only)\b/.test(text)

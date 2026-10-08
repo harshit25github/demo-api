@@ -1,6 +1,11 @@
 import {
+  finiteNumber,
+  firstNonEmptyString,
   flightSegmentsFromSearch,
+  isRecord,
   mergeFlightSearchStates,
+  nonEmptyString,
+  nonNegativeInteger,
   normalizePassengerData,
   normalizeResolvedLocation,
   partialFlightSearchState,
@@ -106,40 +111,8 @@ const LEGACY_TOP_LEVEL_FLIGHT_KEYS = Object.freeze([
   'flight_estimated_cost_per_person',
 ]);
 
-function isRecord(value: unknown): value is MutableRecord {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
 function hasOwn(value: unknown, key: string): boolean {
   return isRecord(value) && Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function nonEmptyString(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const normalized = value.trim();
-  return normalized || null;
-}
-
-function firstNonEmptyString(...values: unknown[]): string | null {
-  for (const value of values) {
-    const normalized = nonEmptyString(value);
-    if (normalized) {
-      return normalized;
-    }
-  }
-  return null;
-}
-
-function finiteNumber(value: unknown): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function nonNegativeInteger(value: unknown, fallback = 0): number {
-  const parsed = finiteNumber(value);
-  return parsed === null || parsed < 0 ? fallback : Math.trunc(parsed);
 }
 
 function firstDefined(...values: any[]): any {
@@ -150,7 +123,7 @@ function firstArray(...values: unknown[]): any[] | undefined {
   return values.find(Array.isArray);
 }
 
-function resultCount(searchResults: unknown): number | null {
+export function resultCount(searchResults: unknown): number | null {
   if (Array.isArray(searchResults)) {
     return searchResults.length;
   }
@@ -166,7 +139,7 @@ function resultCount(searchResults: unknown): number | null {
   return records ? records.length : null;
 }
 
-function createFlightContextFromSource(source: MutableRecord = {}): FlightContext {
+export function createProdFlightContext(source: MutableRecord = {}): FlightContext {
   const context = isRecord(source.flight) ? source : { ...source, flight: source };
   const flight = isRecord(context.flight) ? context.flight : {};
   const state = readFlightSearchState(context);
@@ -282,10 +255,6 @@ function createFlightContextFromSource(source: MutableRecord = {}): FlightContex
   };
 }
 
-export function createProdFlightContext(source: MutableRecord = {}): FlightContext {
-  return createFlightContextFromSource(source);
-}
-
 function removeLegacyTopLevelFlightAliases(appContext: MutableRecord): void {
   for (const key of LEGACY_TOP_LEVEL_FLIGHT_KEYS) {
     delete appContext[key];
@@ -325,7 +294,7 @@ function migrateLegacySearchRuntime(
 
 export function ensureFlightRuntimeContext(context: unknown = {}): FlightAppContext {
   const appContext = isRecord(context) ? context : {};
-  appContext.flight = createFlightContextFromSource(appContext);
+  appContext.flight = createProdFlightContext(appContext);
   delete appContext.flightDate;
   migrateLegacySearchRuntime(appContext, appContext.flight);
   appContext.toolCallLog = Array.isArray(appContext.toolCallLog) ? appContext.toolCallLog : [];
@@ -336,7 +305,7 @@ export function ensureFlightRuntimeContext(context: unknown = {}): FlightAppCont
 export function getFlightSearchState(context: MutableRecord = {}): MutableRecord {
   const appContext = isRecord(context.flight)
     ? context
-    : { flight: createFlightContextFromSource(context) };
+    : { flight: createProdFlightContext(context) };
   return readFlightSearchState(appContext);
 }
 
@@ -360,7 +329,7 @@ function mergeFlightMetadata(
   baseFlight: FlightContext,
   incomingContext: MutableRecord,
 ): FlightContext {
-  const incomingFlight = createFlightContextFromSource(incomingContext);
+  const incomingFlight = createProdFlightContext(incomingContext);
   const rawFlight = isRecord(incomingContext?.flight) ? incomingContext.flight : incomingContext;
   const merged = { ...baseFlight };
   const simpleStringFields = ['uid', 'cntKey', 'searchKey', 'cabinClass', 'bookingStatus'];
@@ -413,19 +382,15 @@ function mergeFlightMetadata(
   return merged;
 }
 
-export function hydrateFlightAgentContext(context: MutableRecord = {}) {
-  return ensureFlightRuntimeContext(context);
-}
-
 export function mergeFlightAgentContext(
   existingContext: unknown,
   incomingContext: unknown,
 ) {
   if (!isRecord(existingContext)) {
-    return hydrateFlightAgentContext(incomingContext || {});
+    return ensureFlightRuntimeContext(incomingContext || {});
   }
   if (!isRecord(incomingContext) || existingContext === incomingContext) {
-    return hydrateFlightAgentContext(existingContext);
+    return ensureFlightRuntimeContext(existingContext);
   }
 
   const target = ensureFlightRuntimeContext(existingContext);
@@ -454,17 +419,3 @@ export function setActiveFlightSearch(context: MutableRecord, input: MutableReco
   writeFlightSearchState(appContext.flight, partialFlightSearchState(input));
   return appContext;
 }
-
-export function hasRequiredFlightSearchFields(contextOrState: MutableRecord): boolean {
-  const state = getFlightSearchState(contextOrState);
-  const onds = state.onds || [];
-  const hasCompleteSegments =
-    onds.length > 0 &&
-    onds.every(
-      (ond: MutableRecord) => ond.origin && ond.destination && ond.outbound_date,
-    );
-  const hasRoundTripReturn = state.trip_type !== 'roundtrip' || Boolean(state.return_date);
-  return Boolean(hasCompleteSegments && hasRoundTripReturn);
-}
-
-export { mergeFlightSearchStates } from './search-state.js';

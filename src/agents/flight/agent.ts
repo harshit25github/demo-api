@@ -1,6 +1,7 @@
-import { Agent, setDefaultOpenAIKey } from '@openai/agents';
+import { Agent } from '@openai/agents';
 import type { RunContext } from '@openai/agents';
 import { assertOpenAIConfig, flightAgentConfig } from './config.js';
+import { resultCount } from './context/flight-context.js';
 import { buildActiveSearchSummary, buildPricePredictionRouteSummary } from './context/prompt-summary.js';
 import { buildFlightDateDynamicPromptContext } from './date/prompt-context.js';
 import {
@@ -14,7 +15,6 @@ import { flightTools } from './tools/index.js';
 import { previousFlightSuggestions } from './tools/suggested-questions-tool.js';
 
 assertOpenAIConfig();
-setDefaultOpenAIKey(flightAgentConfig.openaiApiKey!);
 
 const MAX_FILTER_OPTIONS_PER_GROUP = 12;
 
@@ -90,21 +90,6 @@ function buildActiveFilterOptionsSummary(context: DynamicRecord): string {
     `departureAirports: ${formatAirportOptionList(departureAirportOptions)}`,
     `arrivalAirports: ${formatAirportOptionList(arrivalAirportOptions)}`,
   ].join('\n');
-}
-
-function hasFlightResultRecords(searchResults: unknown): boolean {
-  if (Array.isArray(searchResults)) {
-    return searchResults.length > 0;
-  }
-  if (!searchResults || typeof searchResults !== 'object') {
-    return false;
-  }
-  return ['flights', 'contracts', 'results', 'data'].some(
-    (key) => {
-      const records = (searchResults as DynamicRecord)[key];
-      return Array.isArray(records) && records.length > 0;
-    },
-  );
 }
 
 function buildPreviousSuggestedQuestionsSummary(context: DynamicRecord): string {
@@ -206,7 +191,7 @@ export function buildFlightAgentInstructions(runContext: { context?: unknown }):
   const context = getRequestState(requestContext) as DynamicRecord;
   const clock = getRequestClock(requestContext);
   const hasHydratedSearchKey = Boolean(context.flight?.searchKey);
-  const hasHydratedResults = hasFlightResultRecords(context.flight?.searchResults);
+  const hasHydratedResults = (resultCount(context.flight?.searchResults) ?? 0) > 0;
   
   return `${FLIGHT_PROMPT}
 

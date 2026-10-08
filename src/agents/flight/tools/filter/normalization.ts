@@ -4,6 +4,7 @@ import {
   resolveAirlineFilter,
   resolveFlightEndpointAirportFilter,
   resolveLayoverAirportFilter,
+  toSearchText,
 } from './source-matching.js';
 
 const filterTypeValues = [
@@ -94,7 +95,7 @@ export const applyFilterSchema = z.object({
         rawUserFilter: z
           .string()
           .nullable()
-          .describe('Original operation clause for this filter, preserving remove/also/only/nearby/all wording. Exclude unrelated clauses: an addition after reset must not contain the reset clause.'),
+          .describe('Original operation clause for this filter, preserving remove/also/only/nearby/all wording. Exclude unrelated clauses: an addition after reset must not contain the reset clause, and an inclusion or replacement must not carry an explanatory remove/exclude clause even when the request has one ("Delhi airport only", not "DEL only; exclude nearby airports").'),
       }),
     )
     .min(1)
@@ -123,10 +124,6 @@ interface DurationRange {
 interface PriceRange {
   minPrice?: number | null;
   maxPrice?: number | null;
-}
-
-function toSearchText(value: string | null | undefined): string {
-  return (value || '').trim().toLowerCase();
 }
 
 function durationToMinutes(value: string, unit?: string): number | null {
@@ -274,14 +271,15 @@ function inferFilterCode(
   }
 
   if (filterType === 'stops') {
+    const buckets = new Set<string>();
     if (/non[-\s]?stop|nonstop|direct/.test(text)) {
-      return '0';
+      buckets.add('0');
     }
     if (/one[-\s]?stops?|\b1\s*stops?\b/.test(text)) {
-      return '2';
+      buckets.add('2');
     }
     if (/\b1\+\s*stops?\b/.test(text)) {
-      return '3';
+      buckets.add('3');
     }
     if (
       /\b(?:two|three|four|five|six|seven|eight|nine|ten)(?:\s+or\s+more)?[-\s]*stops?\b/.test(
@@ -291,7 +289,13 @@ function inferFilterCode(
       /\bmulti[-\s]?stops?\b/.test(text) ||
       /\b(?:at least|more than)\s+\d+\s+stops?\b/.test(text)
     ) {
-      return '3';
+      buckets.add('3');
+    }
+    // Text naming several buckets ("up to 1 stop (nonstop or 1-stop acceptable)")
+    // is not one stop-count intent, so leave it to an explicit valid code
+    // rather than taking whichever bucket is checked first.
+    if (buckets.size > 0) {
+      return buckets.size === 1 ? [...buckets][0] : null;
     }
 
     const numericStopMatch = text.match(/\b(\d+)\s*(?:\+|or\s+more)?\s*stops?\b/);

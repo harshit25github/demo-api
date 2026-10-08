@@ -1,3 +1,5 @@
+import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
+
 const CARD_IMAGE_LINE = /^\s*image\s*:/i;
 
 const PROHIBITED_PATTERNS = [
@@ -212,5 +214,24 @@ export function sanitizeTripPlannerFinalOutput(value = '', { context = {} } = {}
     text: discoveryFallback || TRIP_PLANNER_SCOPE_FALLBACK,
     changed: true,
     ...validation,
+  };
+}
+
+/** Scope-check, then strip links from, the Trip Planner's final text. */
+export function sanitizeTripPlannerOutput(output = '', context: Record<string, any> = {}) {
+  const scope = sanitizeTripPlannerFinalOutput(output, { context });
+  const links = sanitizeNoLinks(scope.text, { preserveCardImageUrls: true });
+  assertNoLinks(links.text, { allowCardImageUrls: true });
+  context.tripPlannerScopeGuardrail = {
+    applied: true,
+    changed: scope.changed,
+    violationCount: scope.violationCount,
+    categories: scope.categories,
+  };
+  context.tripPlannerLinkGuardrail = { applied: true, changed: links.changed, removedCount: links.removedCount };
+  return {
+    output: links.text,
+    guardrail: context.tripPlannerLinkGuardrail,
+    scopeGuardrail: context.tripPlannerScopeGuardrail,
   };
 }

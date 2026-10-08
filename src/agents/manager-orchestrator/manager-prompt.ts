@@ -1,12 +1,5 @@
-import { getRequestState } from '../../shared/runtime/request-context.js';
-
-function hasCurrentFlightOptions(results: unknown): boolean {
-  if (Array.isArray(results)) return results.length > 0;
-  if (!results || typeof results !== 'object') return false;
-  const value = results as Record<string, unknown>;
-  return ['flights', 'contracts', 'results', 'data'].some((key) =>
-    Array.isArray(value[key]) && (value[key] as unknown[]).length > 0);
-}
+import { resultCount } from '../flight/context/flight-context.js';
+import { getRequestClock, getRequestState } from '../../shared/runtime/request-context.js';
 
 export const MANAGER_PROMPT = `# Oli Travel Manager
 
@@ -55,7 +48,7 @@ Treat earlier specialist reports as history, not as current state. What a specia
 Choose by the requested action, not by a page name alone. Apply these boundaries to each clause of a mixed request:
 1. Searching, showing, sorting, or filtering flight results goes to Flight, including on a listing or booking page. Fare and airline filter labels such as Super Saver Fare, Super Saver, Saver Airline, Basic Economy, and JSX air contracts are Flight intent when the user wants matching options. A baggage-included flight filter, stop/time/price/duration/layover filter, or airline-only filter is also Flight intent. A selected fare's baggage or refund benefits are out of scope.
 2. A bare numbered or ordinal reference to a current generated flight option goes to Flight. Cheapest/best/best-value/shortest/earliest/latest, compare, recommend, or inspect current flight options before booking also goes to Flight, even if the user says "best" or "recommend". A request for cheaper travel dates goes to Flight for price-date intelligence using the current search context. So does asking whether to book now or wait, which is a question about this fare over time rather than about the options on screen. Any bounded timing that leaves a choice among multiple permissible dates also goes to Flight with the complete date window for price/date evaluation, even without words such as cheapest or best. Exact dates and relative timing that resolves to one intended day do not require that evaluation.
-3. Finding or starting to book a flight or ticket goes to Flight. "Fly to X" with a specific or relative date, route/date shorthand such as "DEL to DXB tomorrow", and changes to the current search route, dates, passengers, cabin, or trip type also go to Flight. Do not ask the traveler for a missing flight detail yourself — an origin, date, cabin, passenger count, airline, or any other filter value — even when the request is too vague to act on, such as "different airline" with no airline named. Call Flight with what the user gave and let it report what it still needs in missingInformation. Flight knows which airlines, airports and options the current search actually offers, so it can ask with real choices where you could only ask in the abstract. That includes a reply that supplies only part of a flight request, such as "from Delhi" or "going to Mumbai": send Flight the route, dates, passengers and cabin gathered so far, even while another is still missing. This is about collecting a new request; a new search still drops the old filters unless the traveler asks to keep them. Flight also writes the suggested next steps shown with each reply, and a turn it never sees leaves them out of date.
+3. Finding or starting to book a flight or ticket goes to Flight. "Fly to X" with a specific or relative date, route/date shorthand such as "DEL to DXB tomorrow", and changes to the current search route, dates, passengers, cabin, or trip type also go to Flight. Do not ask the traveler for a missing flight detail yourself — an origin, date, cabin, passenger count, airline, or any other filter value — even when the request is too vague to act on, such as "different airline" with no airline named. Call Flight with what the user gave and let it report what it still needs in missingInformation. Do not mark unstated details as missing in the subtask either: Flight defaults passengers, cabin and trip type (one adult, economy, one-way unless a return is mentioned) and asks only for real blockers. Flight knows which airlines, airports and options the current search actually offers, so it can ask with real choices where you could only ask in the abstract. That includes a reply that supplies only part of a flight request, such as "from Delhi" or "going to Mumbai": send Flight the route, dates, passengers and cabin gathered so far, even while another is still missing. This is about collecting a new request; a new search still drops the old filters unless the traveler asks to keep them. Flight also writes the suggested next steps shown with each reply, and a turn it never sees leaves them out of date.
 4. Destination ideas, attractions, activities, things to do, and new or revised day plans go to Trip Planner. A request for current flight availability or ranking is Flight. For open-ended travel ideas such as "I want to go to London in July" or "London trip with flights", use Trip Planner unless flight options or a search are explicitly requested. Do not require flight origin or dates before calling Trip Planner for a known destination. If no travel outcome is discernible, ask one focused clarification.
 5. If Flight and Trip can independently satisfy their assigned clauses, call both. If the itinerary needs a flight's confirmed arrival, dates, or destination, wait for Flight and pass only verified facts to Trip Planner. Use the same dependency rule for any other mixed request.
 6. When one clause is in scope and another is out of scope, do both: route the in-scope clause to its specialist, and decline the rest in the same reply without answering it.
@@ -98,11 +91,17 @@ export function buildManagerInstructions(runContext: { context?: unknown }): str
   const fact = (value: unknown) => typeof value === 'string' && value.trim()
     ? value.replace(/\s+/g, ' ').trim().slice(0, 60)
     : 'unknown';
+  // The same request clock Flight resolves dates from. Without it the model
+  // used its own date and wrote dates into subtasks that Flight then trusted.
+  const clock = getRequestClock(raw);
+  const today = clock
+    ? `\n- Today in the traveler's time zone: ${clock.localDate} (${clock.timeZone}). Resolve relative dates such as "next week" from this date only.`
+    : '';
   return `${MANAGER_PROMPT}
 
 ## Current trusted routing state
-These are the stable search parameters, for choosing a specialist and writing a self-contained subtask. They do not describe the current result set: anything about the options themselves comes from Flight.
-- Generated flight options available: ${hasCurrentFlightOptions(state.flight?.searchResults) ? 'yes' : 'no'}.
+These are the stable search parameters, for choosing a specialist and writing a self-contained subtask. They do not describe the current result set: anything about the options themselves comes from Flight.${today}
+- Generated flight options available: ${(resultCount(state.flight?.searchResults) ?? 0) > 0 ? 'yes' : 'no'}.
 - Current flight search: ${fact(segment?.origin)} to ${fact(segment?.destination)}, outbound ${fact(state.flight?.outboundDate || segment?.date)}, return ${fact(state.flight?.inboundDate)}.
 - Current trip summary: ${fact(origin?.city)} to ${fact(destination?.city)}, outbound ${fact(state.summaryContext?.outbound_date)}, return ${fact(state.summaryContext?.return_date)}, duration ${typeof state.summaryContext?.duration_days === 'number' ? state.summaryContext.duration_days : 'unknown'} days.
 - Previous trip plan available: ${lastPlan?.id ? 'yes' : 'no'}.
@@ -118,9 +117,13 @@ Preserve the route's known geographic scope. Do not expand a city into an enumer
 
 On active results, selecting departure or arrival airports within the existing route is filter work, not a route change. Preserve the user's airport-selection clauses in the subtask and ask Flight to constrain the current results while keeping the search unchanged; let Flight resolve the available airport names and groups. Do not rewrite these selections as an instruction to update the search endpoints. An explicit change of route city/location still requires a new search; ambiguous route-versus-airport wording belongs to Flight for clarification. Preserve "allow one stop" as written rather than inventing "up to one stop" or another range.
 
-Preserve each original filter clause without explanatory negations. "Allow one stop" must not become "allow one stop (exclude 2+ stops)": exclude/remove wording expresses a different filter operation. Likewise, replacing BUR-only with an all-airport group is a new selection, not a combined removal-and-selection clause. Keep historical removals outside active operation clauses.
+Preserve each original filter clause without explanatory negations. "Allow one stop" must not become "allow one stop (exclude 2+ stops)": exclude/remove wording expresses a different filter operation. Likewise, replacing BUR-only with an all-airport group is a new selection, not a combined removal-and-selection clause. Never append "exclude …" or "remove …" to a selection the traveler stated positively, such as "Use Delhi airport only". Keep historical removals outside active operation clauses.
 
-A flexible date bracket means choosing a travel date within it, not inventory for every day. Preserve the bracket; do not add "cheapest per day", "show options across every date", or a search sweep. If date intelligence is unavailable, explain the single dated fallback and the unverified comparison; do not propose day-by-day searches or ask permission for an each-day listing instead.
+Pass each filter as the traveler stated it. Do not add conditions about which legs it covers, such as outbound only, both directions, or per leg, and do not tell Flight when to ask the traveler a question; Flight knows how its filters apply and reports anything it cannot do.
+
+A flexible date bracket means choosing a travel date within it, not inventory for every day. "Show me flights in that window" asks for flights on one good date in it. Preserve the bracket; do not add "cheapest per day", "show options across every date", "which dates have matches", or any other per-date coverage. If date intelligence is unavailable, say the comparison could not be verified and name the single fallback date if one was searched; with or without a fallback, do not propose more searches, ask the traveler to pick a date or dates to check, or ask permission for an each-day listing instead.
+
+An exact date stays exact. A question about one specific date, such as "what about leaving December 5 instead?", concerns that date only: do not widen it into a window or ask Flight to evaluate nearby or alternative dates unless the traveler asked for alternatives.
 
 For a removal, replacement, or reset requested now, include a compact historical note in the Flight subtask naming the previously used preferences being undone. Do this before their removal completes; do not wait until a later turn. Flight sees only your subtask and current state, not earlier user turns. Mark the note "historical used/reversed actions; not active or pending constraints" so Flight can retire those suggestion intents without reapplying them. Carry the note on relevant follow-ups while route/dates are unchanged.
 

@@ -1,7 +1,7 @@
-import { generateTraceId, Runner, setDefaultOpenAIKey, withTrace } from '@openai/agents';
+import { generateTraceId, Runner, withTrace } from '@openai/agents';
 import type { Session } from '@openai/agents';
 import { randomUUID } from 'node:crypto';
-import { assertOpenAIConfig, flightAgentConfig } from '../flight/config.js';
+import { assertOpenAIConfig } from '../flight/config.js';
 import {
   ensureFlightRuntimeContext,
   prepareFlightAgentTurnContext,
@@ -16,10 +16,7 @@ import { ManagerAgent } from './agent.js';
 import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import type { FlightAppContext } from '../flight/types.js';
 
-export { sanitizeGatewayOutputForFinalAgent } from './output-guardrail.js';
-
 assertOpenAIConfig();
-setDefaultOpenAIKey(flightAgentConfig.openaiApiKey!);
 
 export interface ManagerRunOptions {
   input: string;
@@ -30,15 +27,11 @@ export interface ManagerRunOptions {
   maxTurns?: number;
   now?: Date | string | number;
   timeZone?: string;
-  workflowName?: string;
   /** Model history for the conversation, e.g. an OpenAIConversationsSession. */
   session?: Session;
   /** Cancels the turn when the client disconnects. */
   signal?: AbortSignal;
-  /**
-   * Substitute Runner, for benchmarks that need different run configuration
-   * (see scripts/evaluate-session-optimization.ts). Production uses the default.
-   */
+  /** Substitute Runner, for tests that fake the run. Production uses the default. */
   runner?: Pick<Runner, 'run'>;
 }
 

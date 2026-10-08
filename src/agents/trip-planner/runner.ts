@@ -1,14 +1,10 @@
 import { generateTraceId, withTrace } from '@openai/agents';
-import {
-  MaxTurnsExceededError,
-  Runner,
-  setDefaultOpenAIKey,
-} from '@openai/agents';
+import { MaxTurnsExceededError, Runner } from '@openai/agents';
 import type { Session } from '@openai/agents';
 import { ObservedModelProvider, observeModelInput, UsageCollector, withUsageCollector } from '../../shared/observability/model-usage.js';
 import { randomUUID } from 'node:crypto';
-import { assertOpenAIConfig, flightAgentConfig } from '../flight/config.js';
-import { sanitizeGatewayOutputForFinalAgent } from '../manager-orchestrator/output-guardrail.js';
+import { assertOpenAIConfig } from '../flight/config.js';
+import { sanitizeTripPlannerOutput } from './scope-policy.js';
 import { log } from '../../shared/logging/logger.js';
 import {
   createTripPlannerSummaryContext,
@@ -26,7 +22,6 @@ import {
 } from './context/lifecycle.js';
 
 assertOpenAIConfig();
-setDefaultOpenAIKey(flightAgentConfig.openaiApiKey!);
 
 export const tripPlannerRunner = new Runner({
   modelProvider: new ObservedModelProvider(),
@@ -199,14 +194,6 @@ export async function clearTripPlannerSession(sessionId = 'trip-planner-default'
   return Boolean(session || hadContext);
 }
 
-export async function clearAllTripPlannerSessions() {
-  for (const session of tripPlannerSessions.values()) {
-    await session.clearSession();
-  }
-  tripPlannerSessions.clear();
-  tripPlannerContexts.clear();
-}
-
 function logPreparedTurn({
   requestId,
   sessionId,
@@ -356,11 +343,7 @@ async function runTripPlannerAgentInternal({
     await result.completed;
 
     const lastAgent = result.lastAgent?.name || TripPlannerAgent.name;
-    const guardedOutput = sanitizeGatewayOutputForFinalAgent({
-      output: result.finalOutput || '',
-      finalAgentName: lastAgent,
-      context: appContext,
-    });
+    const guardedOutput = sanitizeTripPlannerOutput(result.finalOutput || '', appContext);
     const output = guardedOutput.output;
     const recordedCalls = appContext.tripPlanner.currentTurnToolCalls || [];
     const toolsCalled = orderTurnToolCalls(

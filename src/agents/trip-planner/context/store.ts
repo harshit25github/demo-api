@@ -1,7 +1,4 @@
-import {
-  createTripPlannerSummaryContext,
-  mergeTripPlannerSummaryContext,
-} from './summary-context.js';
+import { createTripPlannerSummaryContext } from './summary-context.js';
 import { resolveTripPlannerDestinationIata } from './planning-brief.js';
 
 const MAX_DESCRIPTION_LENGTH = 180;
@@ -77,24 +74,6 @@ export function bumpTripPlannerContextRevision(context: TripPlannerContextRecord
   const state = ensureTripPlannerState(context);
   state.contextRevision += 1;
   return state.contextRevision;
-}
-
-export function replaceTripPlannerSummaryContext(
-  context: TripPlannerContextRecord = {},
-  summaryContext: TripPlannerContextRecord = {},
-) {
-  ensureTripPlannerState(context);
-  context.summaryContext = createTripPlannerSummaryContext(summaryContext);
-  return context.summaryContext;
-}
-
-export function mergeIntoTripPlannerSummaryContext(
-  context: TripPlannerContextRecord = {},
-  patch: TripPlannerContextRecord = {},
-) {
-  ensureTripPlannerState(context);
-  context.summaryContext = mergeTripPlannerSummaryContext(context.summaryContext, patch);
-  return context.summaryContext;
 }
 
 export function clearTripPlannerSummaryFields(
