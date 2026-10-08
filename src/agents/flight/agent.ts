@@ -1,4 +1,4 @@
-import { Agent, setDefaultOpenAIKey } from '@openai/agents';
+import { Agent } from '@openai/agents';
 import type { RunContext } from '@openai/agents';
 import { assertOpenAIConfig, flightAgentConfig } from './config.js';
 import { buildActiveSearchSummary, buildPricePredictionRouteSummary } from './context/prompt-summary.js';
@@ -14,7 +14,6 @@ import { flightTools } from './tools/index.js';
 import { previousFlightSuggestions } from './tools/suggested-questions-tool.js';
 
 assertOpenAIConfig();
-setDefaultOpenAIKey(flightAgentConfig.openaiApiKey!);
 
 const MAX_FILTER_OPTIONS_PER_GROUP = 12;
 

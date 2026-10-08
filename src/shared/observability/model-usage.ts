@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import type { Model, ModelProvider, ModelRequest } from '@openai/agents';
 import { getDefaultOpenAIClient, OpenAIProvider } from '@openai/agents-openai';
 import OpenAI from 'openai';
-import { getOpenAIApiKey } from '../config/openai.js';
 import { estimateTokenCost } from './token-cost.js';
 
 export interface UsageCorrelation {
@@ -254,7 +253,8 @@ export class ObservedModelProvider implements ModelProvider {
   async getModel(modelName?: string): Promise<Model> {
     if (!this.provider) {
       // Respect an explicitly configured application client. Its custom transport remains owned by the caller.
-      const client = getDefaultOpenAIClient() ?? new OpenAI({ apiKey: getOpenAIApiKey(), fetch: observeOpenAIFetch(globalThis.fetch) });
+      // The client reads OPENAI_API_KEY from the environment itself.
+      const client = getDefaultOpenAIClient() ?? new OpenAI({ fetch: observeOpenAIFetch(globalThis.fetch) });
       this.provider = new OpenAIProvider({ openAIClient: client, useResponses: true });
     }
     return instrumentModel(await this.provider.getModel(modelName), modelName ?? 'unknown');

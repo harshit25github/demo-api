@@ -1,7 +1,7 @@
-import { generateTraceId, Runner, setDefaultOpenAIKey, withTrace } from '@openai/agents';
+import { generateTraceId, Runner, withTrace } from '@openai/agents';
 import type { Session } from '@openai/agents';
 import { randomUUID } from 'node:crypto';
-import { assertOpenAIConfig, flightAgentConfig } from '../flight/config.js';
+import { assertOpenAIConfig } from '../flight/config.js';
 import {
   ensureFlightRuntimeContext,
   prepareFlightAgentTurnContext,
@@ -19,7 +19,6 @@ import type { FlightAppContext } from '../flight/types.js';
 export { sanitizeGatewayOutputForFinalAgent } from './output-guardrail.js';
 
 assertOpenAIConfig();
-setDefaultOpenAIKey(flightAgentConfig.openaiApiKey!);
 
 export interface ManagerRunOptions {
   input: string;

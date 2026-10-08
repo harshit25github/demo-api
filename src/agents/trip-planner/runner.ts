@@ -1,13 +1,9 @@
 import { generateTraceId, withTrace } from '@openai/agents';
-import {
-  MaxTurnsExceededError,
-  Runner,
-  setDefaultOpenAIKey,
-} from '@openai/agents';
+import { MaxTurnsExceededError, Runner } from '@openai/agents';
 import type { Session } from '@openai/agents';
 import { ObservedModelProvider, observeModelInput, UsageCollector, withUsageCollector } from '../../shared/observability/model-usage.js';
 import { randomUUID } from 'node:crypto';
-import { assertOpenAIConfig, flightAgentConfig } from '../flight/config.js';
+import { assertOpenAIConfig } from '../flight/config.js';
 import { sanitizeGatewayOutputForFinalAgent } from '../manager-orchestrator/output-guardrail.js';
 import { log } from '../../shared/logging/logger.js';
 import {
@@ -26,7 +22,6 @@ import {
 } from './context/lifecycle.js';
 
 assertOpenAIConfig();
-setDefaultOpenAIKey(flightAgentConfig.openaiApiKey!);
 
 export const tripPlannerRunner = new Runner({
   modelProvider: new ObservedModelProvider(),
