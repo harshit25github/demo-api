@@ -3,7 +3,7 @@ import test from 'node:test';
 
 process.env.FLIGHT_AGENT_LOG_LEVEL ||= 'error';
 
-const { ApplyFilterTool: ApplyFilterToolDefinition } = await import('../../src/agents/flight/tools/index.js');
+const { ApplyFilterTool: ApplyFilterToolDefinition } = await import('../../src/agents/flight/tools/filter/tool.js');
 const { createProdFlightContext } = await import('../../src/agents/flight/context/flight-context.js');
 
 const ApplyFilterTool: any = ApplyFilterToolDefinition;

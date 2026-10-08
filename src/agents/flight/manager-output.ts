@@ -27,8 +27,6 @@ export const flightManagerOutputSchema = z.object({
   presentation: z.enum(['flight_cards', 'flight_cards_with_price_note']).nullable(),
 }).strict();
 
-export type FlightManagerOutput = z.infer<typeof flightManagerOutputSchema>;
-
 export const FLIGHT_MANAGER_INSTRUCTIONS = `### Manager tool mode - final output
 You are an internal Flight specialist called by the Manager. Complete the scoped task using the domain rules above, make the required final update_flight_suggested_questions call, and only then produce structured feedback to the Manager. The feedback is your output, not a tool call, so it always comes after that update. The Manager owns the traveler-facing answer. This section overrides earlier directions about final-answer wording, asking the user directly, and appending a price note.
 

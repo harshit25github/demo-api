@@ -199,14 +199,6 @@ export async function clearTripPlannerSession(sessionId = 'trip-planner-default'
   return Boolean(session || hadContext);
 }
 
-export async function clearAllTripPlannerSessions() {
-  for (const session of tripPlannerSessions.values()) {
-    await session.clearSession();
-  }
-  tripPlannerSessions.clear();
-  tripPlannerContexts.clear();
-}
-
 function logPreparedTurn({
   requestId,
   sessionId,

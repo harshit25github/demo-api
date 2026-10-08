@@ -13,7 +13,6 @@ async function debugSingleTurn() {
   const result = await runGatewayAgent({
     input: 'Delhi to Dubai October 27 one-way, 1 adult economy',
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'debug-single-turn',
   });
 
   console.log('\n=== RESULT STRUCTURE ===');

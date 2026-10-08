@@ -18,7 +18,6 @@ async function testFilterClearing() {
   const turn1 = await runGatewayAgent({
     input: 'Delhi to Dubai October 27 one-way, 1 adult economy',
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'OpenAI-filter-clear-test',
   });
   context = turn1.context;
   console.log('✓ Initial search completed\n');
@@ -29,7 +28,6 @@ async function testFilterClearing() {
     input: 'direct only',
     context,
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'OpenAI-filter-clear-test',
   });
   context = turn2.context;
   console.log('✓ Nonstop filter applied\n');
@@ -40,7 +38,6 @@ async function testFilterClearing() {
     input: 'evening flights',
     context,
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'OpenAI-filter-clear-test',
   });
   context = turn3.context;
   console.log('✓ Evening filter applied\n');
@@ -51,7 +48,6 @@ async function testFilterClearing() {
     input: 'remove direct filter',
     context,
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'OpenAI-filter-clear-test',
   });
   context = turn4.context;
   console.log('✓ Direct filter removed\n');
@@ -62,7 +58,6 @@ async function testFilterClearing() {
     input: 'remove all filters',
     context,
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'OpenAI-filter-clear-test',
   });
 
   // Analyze the apply_filter calls
@@ -105,7 +100,6 @@ async function testPricePrediction() {
   const turn1 = await runGatewayAgent({
     input: 'NYC to London round-trip November 5-12, 2 adults economy',
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'OpenAI-price-pred-test',
   });
   context = turn1.context;
   console.log('✓ Initial search completed\n');
@@ -116,7 +110,6 @@ async function testPricePrediction() {
     input: 'any cheaper dates?',
     context,
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'OpenAI-price-pred-test',
   });
 
   // Analyze tool calls

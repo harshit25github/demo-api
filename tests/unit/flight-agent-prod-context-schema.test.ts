@@ -11,6 +11,7 @@ import {
 import {
   createRequestContext,
   getRequestClock,
+  getRequestState,
 } from '../../src/shared/runtime/request-context.js';
 import { createRequestClock } from '../../src/shared/time/request-clock.js';
 
@@ -141,6 +142,27 @@ test('Request clock stays in ephemeral runtime and outside prod Flight context',
   });
   assert.equal(context.flightDate, undefined);
   assert.equal(JSON.stringify(context), before);
+});
+
+test('Request clocks stay isolated when two turns share durable session state', () => {
+  const context = ensureFlightRuntimeContext({});
+  const firstRequest = createRequestContext(context, createRequestClock({
+    now: new Date('2026-07-31T10:00:00.000Z'),
+    timeZone: 'Asia/Kolkata',
+  }));
+  const secondRequest = createRequestContext(context, createRequestClock({
+    now: new Date('2026-08-01T10:00:00.000Z'),
+    timeZone: 'America/New_York',
+  }));
+
+  assert.equal(getRequestState(firstRequest), context);
+  assert.equal(getRequestState(secondRequest), context);
+  assert.equal(getRequestClock(firstRequest)?.localDate, '2026-07-31');
+  assert.equal(getRequestClock(firstRequest)?.timeZone, 'Asia/Kolkata');
+  assert.equal(getRequestClock(secondRequest)?.localDate, '2026-08-01');
+  assert.equal(getRequestClock(secondRequest)?.timeZone, 'America/New_York');
+  assert.equal((context as any).runtime, undefined);
+  assert.equal(context.flightDate, undefined);
 });
 
 test('Search and filter tools preserve the prod Flight schema', async () => {

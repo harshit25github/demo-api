@@ -30,7 +30,6 @@ export interface ManagerRunOptions {
   maxTurns?: number;
   now?: Date | string | number;
   timeZone?: string;
-  workflowName?: string;
   /** Model history for the conversation, e.g. an OpenAIConversationsSession. */
   session?: Session;
   /** Cancels the turn when the client disconnects. */

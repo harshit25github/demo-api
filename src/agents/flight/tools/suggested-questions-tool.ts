@@ -500,9 +500,3 @@ export function finalizeFlightSuggestedQuestions(context: unknown): FlightSugges
   });
   return outcome;
 }
-
-export function update_flight_suggested_questions(
-  input: Parameters<typeof updateFlightSuggestedQuestions>[0],
-) {
-  return updateFlightSuggestedQuestions(input);
-}

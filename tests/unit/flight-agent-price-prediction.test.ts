@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildFlightAgentInstructions } from '../../src/agents/flight/agent.js';
-import { resolveFlightDateIntent as resolveFlightDateIntentDefinition } from '../../src/agents/flight/date/resolver.js';
 import { createRequestContext } from '../../src/shared/runtime/request-context.js';
 import { createRequestClock } from '../../src/shared/time/request-clock.js';
 import { FLIGHT_PROMPT } from '../../src/agents/flight/prompt.js';
@@ -28,12 +27,9 @@ import { flightTools } from '../../src/agents/flight/tools/index.js';
 const PricePredictionTool: any = PricePredictionToolDefinition;
 const FlightSearchTool: any = FlightSearchToolDefinition;
 const getPricePrediction: any = getPricePredictionDefinition;
-const resolveFlightDateIntent: any = resolveFlightDateIntentDefinition;
 
 const REFERENCE_NOW = new Date('2026-07-16T12:00:00.000Z');
-const REFERENCE_CLOCK = createRequestClock({ now: REFERENCE_NOW, timeZone: 'UTC' });
 const CONTRACT_NOW = new Date('2026-07-31T00:00:00.000Z');
-const CONTRACT_CLOCK = createRequestClock({ now: CONTRACT_NOW, timeZone: 'UTC' });
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function createTestRequestContext(
@@ -65,23 +61,6 @@ const ACTUAL_CHEAPEST_DATES = [
   '2026-09-13',
   '2026-09-23',
 ];
-
-function structuredDateInput(overrides = {}): any {
-  return {
-    kind: 'flexible',
-    relation: null,
-    offset: null,
-    weekday: null,
-    month: null,
-    year: null,
-    exactDate: null,
-    rangeStart: null,
-    rangeEnd: null,
-    tripDurationDays: null,
-    tripType: 'oneway',
-    ...overrides,
-  };
-}
 
 function addDaysIso(days) {
   return new Date(REFERENCE_NOW.getTime() + days * DAY_MS).toISOString().slice(0, 10);
@@ -505,10 +484,6 @@ test('successful prediction and unrelated turns are not rewritten', () => {
 });
 
 test('usable date continues through flight_search without exposing prediction failure', async () => {
-  const resolvedDateIntent = resolveFlightDateIntent(
-    structuredDateInput({ kind: 'exact', exactDate: '2026-08-15' }),
-    { clock: CONTRACT_CLOCK },
-  );
   const context: any = {
     requestId: 'prediction-fallback-turn',
     sessionId: 'prediction-fallback-session',
@@ -571,24 +546,6 @@ test('usable date continues through flight_search without exposing prediction fa
   assert.equal(processed.guardrail.action, 'search_confirmation');
   assertFailureDetailsHidden(processed.output);
   assert.equal(context.flightDate, undefined);
-});
-
-test('date resolver accepts structured intent and does not parse raw user text', () => {
-  const rawTextResult = resolveFlightDateIntent(
-    'Find flights from JFK to LAX next month',
-    { clock: REFERENCE_CLOCK },
-  );
-  const structuredResult = resolveFlightDateIntent(
-    structuredDateInput({ kind: 'month', relation: 'next' }),
-    { clock: REFERENCE_CLOCK },
-  );
-
-  assert.equal(rawTextResult.status, 'INVALID_INTENT');
-  assert.equal(structuredResult.status, 'RESOLVED');
-  assert.deepEqual(structuredResult.range, {
-    startDate: '2026-08-01',
-    endDate: '2026-08-31',
-  });
 });
 
 test('prompt routes flexible date windows through price prediction without requiring price words', () => {

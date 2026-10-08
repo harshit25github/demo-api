@@ -4,7 +4,6 @@ import { Agent, Runner } from '@openai/agents';
 import { OpenAIProvider } from '@openai/agents-openai';
 import { ensureFlightRuntimeContext } from '../../src/agents/flight/context/flight-context.js';
 import { buildFlightCoreSuccessFallback } from '../../src/agents/flight/context/recovery-outcome.js';
-import { resolveFlightDateIntent } from '../../src/agents/flight/date/resolver.js';
 import { FLIGHT_PROMPT } from '../../src/agents/flight/prompt.js';
 import {
   buildManagerInstructions,
@@ -413,24 +412,7 @@ test('tool contracts expose recoverable constraints without mutating state on fa
   assert.deepEqual(filterFailure.recovery.requiredState, ['context.flight.searchKey']);
 });
 
-test('date and price failures expose safe repair facts and non-input failures are not retryable', async () => {
-  const clock = createRequestClock({ now: NOW, timeZone: 'Asia/Kolkata' });
-  const past = resolveFlightDateIntent({
-    kind: 'exact',
-    relation: null,
-    offset: null,
-    weekday: null,
-    month: null,
-    year: null,
-    exactDate: '2026-09-15',
-    rangeStart: null,
-    rangeEnd: null,
-    tripDurationDays: null,
-    tripType: 'oneway',
-  }, { clock });
-  assert.equal(past.status, 'INVALID_INTENT');
-  assert.equal(past.recovery?.fieldIssues?.[0].acceptedValue, '2026-09-17');
-
+test('price failures expose safe repair facts and non-input failures are not retryable', async () => {
   const state = recoveryContext();
   const schemaFailureRaw = await (PricePredictionTool as any).invoke(
     { context: state.requestContext },

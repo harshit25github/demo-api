@@ -70,7 +70,6 @@ async function runConversation(
       input: userInput,
       context: context || undefined,
       now: new Date('2026-09-20T10:00:00Z'),
-      workflowName: `OpenAI-${conversationId}-turn${turnNumber}`, // Unique workflow name per turn
     });
 
     context = result.context;

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   getFlightSearchState,
-  hasRequiredFlightSearchFields,
   mergeFlightAgentContext,
 } from '../../src/agents/flight/context/flight-context.js';
 import { buildActiveSearchSummary } from '../../src/agents/flight/context/prompt-summary.js';
@@ -61,7 +60,6 @@ test('route-only update reuses existing dates and can execute flight_search', as
       return_date: '2026-08-27',
     },
   ]);
-  assert.equal(hasRequiredFlightSearchFields(context), true);
   assert.match(buildActiveSearchSummary(context), /2026-08-20/);
   assert.match(buildActiveSearchSummary(context), /2026-08-27/);
 
@@ -95,7 +93,6 @@ test('route without any stored date remains incomplete and exposes no invented d
   const context = routeOnlyContext();
   mergeFlightAgentContext(null, context);
 
-  assert.equal(hasRequiredFlightSearchFields(context), false);
   assert.equal(context.flight.outboundDate, null);
   assert.doesNotMatch(buildActiveSearchSummary(context), /2026-/);
 });

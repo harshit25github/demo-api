@@ -9,7 +9,6 @@ async function debugFilterTurn() {
   const turn1 = await runGatewayAgent({
     input: 'Delhi to Dubai October 27 one-way, 1 adult economy',
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'debug-filter',
   });
 
   console.log('Turn 2: Apply nonstop filter\n');
@@ -17,7 +16,6 @@ async function debugFilterTurn() {
     input: 'direct only',
     context: turn1.context,
     now: new Date('2026-09-20T10:00:00Z'),
-    workflowName: 'debug-filter-turn2',
   });
 
   const context = turn2.context as any;
