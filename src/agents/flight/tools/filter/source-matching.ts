@@ -29,7 +29,7 @@ interface ResolvedSourceFilter {
   normalizedFilters: FlightFilter[];
 }
 
-function toSearchText(value: unknown): string {
+export function toSearchText(value: unknown): string {
   return String(value || '').trim().toLowerCase();
 }
 function normalizeSourceOptionValue(value: unknown): string {

@@ -1,12 +1,5 @@
+import { resultCount } from '../flight/context/flight-context.js';
 import { getRequestClock, getRequestState } from '../../shared/runtime/request-context.js';
-
-function hasCurrentFlightOptions(results: unknown): boolean {
-  if (Array.isArray(results)) return results.length > 0;
-  if (!results || typeof results !== 'object') return false;
-  const value = results as Record<string, unknown>;
-  return ['flights', 'contracts', 'results', 'data'].some((key) =>
-    Array.isArray(value[key]) && (value[key] as unknown[]).length > 0);
-}
 
 export const MANAGER_PROMPT = `# Oli Travel Manager
 
@@ -108,7 +101,7 @@ export function buildManagerInstructions(runContext: { context?: unknown }): str
 
 ## Current trusted routing state
 These are the stable search parameters, for choosing a specialist and writing a self-contained subtask. They do not describe the current result set: anything about the options themselves comes from Flight.${today}
-- Generated flight options available: ${hasCurrentFlightOptions(state.flight?.searchResults) ? 'yes' : 'no'}.
+- Generated flight options available: ${(resultCount(state.flight?.searchResults) ?? 0) > 0 ? 'yes' : 'no'}.
 - Current flight search: ${fact(segment?.origin)} to ${fact(segment?.destination)}, outbound ${fact(state.flight?.outboundDate || segment?.date)}, return ${fact(state.flight?.inboundDate)}.
 - Current trip summary: ${fact(origin?.city)} to ${fact(destination?.city)}, outbound ${fact(state.summaryContext?.outbound_date)}, return ${fact(state.summaryContext?.return_date)}, duration ${typeof state.summaryContext?.duration_days === 'number' ? state.summaryContext.duration_days : 'unknown'} days.
 - Previous trip plan available: ${lastPlan?.id ? 'yes' : 'no'}.

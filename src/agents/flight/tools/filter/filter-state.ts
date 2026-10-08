@@ -1,4 +1,5 @@
 import type { FilterPayload, FlightFilter } from './normalization.js';
+import { toSearchText } from './source-matching.js';
 
 const durationFilterTypes = ['totalDuration', 'layoverDuration'];
 
@@ -47,9 +48,6 @@ const clearPayloadByToolType: Record<string, FilterPayload> = {
   }
 };
 
-function toSearchText(value: unknown): string {
-  return String(value || '').trim().toLowerCase();
-}
 function hasUsableFilterValue(filter: FlightFilter): boolean {
   if (durationFilterTypes.includes(filter.filterType)) {
     return filter.maxDurationMinutes !== null;

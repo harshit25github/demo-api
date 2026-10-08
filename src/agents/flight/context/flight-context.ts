@@ -1,6 +1,11 @@
 import {
+  finiteNumber,
+  firstNonEmptyString,
   flightSegmentsFromSearch,
+  isRecord,
   mergeFlightSearchStates,
+  nonEmptyString,
+  nonNegativeInteger,
   normalizePassengerData,
   normalizeResolvedLocation,
   partialFlightSearchState,
@@ -106,40 +111,8 @@ const LEGACY_TOP_LEVEL_FLIGHT_KEYS = Object.freeze([
   'flight_estimated_cost_per_person',
 ]);
 
-function isRecord(value: unknown): value is MutableRecord {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
 function hasOwn(value: unknown, key: string): boolean {
   return isRecord(value) && Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function nonEmptyString(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const normalized = value.trim();
-  return normalized || null;
-}
-
-function firstNonEmptyString(...values: unknown[]): string | null {
-  for (const value of values) {
-    const normalized = nonEmptyString(value);
-    if (normalized) {
-      return normalized;
-    }
-  }
-  return null;
-}
-
-function finiteNumber(value: unknown): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function nonNegativeInteger(value: unknown, fallback = 0): number {
-  const parsed = finiteNumber(value);
-  return parsed === null || parsed < 0 ? fallback : Math.trunc(parsed);
 }
 
 function firstDefined(...values: any[]): any {

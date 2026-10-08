@@ -81,15 +81,3 @@ export interface FlightDateRange {
   startDate: string;
   endDate: string;
 }
-
-export interface FlightSearchDates {
-  outbound_date: string | null;
-  return_date: string | null;
-  trip_type?: string | null;
-  outboundDate?: string | null;
-  departureDate?: string | null;
-  departDate?: string | null;
-  returnDate?: string | null;
-  inbound_date?: string | null;
-  inboundDate?: string | null;
-}

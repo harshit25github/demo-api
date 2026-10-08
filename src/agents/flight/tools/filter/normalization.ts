@@ -4,6 +4,7 @@ import {
   resolveAirlineFilter,
   resolveFlightEndpointAirportFilter,
   resolveLayoverAirportFilter,
+  toSearchText,
 } from './source-matching.js';
 
 const filterTypeValues = [
@@ -123,10 +124,6 @@ interface DurationRange {
 interface PriceRange {
   minPrice?: number | null;
   maxPrice?: number | null;
-}
-
-function toSearchText(value: string | null | undefined): string {
-  return (value || '').trim().toLowerCase();
 }
 
 function durationToMinutes(value: string, unit?: string): number | null {
