@@ -75,8 +75,6 @@ interface FlightSuggestionTurn {
    * call, so without this snapshot the model would lose what it must not repeat.
    */
   previousSuggestions: string[];
-  /** False until Flight runs. A Manager turn that never reaches Flight keeps its suggestions. */
-  flightRan: boolean;
   /** Where this turn's entries begin in toolCallLog. */
   logStartLength: number;
   /** The entry just before the turn, to find the start again if the log was trimmed. */
@@ -110,10 +108,10 @@ function startTurn(
   previousSuggestions?: readonly string[],
 ): FlightSuggestionTurn {
   const entries = toolLog(appContext);
+  (appContext as FlightAppContext).flightRanThisTurn = flightRan;
   const turn: FlightSuggestionTurn = {
     requestId: requestIdOf(appContext),
     previousSuggestions: [...(previousSuggestions ?? liveSuggestions(appContext))],
-    flightRan,
     logStartLength: entries.length,
     logStartMarker: entries.length > 0 ? entries[entries.length - 1] : null,
   };
@@ -134,8 +132,8 @@ function currentTurn(appContext: object): FlightSuggestionTurn {
 /**
  * Start suggestion tracking for a user turn. Call it once per turn, after the
  * turn's requestId is set: the standalone runner passes `flightRan: true`, the
- * Manager passes `false` and Flight marks itself with
- * {@link markFlightSuggestionRun} when it actually runs.
+ * Manager passes `false` and Flight sets `flightRanThisTurn` on the context when
+ * it actually runs.
  *
  * Pass `previousSuggestions` when turn preparation may already have cleared the
  * live copy, so the model still sees what was on screen before this turn.
@@ -146,12 +144,6 @@ export function beginFlightSuggestionTurn(
 ): void {
   if (!context || typeof context !== 'object') return;
   startTurn(context, flightRan, previousSuggestions);
-}
-
-/** Record that Flight ran during the current turn. */
-export function markFlightSuggestionRun(context: unknown): void {
-  if (!context || typeof context !== 'object') return;
-  currentTurn(context).flightRan = true;
 }
 
 /** The suggestions shown before this turn began, for the prompt's anti-repeat block. */
@@ -462,7 +454,7 @@ export function finalizeFlightSuggestedQuestions(context: unknown): FlightSugges
   const appContext = ensureFlightRuntimeContext(context);
   const turn = existingTurn(appContext);
 
-  if (!turn || !turn.flightRan) {
+  if (!turn || !appContext.flightRanThisTurn) {
     // Flight never saw this turn, so nothing refreshed the suggestions and nothing
     // made them wrong. Turn preparation clears the live list when no search exists
     // yet, which would drop valid pre-search suggestions; put back what was shown.

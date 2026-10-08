@@ -66,6 +66,11 @@ export interface FlightAppContext extends Record<string, unknown> {
   tripPlanner?: Record<string, unknown>;
   summaryContext?: Record<string, unknown>;
   toolCallLog: unknown[];
+  /**
+   * Whether Flight ran during the current turn. beginFlightSuggestionTurn sets it
+   * at turn start; Flight's agent_start hook sets it true on the Manager path.
+   */
+  flightRanThisTurn?: boolean;
 }
 
 export interface FlightSearchRuntime {
