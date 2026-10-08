@@ -1,5 +1,4 @@
 import { tool } from '@openai/agents';
-import { modelFacingToolOutput } from '../model-output.js';
 import { getRequestState, getScopedRequestText } from '../../../../shared/runtime/request-context.js';
 import {
   getFlightSearchRuntime,
@@ -217,7 +216,7 @@ export const ApplyFilterTool = tool({
     });
 
     // TODO: Map real API response into tool output format here.
-    return modelFacingToolOutput('apply_filter', {
+    return {
       ok: true,
       source: 'dummy',
       message: 'Sample filtered flight results only. No live API was called.',
@@ -232,6 +231,6 @@ export const ApplyFilterTool = tool({
         filteredCount: filteredFlights.length,
       },
       flights: filteredFlights,
-    });
+    };
   },
 });

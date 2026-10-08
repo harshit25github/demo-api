@@ -29,24 +29,13 @@ export interface ModelCallUsage {
   cacheWriteTokens: number | null;
   reasoningTokens: number | null;
   latencyMs: number | null;
-  compactionEvents: number;
-  compactionThresholdTokens: number | null;
   functionToolCalls: number;
   hostedToolCalls: number;
   transportAttempts: { status: number | null; requestId: string | null; latencyMs: number; failed: boolean }[];
 }
-export interface ProjectionObservation {
-  source: 'tool' | 'history';
-  tool: string;
-  applied: boolean;
-  beforeBytes: number;
-  afterBytes: number;
-  reason: string;
-}
 export interface ChatTurnUsage extends UsageCorrelation {
   schemaVersion: 1;
   calls: ModelCallUsage[];
-  projections: ProjectionObservation[];
   inputTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;
@@ -96,7 +85,6 @@ export function normalizeResponseUsage(response: unknown) {
 
 export class UsageCollector {
   readonly calls: ModelCallUsage[] = [];
-  readonly projections: ProjectionObservation[] = [];
   private readonly startedAt = performance.now();
   private firstDeltaMs: number | null = null;
   private readonly responseIds = new Set<string>();
@@ -108,7 +96,7 @@ export class UsageCollector {
       endpoint: 'responses.create', responseId: null, providerRequestId: null,
       status: 'running', usageSource: 'missing', inputTokens: null, outputTokens: null,
       totalTokens: null, cachedInputTokens: null, cacheWriteTokens: null, reasoningTokens: null,
-      latencyMs: null, compactionEvents: 0, compactionThresholdTokens: null, functionToolCalls: 0, hostedToolCalls: 0, transportAttempts: [],
+      latencyMs: null, functionToolCalls: 0, hostedToolCalls: 0, transportAttempts: [],
     };
     this.calls.push(call);
     return call;
@@ -130,7 +118,6 @@ export class UsageCollector {
       model: identifier(provider.model) ?? call.model, status: 'completed',
       serviceTier: identifier(provider.service_tier),
       latencyMs: performance.now() - startedAt,
-      compactionEvents: Array.isArray(r.output) ? r.output.filter((i) => record(i).type === 'compaction').length : 0,
       functionToolCalls: Array.isArray(r.output) ? r.output.filter((i) => record(i).type === 'function_call').length : 0,
       hostedToolCalls: Array.isArray(provider.output) ? provider.output.filter((i) => ['web_search_call', 'file_search_call', 'code_interpreter_call'].includes(String(record(i).type))).length : 0,
     });
@@ -158,7 +145,7 @@ export class UsageCollector {
       this.calls.length > 0 && this.calls.every((c) => c[key] !== null && !c.transportAttempts.some((a) => a.failed))
         ? this.calls.reduce((n, c) => n + c[key]!, 0) : null;
     return structuredClone({
-      ...this.correlation, schemaVersion: 1 as const, calls: this.calls, projections: this.projections,
+      ...this.correlation, schemaVersion: 1 as const, calls: this.calls,
       inputTokens: sum('inputTokens'), outputTokens: sum('outputTokens'), totalTokens: sum('totalTokens'),
       complete: this.calls.length > 0 && this.calls.every((c) => c.status === 'completed' && c.inputTokens !== null && c.outputTokens !== null && c.totalTokens !== null && !c.transportAttempts.some((a) => a.failed)),
       firstDeltaMs: this.firstDeltaMs, latencyMs: performance.now() - this.startedAt,
@@ -200,9 +187,6 @@ export function observeModelInput<T extends { agent: { name: string }; modelData
   if (scope) { scope.agent = args.agent.name; scope.diagnosticCallSequence = diagnosticCallSequence; }
   return args.modelData;
 }
-export function observeProjection(observation: ProjectionObservation): void {
-  currentUsageCollector()?.projections.push(observation);
-}
 
 // The provider boundary includes failed retry attempts; final-result-only accounting misses them.
 // Proxy keeps provider capabilities/instance identity and binds private-field methods correctly.
@@ -213,7 +197,6 @@ export function instrumentModel(model: Model, modelName: string): Model {
         const scope = usageScope.getStore();
         const startedAt = performance.now();
         const call = scope?.collector.start(scope.agent, modelName, scope.diagnosticCallSequence);
-        if (call) call.compactionThresholdTokens = count(request.modelSettings?.contextManagement?.find((entry) => entry.type === 'compaction')?.compactThreshold ?? request.modelSettings?.contextManagement?.find((entry) => entry.type === 'compaction')?.compact_threshold);
         try {
           const response = await modelCallScope.run(call, () => target.getResponse(request));
           if (call) scope!.collector.complete(call, response, startedAt);
@@ -227,7 +210,6 @@ export function instrumentModel(model: Model, modelName: string): Model {
         const scope = usageScope.getStore();
         const startedAt = performance.now();
         const call = scope?.collector.start(scope.agent, modelName, scope.diagnosticCallSequence);
-        if (call) call.compactionThresholdTokens = count(request.modelSettings?.contextManagement?.find((entry) => entry.type === 'compaction')?.compactThreshold ?? request.modelSettings?.contextManagement?.find((entry) => entry.type === 'compaction')?.compact_threshold);
         const iterator = target.getStreamedResponse(request)[Symbol.asyncIterator]();
         try {
           while (true) {

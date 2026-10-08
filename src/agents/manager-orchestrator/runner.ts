@@ -31,10 +31,7 @@ export interface ManagerRunOptions {
   session?: Session;
   /** Cancels the turn when the client disconnects. */
   signal?: AbortSignal;
-  /**
-   * Substitute Runner, for benchmarks that need different run configuration
-   * (see scripts/evaluate-session-optimization.ts). Production uses the default.
-   */
+  /** Substitute Runner, for tests that fake the run. Production uses the default. */
   runner?: Pick<Runner, 'run'>;
 }
 

@@ -1,7 +1,6 @@
 import { generateTraceId, withTrace } from '@openai/agents';
 import { MaxTurnsExceededError, MemorySession, Runner } from '@openai/agents';
-import { ObservedModelProvider, UsageCollector, withUsageCollector } from '../../shared/observability/model-usage.js';
-import { createHistoryInputFilter } from '../manager-orchestrator/history-policy.js';
+import { ObservedModelProvider, observeModelInput, UsageCollector, withUsageCollector } from '../../shared/observability/model-usage.js';
 import { randomUUID } from 'node:crypto';
 import { FlightAgent } from './agent.js';
 import { flightAgentConfig } from './config.js';
@@ -24,7 +23,7 @@ import { buildFlightCoreSuccessFallback } from './context/recovery-outcome.js';
 
 export const flightAgentRunner = new Runner({
   modelProvider: new ObservedModelProvider(),
-  callModelInputFilter: createHistoryInputFilter(),
+  callModelInputFilter: observeModelInput,
   model: flightAgentConfig.model,
   modelSettings: { ...flightAgentConfig.modelSettings, preserveRawUsage: true },
   workflowName: 'flight-agent',

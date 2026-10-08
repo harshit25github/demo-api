@@ -1,5 +1,4 @@
 import { tool } from '@openai/agents';
-import { modelFacingToolOutput } from './model-output.js';
 import { z } from 'zod';
 import { setActiveFlightSearch } from '../context/flight-context.js';
 import {
@@ -554,6 +553,6 @@ export const FlightSearchTool = tool({
       input,
     });
 
-    return modelFacingToolOutput('flight_search', result);
+    return result;
   },
 });
