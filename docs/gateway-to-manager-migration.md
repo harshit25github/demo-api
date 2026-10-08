@@ -60,12 +60,11 @@ If production is on an older version (this repo's handoff-era commit `0892aec` w
 |---|---|---|
 | [manager/specialists/flight.ts](../src/agents/manager/specialists/flight.ts) | `flightAgentAsTool`: direct `FlightManagerAgent.asTool()` registration | Step 3, existing Flight suggestion lifecycle |
 | [manager/specialists/trip-planner.ts](../src/agents/manager/specialists/trip-planner.ts) | `tripPlannerAgentAsTool`: direct registration with existing Trip preparation/finalization | existing Trip lifecycle and output policy |
-| [manager/tools.ts](../src/agents/manager/tools.ts) | Re-exports the two configured tools | specialist registrations |
 
 **Edits while copying:**
-- **[manager-orchestrator/agent.ts](../src/agents/manager-orchestrator/agent.ts):** if production has no real Trip Planner agent, register only `flightAgentAsTool`, and drop the `tripPlannerAgentAsTool` re-export from [manager/tools.ts](../src/agents/manager/tools.ts). The old Policy and Page dummy specialists are **not** registered; the Manager declines those topics through its prompt.
+- **[manager-orchestrator/agent.ts](../src/agents/manager-orchestrator/agent.ts)** imports both tools straight from `manager/specialists/*`; there is no re-export module. If production has no real Trip Planner agent, register only `flightAgentAsTool` and drop the Trip import. The old Policy and Page dummy specialists are **not** registered; the Manager declines those topics through its prompt.
 - **[specialists/flight.ts](../src/agents/manager/specialists/flight.ts)**, the `agent_start` hook: keep it only if production has the `update_flight_suggested_questions` tool. Otherwise delete it and the import.
-- **`flightAgentConfig.maxTurns`:** add it to your Flight config if it isn't there. This repo uses `Number(process.env.FLIGHT_AGENT_MAX_TURNS || 10)` ([flight/config.ts:88](../src/agents/flight/config.ts#L88)).
+- **`flightAgentConfig.maxTurns`:** add it to your Flight config if it isn't there. This repo uses `Number(process.env.FLIGHT_AGENT_MAX_TURNS || 10)` ([flight/config.ts:87](../src/agents/flight/config.ts#L87)).
   - **Check the production env value.** The Gateway-era default was 4, and this repo's `.env.example` still sets `FLIGHT_AGENT_MAX_TURNS=4`.
   - Inside the Manager, this budget covers only Flight's own nested run, and every tool call plus the final structured output costs one turn. A chain like prediction → search → filter → suggestions → final output needs 5.
   - With a limit of 4, that run stops early and becomes a failed tool call (see [Behavior to know](#behavior-to-know)).
@@ -76,9 +75,9 @@ If production is on an older version (this repo's handoff-era commit `0892aec` w
 
 Your existing `FlightAgent` stays as it is. Add a second agent that shares its definition but returns structured feedback.
 
-**3a. Output schema.** Copy [flight/manager-output.ts:19-30](../src/agents/flight/manager-output.ts#L19-L30) (`flightManagerOutputSchema`) into your Flight module. Lines 32-61 of that file are the Manager-mode prompt; move them with the prompts.
+**3a. Output schema.** Copy [flight/manager-output.ts:19-28](../src/agents/flight/manager-output.ts#L19-L28) (`flightManagerOutputSchema`) into your Flight module. Lines 30-59 of that file are the Manager-mode prompt; move them with the prompts.
 
-**3b. The agent.** This is the pattern from [flight/agent.ts:268-285](../src/agents/flight/agent.ts#L268-L285). Pull your current Flight `Agent` options into a shared object, then build both agents from it:
+**3b. The agent.** This is the pattern from [flight/agent.ts:253-270](../src/agents/flight/agent.ts#L253-L270). Pull your current Flight `Agent` options into a shared object, then build both agents from it:
 
 ```ts
 const flightAgentDefinition = {
@@ -171,9 +170,9 @@ const output = String(result.finalOutput ?? '');
 - This repo still applies `sanitizeNoLinks` / `assertNoLinks` to the Manager's final text. Keep the existing output policy, not a new composition pipeline.
 
 **If production has `update_flight_suggested_questions` (Manager requirement):** copy these three spots too.
-- [runner.ts:81](../src/agents/manager-orchestrator/runner.ts#L81) captures the suggestions shown before the turn.
-- [runner.ts:87-90](../src/agents/manager-orchestrator/runner.ts#L87-L90) calls `beginFlightSuggestionTurn(appContext, { flightRan: false, previousSuggestions })` before the run.
-- [runner.ts:136-140](../src/agents/manager-orchestrator/runner.ts#L136-L140) calls `finalizeFlightSuggestedQuestions(appContext)` in a `finally` after the run.
+- [runner.ts:74](../src/agents/manager-orchestrator/runner.ts#L74) captures the suggestions shown before the turn.
+- [runner.ts:80-83](../src/agents/manager-orchestrator/runner.ts#L80-L83) calls `beginFlightSuggestionTurn(appContext, { flightRan: false, previousSuggestions })` before the run.
+- [runner.ts:129-133](../src/agents/manager-orchestrator/runner.ts#L129-L133) calls `finalizeFlightSuggestedQuestions(appContext)` in a `finally` after the run.
 
 This is needed because the Manager may answer a turn without calling Flight. A handoff always reached Flight once it was selected.
 
@@ -185,7 +184,7 @@ This is needed because the Manager may answer a turn without calling Flight. A h
 |---|---|
 | Final agent was `FlightAgent`, so show cards | Use shared `flightContext.showFlight`, results, and per-contract `display`; final text and agent identity do not control cards |
 | `context.gatewaySelections` (from `onHandoff`) | No production specialist tracking; tests/scripts may inspect SDK `result.newItems` |
-| Flight wrote the final reply after a handoff | Manager writes the final reply; [streaming.ts](../src/agents/manager-orchestrator/streaming.ts) retains the existing one-chunk compatibility adapter |
+| Flight wrote the final reply after a handoff | Manager writes the final reply; `runGatewayAgent` returns it whole as `output`, with no stream adapter |
 
 The call site is [api/chat/orchestrator.ts](../src/api/chat/orchestrator.ts). It sends final text and shared Flight context without Manager-specific `specialistsUsed` or `renderFlightOptions` fields. Existing optional historical schema fields remain for compatibility but are not newly written.
 
@@ -198,7 +197,7 @@ The dashboard clears old card DOM and renders current shared state at completion
 With a handoff, Flight saw the whole user message. As a tool, it gets only the Manager's subtask. The filter tool parses filter wording from the user's text, so on a mixed message ("find flights to Dubai and plan my trip") it should read the subtask:
 
 - Add `getScopedRequestText` ([request-context.ts:46-73](../src/shared/runtime/request-context.ts#L46-L73)) to your request-context file.
-- In your filter tool, read `getScopedRequestText(context, appContext.currentUserMessage)` instead of `appContext.currentUserMessage` ([filter/tool.ts:67](../src/agents/flight/tools/filter/tool.ts#L67)).
+- In your filter tool, read `getScopedRequestText(context, appContext.currentUserMessage)` instead of `appContext.currentUserMessage` ([filter/tool.ts:66](../src/agents/flight/tools/filter/tool.ts#L66)).
 
 **Check only, nothing to change if true:** every Flight tool and the Flight `instructions` builder read state through `getRequestState(runContext.context)`, never `runContext.context.flight` directly.
 
@@ -261,11 +260,12 @@ Move these separately; this guide does not copy them.
 | Manager, dynamic state block and subtask-scope rules | [manager-prompt.ts](../src/agents/manager-orchestrator/manager-prompt.ts), `buildManagerInstructions`. This function **is** the Manager's `instructions`; move it whole |
 | Flight, Manager-mode addendum | [manager-output.ts](../src/agents/flight/manager-output.ts), `FLIGHT_MANAGER_INSTRUCTIONS` |
 | Flight tool description (routing text the Manager reads) | [specialists/flight.ts](../src/agents/manager/specialists/flight.ts), `FLIGHT_TOOL_DESCRIPTION` |
-| Flight base and dynamic prompt | existing [prompt.ts](../src/agents/flight/prompt.ts) and [agent.ts](../src/agents/flight/agent.ts), unchanged by this architecture simplification |
+| Flight base and dynamic prompt | existing [prompt.ts](../src/agents/flight/prompt.ts), [agent.ts](../src/agents/flight/agent.ts) and [date/prompt-context.ts](../src/agents/flight/date/prompt-context.ts); the architecture does not require changing them |
 
 Notes on these prompts:
 - `MANAGER_PROMPT` names `trip_planner_agent` and offers trip planning elsewhere. If you register only Flight, remove those references when you move the prompt.
-- Rule 6 tells the Manager to include the Trip plan once in its own formatting. [manager-prompt.ts:85](../src/agents/manager-orchestrator/manager-prompt.ts#L85) still says "do not … repeat a large rendered itinerary", which the model could read as "leave it out". Reword one of them when you move the prompt.
+- This repo's Flight prompt has picked up rules from live Manager testing, for example "never ask which leg a filter covers, even when the subtask raises that question" (`apply_filter` section of [prompt.ts](../src/agents/flight/prompt.ts)) and "no date after the booking window can be searched or predicted" ([date/prompt-context.ts](../src/agents/flight/date/prompt-context.ts)). Diff it against production's Flight prompt and port what is missing.
+- Rule 6 tells the Manager to include the Trip plan once in its own formatting. [manager-prompt.ts:78](../src/agents/manager-orchestrator/manager-prompt.ts#L78) still says "do not … repeat a large rendered itinerary", which the model could read as "leave it out". Reword one of them when you move the prompt.
 - The old Gateway prompt in [manager-prompt.ts](../src/agents/manager-orchestrator/manager-prompt.ts) is kept for reference only. Don't move it.
 
 ---
@@ -273,9 +273,8 @@ Notes on these prompts:
 ## Not part of this migration
 
 - Context hydration and persistence ([api/chat/context-hydration.ts](../src/api/chat/context-hydration.ts)), the Summary extractor, and the chat store: unchanged.
-- [flight/runner.ts](../src/agents/flight/runner.ts) and [history-policy.ts](../src/agents/manager-orchestrator/history-policy.ts): standalone Flight path only.
-- [output-guardrail.ts](../src/agents/manager-orchestrator/output-guardrail.ts): used only by Trip Planner.
-- Trip Planner ([specialists/trip-planner.ts](../src/agents/manager/specialists/trip-planner.ts)): only if production has a real Trip Planner agent. It brings its own lifecycle dependencies.
+- [flight/runner.ts](../src/agents/flight/runner.ts): standalone Flight path only.
+- Trip Planner ([specialists/trip-planner.ts](../src/agents/manager/specialists/trip-planner.ts)): only if production has a real Trip Planner agent. It brings its own lifecycle dependencies, including its scope and link policy, `sanitizeTripPlannerOutput` in [trip-planner/scope-policy.ts](../src/agents/trip-planner/scope-policy.ts).
 
 ---
 
