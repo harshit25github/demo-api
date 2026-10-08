@@ -7,7 +7,6 @@ import {
   finalizeFlightSuggestedQuestions,
   findSuggestedQuestionIssues,
   hasFlightTravelContext,
-  markFlightSuggestionRun,
   previousFlightSuggestions,
   updateFlightSuggestedQuestions,
 } from '../../src/agents/flight/tools/suggested-questions-tool.js';
@@ -422,7 +421,7 @@ test('finalize leaves suggestions alone on a Manager turn Flight never ran', () 
   assert.deepEqual(context.flight.suggestedQuestions, FRESH);
 
   beginFlightSuggestionTurn(context, { flightRan: false });
-  markFlightSuggestionRun(context);
+  context.flightRanThisTurn = true;
   assert.equal(finalizeFlightSuggestedQuestions(context).cleared, true);
   assert.deepEqual(context.flight.suggestedQuestions, []);
 });

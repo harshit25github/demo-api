@@ -8,7 +8,7 @@ process.env.OPENAI_API_KEY ||= 'test-key';
 const { RunContext, Runner, Usage } = await import('@openai/agents');
 const { ManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
 const { buildGatewayContext, runGatewayAgent } = await import('../../src/agents/manager-orchestrator/runner.js');
-const { beginFlightSuggestionTurn, finalizeFlightSuggestedQuestions, markFlightSuggestionRun } =
+const { beginFlightSuggestionTurn, finalizeFlightSuggestedQuestions } =
   await import('../../src/agents/flight/tools/suggested-questions-tool.js');
 const { flightAgentAsTool } = await import('../../src/agents/manager/specialists/flight.js');
 const { FlightManagerAgent } = await import('../../src/agents/flight/agent.js');
@@ -181,7 +181,7 @@ test('existing Flight suggestion finalization runs even if the Manager throws', 
   const context: any = { flight: { searchKey: 'manager-active-search', suggestedQuestions: [...SHOWN_LAST_TURN] } };
   await assert.rejects(runGatewayAgent({ input: 'Show nonstop flights', context,
     runner: { async run(_agent: unknown, _input: unknown, options: any) {
-      markFlightSuggestionRun(getRequestState(options.context)); throw new Error('MANAGER_RUN_FAILED');
+      getRequestState(options.context).flightRanThisTurn = true; throw new Error('MANAGER_RUN_FAILED');
     } } as any }), /MANAGER_RUN_FAILED/);
   assert.deepEqual(context.flight.suggestedQuestions, []);
 });
