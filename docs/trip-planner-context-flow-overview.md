@@ -1448,6 +1448,9 @@ Observations:
 
 ## `validate_trip_date`
 
+> Removed on 2026-10-11, after these runs. Trip now resolves dates from the hydrated
+> `turn_clock` and decides `web_search` itself; see `docs/trip-planner-agent-integration.md` 5.2.
+
 Used for:
 
 - Natural exact range after resolution (`sep 10 to 14`).

@@ -116,8 +116,7 @@ Dynamic prompt is evaluated again: phase=planning
   |
   v
 Optional planning tools
-  - validate_trip_date
-  - web_search
+  - web_search (Trip decides when, from turn_clock)
   - get_trip_planner_context_details
   - existing image tool when required
   |
@@ -451,7 +450,6 @@ stored hoti hai, jaise:
 - `planningBrief`
 - `turnState`
 - `previousSuggestedQuestions`
-- `dateValidationState`
 - `placeImageCache`
 - `lastPlanArtifact`
 - `lastPlanSnapshot`
@@ -590,84 +588,15 @@ context mein merge karna.
 
 ---
 
-### 5.2 `validate_trip_date`
+### 5.2 `validate_trip_date` (removed)
 
-**Purpose:** Exact date ya vague month/event intent ko validate karna aur batana ki web
-search required hai ya optional.
-
-**Trigger:** Sirf jab `turn_plan.tools.dateValidation` action `call` ho.
-
-**Input schema:**
-
-```ts
-{
-  candidateDate?: string | null; // Full YYYY-MM-DD only
-  eventKeyword?: string | null;  // Month/event/destination wording
-}
-```
-
-**Typical output statuses:**
-
-- `valid_exact_date`
-- `valid_month_range`
-- `event_requires_search`
-- `needs_clarification`
-
-Common output fields:
-
-```ts
-{
-  ok: boolean;
-  status: string;
-  feedback: "OK" | "SEARCH_OPTIONAL" | "SEARCH_REQUIRED";
-  validatedDate?: string;
-  startDate?: string;
-  endDate?: string;
-  searchQuery?: string;
-  messageForAgent: string;
-  cached: boolean;
-  isDummy: true;
-}
-```
-
-**Reads:**
-
-- Prior `dateValidationState`.
-- Current planning strategy.
-
-**Updates:**
-
-- `context.tripPlanner.dateValidationState`.
-- Tool-call logs.
-
-**Example call:**
-
-```json
-{
-  "candidateDate": null,
-  "eventKeyword": "Oktoberfest Munich"
-}
-```
-
-**Example response:**
-
-```json
-{
-  "ok": true,
-  "status": "event_requires_search",
-  "feedback": "SEARCH_REQUIRED",
-  "searchQuery": "Oktoberfest Munich official dates and visitor information",
-  "messageForAgent": "Call web_search once with searchQuery, then continue planning.",
-  "cached": false,
-  "isDummy": true
-}
-```
-
-**Failure behavior:**
-
-- Invalid exact date: `needs_clarification`.
-- Ambiguous wording: general planning continue ya one focused date question.
-- Same fingerprint: cached output reuse; duplicate call avoid hota hai.
+Removed on 2026-10-11. The request clock is hydrated into Trip's dynamic context as
+`<turn_clock>today=YYYY-MM-DD|time_zone=...</turn_clock>`. Trip resolves relative and
+year-less dates from it and decides by itself when `web_search` is needed;
+`turn_plan.tools` shows `webSearch:agent_decides`. The useful rules of the old tool now
+live in the prompt: a year-less month or date means its next occurrence, vague timing
+stays in `date_hint` and is planned at month level, events are researched against their
+official dates, and timing is raised at most once.
 
 ---
 
@@ -735,8 +664,7 @@ mein copy nahi karne chahiye.
 **Reads:**
 
 - Current model turn.
-- `turn_plan.tools.webSearch`.
-- Date validator feedback where applicable.
+- `turn_clock` and the saved trip dates, to anchor the query to the trip window.
 
 **Context updates:**
 
