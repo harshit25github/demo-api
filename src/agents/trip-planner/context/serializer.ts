@@ -104,6 +104,9 @@ export function buildTripPlannerCompactContext({
     brief.toolState.availableImageAssets?.[0]
       ? `image_asset=${brief.toolState.availableImageAssets[0].itemCode}|${brief.toolState.availableImageAssets[0].imageUrl}`
       : null,
+    Object.keys(tripPlannerState.placeImageCache || {}).length
+      ? `image_cache=${Object.keys(tripPlannerState.placeImageCache).join(',')}`
+      : null,
     `last_plan=${tripPlannerState.lastPlanArtifact?.id || 'none'}`,
   ].filter((line): line is string => Boolean(line));
 
