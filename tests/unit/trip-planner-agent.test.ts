@@ -24,7 +24,6 @@ import {
   TRIP_PLANNER_TOOL_NAMES,
   UpdateTripPlannerContextTool as UpdateTripPlannerContextToolDefinition,
   UpdateTripPlannerSuggestedQuestionsTool as UpdateTripPlannerSuggestedQuestionsToolDefinition,
-  ValidateTripDateTool as ValidateTripDateToolDefinition,
 } from '../../src/agents/trip-planner/tools/index.js';
 import {
   buildTripPlannerCompactContext,
@@ -34,6 +33,8 @@ import {
   applyTripPlannerContextUpdate,
   prepareTripPlannerTurn,
 } from '../../src/agents/trip-planner/context/lifecycle.js';
+import { createRequestContext } from '../../src/shared/runtime/request-context.js';
+import { createRequestClock } from '../../src/shared/time/request-clock.js';
 
 const TripPlannerAgent: any = TripPlannerAgentDefinition;
 const GetTripPlannerContextDetailsTool: any = GetTripPlannerContextDetailsToolDefinition;
@@ -41,7 +42,6 @@ const GetPlaceImagesBatchTool: any = GetPlaceImagesBatchToolDefinition;
 const UpdateTripPlannerContextTool: any = UpdateTripPlannerContextToolDefinition;
 const UpdateTripPlannerSuggestedQuestionsTool: any =
   UpdateTripPlannerSuggestedQuestionsToolDefinition;
-const ValidateTripDateTool: any = ValidateTripDateToolDefinition;
 
 const fullContext = {
   pax: 2,
@@ -65,7 +65,7 @@ const fullContext = {
 };
 
 describe('Dummy Trip Planner Agent setup', () => {
-  it('uses gpt-5.2 with hosted web search and five local tools', () => {
+  it('uses gpt-5.2 with hosted web search and four local tools', () => {
     assert.equal(tripPlannerAgentConfig.model, 'gpt-5.2');
     assert.equal(tripPlannerAgentConfig.modelSettings.text.verbosity, 'low');
     const toolNames = TripPlannerAgent.tools.map((tool) => tool.name).sort();
@@ -276,11 +276,12 @@ describe('Dummy Trip Planner Agent setup', () => {
     assert.equal(brief.responseStrategy.seasonPolicy, 'one_relevant_trip_season_note');
     assert.equal(brief.responseStrategy.budgetPolicy, 'compact_two_column_table');
     assert.equal(brief.responseStrategy.requiresAllTimeBlocks, true);
-    assert.equal(brief.toolStrategy.dateValidation.action, 'call');
-    assert.deepEqual(brief.toolStrategy.dateValidation.input, {
-      candidateDate: '2026-09-10',
-      eventKeyword: null,
-    });
+    assert.deepEqual(Object.keys(brief.toolStrategy).sort(), [
+      'contextCapture',
+      'contextDetails',
+      'images',
+      'suggestedQuestions',
+    ]);
     assert.deepEqual(brief.toolStrategy.images, { action: 'call', itemCodes: ['PAR'] });
   });
 
@@ -693,82 +694,33 @@ describe('Dummy Trip Planner Agent setup', () => {
     assert.match(TRIP_PLANNER, /<\/privacy_and_identity_guardrail>/);
   });
 
-  it('routes tricky freshness intents without lexical false positives', () => {
-    const cases = [
-      {
-        input: 'Which festivals are happening this month?',
-        action: 'after_date_validation_if_required',
-        category: 'event',
-        eventKeyword: /festivals this month Paris/i,
-      },
-      {
-        input: 'Rain may affect tomorrow. Check the forecast.',
-        action: 'after_date_validation_if_required',
-        category: 'weather',
-        eventKeyword: /weather forecast tomorrow Paris/i,
-      },
-      {
-        input: 'Any newly opened attractions worth adding?',
-        action: 'call_once_for_current_fact',
-        category: 'new_opening',
-      },
-      {
-        input: 'The Louvre may be closed for maintenance. Verify it.',
-        action: 'call_once_for_current_fact',
-        category: 'temporary_disruption',
-      },
-      {
-        input: 'Check current visa and travel advisories.',
-        action: 'call_once_for_current_fact',
-        category: 'travel_advisory',
-      },
-      {
-        input: 'Keep the current itinerary, but make day 2 lighter.',
-        action: 'not_needed',
-      },
-      {
-        input: 'Give it a festival-like atmosphere, not a specific festival or event.',
-        action: 'not_needed',
-      },
-    ];
+  it('hydrates the request clock and leaves the web research decision to the agent', () => {
+    const state = {
+      summaryContext: fullContext,
+      tripPlanner: { currentUserMessage: 'Which festivals are on during our dates?' },
+    };
+    const clock = createRequestClock({ now: '2026-10-11T10:00:00Z', timeZone: 'Asia/Kolkata' });
+    const dynamic = buildTripPlannerDynamicContext({ context: createRequestContext(state, clock) });
 
-    for (const testCase of cases) {
-      const brief = buildTripPlannerPlanningBrief({
+    assert.match(dynamic, /<turn_clock>\ntoday=2026-10-11\|time_zone=Asia\/Kolkata\n<\/turn_clock>/);
+    assert.match(dynamic, /webSearch:agent_decides/);
+    assert.match(dynamic, /web_search is your decision/);
+    assert.doesNotMatch(dynamic, /dateValidation|validate_trip_date|webSearch:call/);
+    assert.match(buildTripPlannerDynamicContext({ context: state }), /today=unknown/);
+    assert.doesNotMatch(TRIP_PLANNER, /validate_trip_date|SEARCH_REQUIRED|candidateDate|eventKeyword/);
+    assert.match(TRIP_PLANNER, /You own this decision/);
+    assert.match(TRIP_PLANNER, /next occurrence; the current month still counts/);
+
+    const excluded = buildTripPlannerDynamicContext({
+      context: {
         summaryContext: fullContext,
-        currentUserMessage: testCase.input,
-        tripPlannerState: {},
-      });
-      assert.equal(brief.toolStrategy.webSearch.action, testCase.action, testCase.input);
-      if (testCase.category) {
-        assert.equal(
-          brief.toolStrategy.webSearch.categories.includes(testCase.category),
-          true,
-          testCase.input,
-        );
-      }
-      if (testCase.eventKeyword) {
-        assert.match(
-          brief.toolStrategy.dateValidation.input.eventKeyword,
-          testCase.eventKeyword,
-          testCase.input,
-        );
-      }
-    }
-  });
-
-  it('requires search for an event phrase even when it also contains a month range', async () => {
-    const output = await ValidateTripDateTool.invoke(
-      { context: {} },
-      JSON.stringify({
-        candidateDate: null,
-        eventKeyword: 'festivals this month Singapore',
-      }),
-      {},
-    );
-
-    assert.equal(output.status, 'event_requires_search');
-    assert.equal(output.feedback, 'SEARCH_REQUIRED');
-    assert.match(output.searchQuery, /festivals this month Singapore/i);
+        tripPlanner: {
+          currentUserMessage: 'Find a hotel in Paris',
+          scopeClassification: { mode: 'excluded', categories: ['accommodation'] },
+        },
+      },
+    });
+    assert.match(excluded, /webSearch:not_needed/);
   });
 
   it('configures hosted OpenAI web search for live current information', () => {
@@ -801,11 +753,6 @@ describe('Dummy Trip Planner Agent setup', () => {
       }),
       {},
     );
-    const validated = await ValidateTripDateTool.invoke(
-      runContext,
-      JSON.stringify({ candidateDate: '2026-09-10', eventKeyword: null }),
-      {},
-    );
     const images = await GetPlaceImagesBatchTool.invoke(
       runContext,
       JSON.stringify({ itemCodes: ['PAR', 'ROM'] }),
@@ -830,7 +777,6 @@ describe('Dummy Trip Planner Agent setup', () => {
     );
 
     assert.equal(capture.status, 'SUCCESS');
-    assert.equal(validated.status, 'valid_exact_date');
     assert.equal(images.images.length, 2);
     assert.equal(images.images.every((image) => image.imageUrl.includes('example.test')), true);
     assert.equal(details.details.places.length, 1);
@@ -840,7 +786,6 @@ describe('Dummy Trip Planner Agent setup', () => {
       context.toolCallLog.map((entry) => entry.tool),
       [
         TRIP_PLANNER_TOOL_NAMES.updateContext,
-        TRIP_PLANNER_TOOL_NAMES.validateTripDate,
         TRIP_PLANNER_TOOL_NAMES.getPlaceImagesBatch,
         TRIP_PLANNER_TOOL_NAMES.getContextDetails,
         TRIP_PLANNER_TOOL_NAMES.updateSuggestedQuestions,
@@ -848,21 +793,13 @@ describe('Dummy Trip Planner Agent setup', () => {
     );
   });
 
-  it('reuses local date and image results without changing tool contracts', async () => {
+  it('reuses local image results without changing tool contracts', async () => {
     const context: any = {};
     const runContext = { context };
-    const dateInput = JSON.stringify({
-      candidateDate: '2026-09-10',
-      eventKeyword: null,
-    });
     const imageInput = JSON.stringify({ itemCodes: ['PAR'] });
-    const firstDate = await ValidateTripDateTool.invoke(runContext, dateInput, {});
-    const secondDate = await ValidateTripDateTool.invoke(runContext, dateInput, {});
     const firstImages = await GetPlaceImagesBatchTool.invoke(runContext, imageInput, {});
     const secondImages = await GetPlaceImagesBatchTool.invoke(runContext, imageInput, {});
 
-    assert.equal(firstDate.cached, false);
-    assert.equal(secondDate.cached, true);
     assert.equal(firstImages.cached, false);
     assert.equal(secondImages.cached, true);
 
@@ -871,7 +808,6 @@ describe('Dummy Trip Planner Agent setup', () => {
       currentUserMessage: 'Plan my trip',
       tripPlannerState: context.tripPlanner,
     });
-    assert.equal(brief.toolStrategy.dateValidation.action, 'reuse');
     assert.equal(brief.toolStrategy.images.action, 'reuse');
   });
 

@@ -123,12 +123,10 @@ export function invalidateTripPlannerKnowledge(context: TripPlannerContextRecord
       destinationCode && matchingImage
         ? { [destinationCode]: matchingImage }
         : {};
-    state.dateValidationState = null;
     return;
   }
   if (datesChanged) {
     context.summaryContext.upcomingEvents = [];
-    state.dateValidationState = null;
   }
 }
 

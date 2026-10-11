@@ -31,7 +31,6 @@ import {
   GetTripPlannerContextDetailsTool as GetTripPlannerContextDetailsToolDefinition,
   UpdateTripPlannerContextTool as UpdateTripPlannerContextToolDefinition,
   UpdateTripPlannerSuggestedQuestionsTool as UpdateTripPlannerSuggestedQuestionsToolDefinition,
-  ValidateTripDateTool as ValidateTripDateToolDefinition,
 } from '../../src/agents/trip-planner/tools/index.js';
 
 const TripPlannerAgent: any = TripPlannerAgentDefinition;
@@ -40,7 +39,6 @@ const GetTripPlannerContextDetailsTool: any = GetTripPlannerContextDetailsToolDe
 const UpdateTripPlannerContextTool: any = UpdateTripPlannerContextToolDefinition;
 const UpdateTripPlannerSuggestedQuestionsTool: any =
   UpdateTripPlannerSuggestedQuestionsToolDefinition;
-const ValidateTripDateTool: any = ValidateTripDateToolDefinition;
 
 function completeContext(overrides = {}) {
   return createTripPlannerSummaryContext({
@@ -487,8 +485,6 @@ describe('Trip Planner optimization and scope policy', () => {
     const context = preparedContext('Find a hotel in Paris');
     const runContext = { context };
 
-    assert.equal(context.tripPlanner.planningBrief.toolStrategy.webSearch.action, 'not_needed');
-    assert.equal(await ValidateTripDateTool.isEnabled(runContext, TripPlannerAgent), false);
     assert.equal(await GetPlaceImagesBatchTool.isEnabled(runContext, TripPlannerAgent), false);
     assert.equal(
       await GetTripPlannerContextDetailsTool.isEnabled(runContext, TripPlannerAgent),

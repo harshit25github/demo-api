@@ -7,7 +7,6 @@ interface ToolRunContext {
 }
 
 export const TRIP_PLANNER_TOOL_NAMES = {
-  validateTripDate: 'validate_trip_date',
   getPlaceImagesBatch: 'get_place_images_batch',
   webSearch: 'web_search',
   getContextDetails: 'get_trip_planner_context_details',

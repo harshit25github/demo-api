@@ -1,7 +1,6 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const TOOLS = {
-  date: 'validate_trip_date',
   image: 'get_place_images_batch',
   web: 'web_search',
   details: 'get_trip_planner_context_details',
@@ -145,7 +144,7 @@ export function createTripPlannerContextJourneyChats({
           userMessage: emptyDates.label.toLowerCase(),
           expectedBehavior:
             'Resolve the natural date range, preserve the current trip, and validate the new outbound date once.',
-          expectedTools: [TOOLS.date, TOOLS.update],
+          expectedTools: [TOOLS.update],
           expectedRenderMode: 'compact_patch',
           expectedContext: [
             exact('outbound_date', emptyDates.outbound),
@@ -202,7 +201,7 @@ export function createTripPlannerContextJourneyChats({
           userMessage: 'next month',
           expectedBehavior:
             'Use the known route, validate the vague month intent, avoid inventing exact dates, and ask only for useful missing detail.',
-          expectedTools: [TOOLS.date, TOOLS.image, TOOLS.update],
+          expectedTools: [TOOLS.image, TOOLS.update],
           expectedRenderMode: 'compact_full',
           expectedContext: [
             exact('origin.iata', 'DEL'),
@@ -267,7 +266,7 @@ export function createTripPlannerContextJourneyChats({
           userMessage: 'plan my trip',
           expectedBehavior:
             'Use all existing facts directly, create the complete five-day plan, and ask no missing-field questions.',
-          expectedTools: [TOOLS.date, TOOLS.image, TOOLS.update],
+          expectedTools: [TOOLS.image, TOOLS.update],
           expectedRenderMode: 'compact_full',
           maxQuestions: 0,
           expectedContext: [
@@ -310,7 +309,7 @@ export function createTripPlannerContextJourneyChats({
           userMessage: 'plan my trip',
           expectedBehavior:
             'Create the initial Rome plan from the complete context.',
-          expectedTools: [TOOLS.date, TOOLS.image, TOOLS.update],
+          expectedTools: [TOOLS.image, TOOLS.update],
           expectedRenderMode: 'compact_full',
           expectedContext: [exact('destination.iata', 'ROM')],
           responsePatterns: [/Rome/i],
@@ -319,7 +318,7 @@ export function createTripPlannerContextJourneyChats({
           userMessage: 'change to paris',
           expectedBehavior:
             'Replace only the destination, clear Rome-specific knowledge, retain dates/passengers/budget/preferences, and make a fresh Paris plan.',
-          expectedTools: [TOOLS.date, TOOLS.image, TOOLS.update],
+          expectedTools: [TOOLS.image, TOOLS.update],
           expectedRenderMode: 'compact_full',
           expectedContext: [
             exact('destination.city', 'Paris'),
@@ -342,7 +341,7 @@ export function createTripPlannerContextJourneyChats({
           userMessage: `change dates to ${changedDates.label}`,
           expectedBehavior:
             'Override only outbound and return dates, preserve Paris and all unrelated fields, and patch date-sensitive content.',
-          expectedTools: [TOOLS.date, TOOLS.update],
+          expectedTools: [TOOLS.update],
           expectedRenderMode: 'compact_patch',
           expectedContext: [
             exact('outbound_date', changedDates.outbound),
@@ -370,7 +369,7 @@ export function createTripPlannerContextJourneyChats({
           userMessage: 'plan my trip',
           expectedBehavior:
             'Build the initial six-day Bali plan using couple, nature, and balanced context.',
-          expectedTools: [TOOLS.date, TOOLS.image, TOOLS.update],
+          expectedTools: [TOOLS.image, TOOLS.update],
           expectedRenderMode: 'compact_full',
           expectedContext: [
             exact('destination.iata', 'DPS'),
@@ -433,7 +432,7 @@ export function createTripPlannerContextJourneyChats({
           userMessage: `to ${messyDates.returnDay}`,
           expectedBehavior:
             'Interpret the short reply as the return day in the known outbound month, retain Tokyo and food, and produce a starter plan.',
-          expectedTools: [TOOLS.date, TOOLS.image, TOOLS.update],
+          expectedTools: [TOOLS.image, TOOLS.update],
           expectedRenderMode: 'compact_full',
           expectedContext: [
             exact('return_date', messyDates.return),

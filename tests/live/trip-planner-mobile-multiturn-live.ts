@@ -32,7 +32,6 @@ const CHAT_IDS = String(process.env.TRIP_PLANNER_MOBILE_CHAT_IDS || '')
   .filter(Boolean);
 const DAY_MS = 24 * 60 * 60 * 1000;
 const {
-  validateTripDate: DATE_TOOL,
   getPlaceImagesBatch: IMAGE_TOOL,
   webSearch: WEB_TOOL,
   getContextDetails: DETAILS_TOOL,
@@ -157,7 +156,6 @@ function snapshotContext(context: any = {}) {
       lastPlanArtifact: context.tripPlanner?.lastPlanArtifact || null,
       contextRevision: context.tripPlanner?.contextRevision || 0,
       cachedImageCodes: Object.keys(context.tripPlanner?.placeImageCache || {}).sort(),
-      dateValidationState: context.tripPlanner?.dateValidationState || null,
     },
   });
 }
@@ -234,10 +232,9 @@ const chats = [
         user: 'Plan my trip around art and local food.',
         expectedBehavior:
           'Use all known context, return one compact five-day plan, and ask no missing-detail questions.',
-        expectedTools: [DATE_TOOL, IMAGE_TOOL, SUGGESTIONS_TOOL],
+        expectedTools: [IMAGE_TOOL, SUGGESTIONS_TOOL],
         expectedRenderMode: 'compact_full',
         expectedImageCodes: ['PAR'],
-        expectedDateInput: { candidateDate: parisOutbound, eventKeyword: null },
         requiredResponsePatterns: [/Paris/i, /art|museum|Louvre/i, /food|cuisine|bistro/i],
         expectedContext: [
           { path: 'summaryContext.outbound_date', value: parisOutbound },
@@ -397,10 +394,9 @@ const chats = [
         user: 'Plan this around beaches and nature, with no nightlife.',
         expectedBehavior:
           'Build a relaxed six-day Bali plan using beach/nature preferences while excluding nightlife.',
-        expectedTools: [DATE_TOOL, IMAGE_TOOL, SUGGESTIONS_TOOL],
+        expectedTools: [IMAGE_TOOL, SUGGESTIONS_TOOL],
         expectedRenderMode: 'compact_full',
         expectedImageCodes: ['DPS'],
-        expectedDateInput: { candidateDate: baliOutbound, eventKeyword: null },
         requiredResponsePatterns: [/Bali/i, /beach|coast/i, /nature|scenic|rice/i],
         forbiddenResponsePatterns: [/nightclub|club-hopping/i],
         expectedContext: [
@@ -529,18 +525,6 @@ function validateToolSequence(actualCalls, expectedTools) {
 function validateToolPayloads(calls, turn) {
   const issues = [];
   const byName = (name) => calls.find((call) => call.tool === name);
-
-  if (turn.expectedDateInput) {
-    const actual = byName(DATE_TOOL)?.input;
-    if (JSON.stringify(actual) !== JSON.stringify(turn.expectedDateInput)) {
-      issues.push(
-        issue(
-          'routing',
-          `Expected date input ${JSON.stringify(turn.expectedDateInput)}, got ${JSON.stringify(actual)}.`,
-        ),
-      );
-    }
-  }
 
   if (turn.expectedImageCodes) {
     const actual = byName(IMAGE_TOOL)?.input?.itemCodes || [];
@@ -933,7 +917,6 @@ async function runTurn({ chat, turn, turnNumber, context }) {
     expectedToolCalls: turn.expectedTools,
     actualToolCalls: calls.map((call) => call.tool),
     expectedPayload: {
-      date: turn.expectedDateInput || null,
       imageCodes: turn.expectedImageCodes || null,
       detailSections: turn.expectedDetailSections || null,
       patchTargets: turn.expectedPatchTargets || [],
@@ -1008,19 +991,12 @@ function durationFromSummaryContext(summaryContext: any = {}) {
 }
 
 function alignStoredDynamicDates(turn, storedTurn) {
-  const storedDateCall = (storedTurn.actualPayload || []).find(
-    (call) => call.tool === DATE_TOOL,
-  );
   const datePaths = new Set([
     'summaryContext.outbound_date',
     'summaryContext.return_date',
   ]);
   return {
     ...turn,
-    expectedDateInput:
-      turn.expectedDateInput && storedDateCall?.input
-        ? storedDateCall.input
-        : turn.expectedDateInput,
     expectedContext: (turn.expectedContext || []).map((expectation) =>
       datePaths.has(expectation.path) && 'value' in expectation
         ? {

@@ -31,7 +31,6 @@ const CHAT_IDS = String(process.env.TRIP_PLANNER_WEB_SEARCH_CHAT_IDS || '')
   .filter(Boolean);
 const DAY_MS = 24 * 60 * 60 * 1000;
 const {
-  validateTripDate: DATE_TOOL,
   getPlaceImagesBatch: IMAGE_TOOL,
   webSearch: WEB_TOOL,
   updateSuggestedQuestions: SUGGESTIONS_TOOL,
@@ -82,7 +81,6 @@ function snapshotContext(context: any = {}) {
         positive: [],
         negative: [],
       },
-      dateValidationState: context.tripPlanner?.dateValidationState || null,
       webSearchCacheKeys: Object.keys(context.tripPlanner?.webSearchCache || {}).sort(),
     },
   });
@@ -176,8 +174,7 @@ const chats = [
         user: 'Which festivals are happening this month, and which one fits our plan?',
         shouldUseWebSearch: true,
         freshnessCategory: 'current-month festivals',
-        expectedBehavior: 'Validate the date/event intent first, then search current festival information.',
-        requireDateBeforeWeb: true,
+        expectedBehavior: 'Resolve this month from the turn clock, then search current festival information.',
         groundingRequirement: {
           unavailableDisclosure: true,
           forbiddenPatterns: [
@@ -376,49 +373,25 @@ function evaluateResponseQuality({ output, calls, planningBrief, result, turn })
   };
 }
 
-function classifyRoutingFailure({
-  shouldUseWebSearch,
-  didUseWebSearch,
-  strategyAction,
-  calls,
-}) {
+// The Trip Planner decides when to research; there is no deterministic search policy.
+function classifyRoutingFailure({ shouldUseWebSearch, didUseWebSearch }) {
   if (shouldUseWebSearch === didUseWebSearch) {
     return null;
   }
 
   if (shouldUseWebSearch) {
-    const dateFeedback = calls.find((call) => call.tool === DATE_TOOL)?.output?.feedback;
     return {
       type: 'MISSED_SEARCH',
-      rootCause:
-        dateFeedback === 'SEARCH_OPTIONAL'
-          ? 'Date/event extraction downgraded a current event request to SEARCH_OPTIONAL, and the freshness classifier did not recover it.'
-          : strategyAction === 'not_needed'
-          ? 'The deterministic freshness classifier did not recognize this freshness intent.'
-          : 'The agent did not follow a planning brief that required web search.',
-      suggestedFix:
-        'Add this freshness intent to the semantic routing policy and cover it with a deterministic regression.',
+      rootCause: 'The agent did not recognize that this request depends on a current, time-sensitive fact.',
+      suggestedFix: 'Sharpen the agent-owned web_search criteria in the Trip Planner prompt.',
     };
   }
 
   return {
     type: 'OVERUSED_SEARCH',
-    rootCause:
-      strategyAction === 'not_needed'
-        ? 'The agent searched even though the planning brief marked web search as unnecessary.'
-        : 'The deterministic classifier treated a context/style word as a freshness request.',
-    suggestedFix:
-      'Use intent-aware matching with negation and phrase context instead of isolated freshness keywords.',
+    rootCause: 'The agent searched for stable knowledge the request did not need.',
+    suggestedFix: 'Tighten the stable-knowledge exclusions in the Trip Planner web_search rules.',
   };
-}
-
-function validateDateBeforeWeb(calls, required) {
-  if (!required) {
-    return true;
-  }
-  const dateIndex = calls.findIndex((call) => call.tool === DATE_TOOL);
-  const webIndex = calls.findIndex((call) => call.tool === WEB_TOOL);
-  return dateIndex >= 0 && webIndex > dateIndex;
 }
 
 async function runTurn({ chat, turn, turnNumber, context }) {
@@ -434,16 +407,11 @@ async function runTurn({ chat, turn, turnNumber, context }) {
   const calls = formatToolCalls(result.debug?.toolsCalled || []);
   const webCalls = calls.filter((call) => call.tool === WEB_TOOL);
   const didUseWebSearch = webCalls.length > 0;
-  const strategy = result.debug?.planningBrief?.toolStrategy?.webSearch || {};
   const routingFailure = classifyRoutingFailure({
     shouldUseWebSearch: turn.shouldUseWebSearch,
     didUseWebSearch,
-    strategyAction: strategy.action,
-    calls,
   });
-  const policyExpectsWeb = Boolean(strategy.action && strategy.action !== 'not_needed');
-  const policyDecisionMatchesExpectation = policyExpectsWeb === turn.shouldUseWebSearch;
-  const dateBeforeWeb = validateDateBeforeWeb(calls, turn.requireDateBeforeWeb);
+  const policyDecisionMatchesExpectation = !routingFailure;
   const responseQuality = evaluateResponseQuality({
     output: result.output,
     calls,
@@ -451,16 +419,13 @@ async function runTurn({ chat, turn, turnNumber, context }) {
     result,
     turn,
   });
-  const routingPass = !routingFailure && webCalls.length <= 1 && dateBeforeWeb;
+  const routingPass = !routingFailure && webCalls.length <= 1;
   const issues = [];
   if (routingFailure) {
     issues.push(`${routingFailure.type}: ${routingFailure.rootCause}`);
   }
   if (webCalls.length > 1) {
     issues.push('MULTIPLE_WEB_SEARCHES: More than one web search was used for one turn.');
-  }
-  if (!dateBeforeWeb) {
-    issues.push('TOOL_ORDER: Date validation did not occur before event web search.');
   }
   for (const qualityIssue of responseQuality.issues) {
     issues.push(`RESPONSE_QUALITY: ${qualityIssue}`);
@@ -477,7 +442,6 @@ async function runTurn({ chat, turn, turnNumber, context }) {
     freshnessCategory: turn.freshnessCategory,
     shouldUseWebSearch: turn.shouldUseWebSearch,
     actualUsedWebSearch: didUseWebSearch,
-    planningBriefWebStrategy: clone(strategy),
     policyDecisionMatchesExpectation,
     toolsCalled: calls,
     webSearchInput: clone(webCalls[0]?.input || null),
@@ -631,20 +595,20 @@ function buildMarkdown(report) {
     `- Turns passed: ${report.summary.passedTurns}/${report.summary.totalTurns}`,
     `- Routing decisions passed: ${report.summary.routingPassed}/${report.summary.totalTurns}`,
     `- Response quality passed: ${report.summary.responseQualityPassed}/${report.summary.totalTurns}`,
-    `- Planning-brief policy mismatches: ${report.summary.policyMismatchCount}`,
+    `- Agent web-search decision mismatches: ${report.summary.policyMismatchCount}`,
     `- Missed searches: ${report.summary.missedSearchCount}`,
     `- Overused searches: ${report.summary.overusedSearchCount}`,
     '',
     '## Decision Table',
     '',
-    '| Case | User query | Expected web | Policy | Actual web | Tools | Result | Failure |',
-    '|---|---|---:|---:|---:|---|---|---|',
+    '| Case | User query | Expected web | Actual web | Tools | Result | Failure |',
+    '|---|---|---:|---:|---|---|---|',
   ];
 
   for (const chat of report.chats) {
     for (const turn of chat.turns) {
       lines.push(
-        `| ${markdownCell(turn.testCaseId)} | ${markdownCell(turn.userQuery)} | ${turn.shouldUseWebSearch ? 'yes' : 'no'} | ${turn.planningBriefWebStrategy.action || 'missing'} | ${turn.actualUsedWebSearch ? 'yes' : 'no'} | ${markdownCell(turn.toolsCalled.map((call) => call.tool).join(' -> '))} | ${turn.pass ? 'PASS' : 'FAIL'} | ${markdownCell(turn.failureType || turn.issues.join('; '))} |`,
+        `| ${markdownCell(turn.testCaseId)} | ${markdownCell(turn.userQuery)} | ${turn.shouldUseWebSearch ? 'yes' : 'no'} | ${turn.actualUsedWebSearch ? 'yes' : 'no'} | ${markdownCell(turn.toolsCalled.map((call) => call.tool).join(' -> '))} | ${turn.pass ? 'PASS' : 'FAIL'} | ${markdownCell(turn.failureType || turn.issues.join('; '))} |`,
       );
     }
   }
@@ -661,31 +625,11 @@ function buildMarkdown(report) {
         `### ${turn.failureType}: ${turn.testCaseId}`,
         '',
         `- **Query:** ${turn.userQuery}`,
-        `- **Planning brief:** ${turn.planningBriefWebStrategy.action || 'missing'}`,
         `- **Root cause:** ${turn.rootCause}`,
         `- **Suggested fix:** ${turn.suggestedFix}`,
         '',
       );
     }
-  }
-
-  lines.push('## Planning-Brief Policy Mismatches', '');
-  const policyMismatches = report.chats.flatMap((chat) =>
-    chat.turns.filter((turn) => !turn.policyDecisionMatchesExpectation),
-  );
-  if (policyMismatches.length === 0) {
-    lines.push('No policy mismatches found.', '');
-  } else {
-    lines.push(
-      'These turns reveal deterministic routing gaps even when the model independently made the correct final tool decision.',
-      '',
-    );
-    for (const turn of policyMismatches) {
-      lines.push(
-        `- **${turn.testCaseId}:** expected ${turn.shouldUseWebSearch ? 'web search' : 'no web search'}, policy was ${turn.planningBriefWebStrategy.action || 'missing'}, actual was ${turn.actualUsedWebSearch ? 'web search' : 'no web search'}.`,
-      );
-    }
-    lines.push('');
   }
 
   lines.push('## Current-Information Grounding Risks', '');
@@ -739,20 +683,11 @@ function buildMarkdown(report) {
 function revalidateStoredTurn(storedTurn, turnDefinition) {
   const calls = storedTurn.toolsCalled || [];
   const didUseWebSearch = calls.some((call) => call.tool === WEB_TOOL);
-  const strategy = storedTurn.planningBriefWebStrategy || {};
   const routingFailure = classifyRoutingFailure({
     shouldUseWebSearch: storedTurn.shouldUseWebSearch,
     didUseWebSearch,
-    strategyAction: strategy.action,
-    calls,
   });
-  const dateBeforeWeb = validateDateBeforeWeb(
-    calls,
-    turnDefinition?.requireDateBeforeWeb,
-  );
-  const policyExpectsWeb = Boolean(strategy.action && strategy.action !== 'not_needed');
-  const policyDecisionMatchesExpectation =
-    policyExpectsWeb === storedTurn.shouldUseWebSearch;
+  const policyDecisionMatchesExpectation = !routingFailure;
   const responseQuality = evaluateResponseQuality({
     output: storedTurn.finalResponse,
     calls,
@@ -770,17 +705,13 @@ function revalidateStoredTurn(storedTurn, turnDefinition) {
   });
   const routingPass =
     !routingFailure &&
-    calls.filter((call) => call.tool === WEB_TOOL).length <= 1 &&
-    dateBeforeWeb;
+    calls.filter((call) => call.tool === WEB_TOOL).length <= 1;
   const issues = [];
   if (routingFailure) {
     issues.push(`${routingFailure.type}: ${routingFailure.rootCause}`);
   }
   if (calls.filter((call) => call.tool === WEB_TOOL).length > 1) {
     issues.push('MULTIPLE_WEB_SEARCHES: More than one web search was used for one turn.');
-  }
-  if (!dateBeforeWeb) {
-    issues.push('TOOL_ORDER: Date validation did not occur before event web search.');
   }
   for (const qualityIssue of responseQuality.issues) {
     issues.push(`RESPONSE_QUALITY: ${qualityIssue}`);

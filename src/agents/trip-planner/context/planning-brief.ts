@@ -22,7 +22,6 @@ export interface ImageAsset {
 
 interface ToolStrategyInput {
   summaryContext: TripPlannerRecord;
-  latestPatch: TripPlannerRecord;
   tripPlannerState: TripPlannerRecord;
   currentUserMessage: string;
   availableImageAssets: ImageAsset[];
@@ -103,136 +102,6 @@ export function mergeTripPlannerPreferenceSignals(
   }
 
   return { positive: [...positive], negative: [...negative] };
-}
-
-export function buildTripPlannerDateValidationFingerprint(input: TripPlannerRecord = {}) {
-  const candidateDate = normalizedString(input.candidateDate);
-  if (candidateDate) {
-    return `date:${candidateDate}`;
-  }
-  const eventKeyword = normalizedString(input.eventKeyword);
-  return eventKeyword
-    ? `event:${eventKeyword.toLowerCase().replace(/\s+/g, ' ')}`
-    : null;
-}
-
-function isEventStyleOnlyRequest(text: string): boolean {
-  return (
-    /\b(?:festival|event)[-\s]?like\b/i.test(text) ||
-    /\b(?:festival|event)\s+(?:vibe|atmosphere|energy|style|feel)\b/i.test(text) ||
-    /\b(?:not|without)\b[^.?!]{0,60}\b(?:specific\s+)?(?:festival|festivals|event|events)\b/i.test(
-      text,
-    )
-  );
-}
-
-export function deriveTripPlannerFreshnessIntent(currentUserMessage = '') {
-  const text = String(currentUserMessage || '');
-  const categories: string[] = [];
-  const addCategory = (category: string, pattern: RegExp): void => {
-    if (pattern.test(text)) {
-      categories.push(category);
-    }
-  };
-
-  addCategory(
-    'operating_status',
-    /\b(?:opening|closing)\s+(?:hours?|times?)\b|\b(?:latest|current)\s+(?:hours?|timings?|schedule|status|availability)\b|\bopen\s+(?:now|today|tonight|late)\b/i,
-  );
-  addCategory(
-    'temporary_disruption',
-    /\b(?:temporar(?:y|ily)\s+closed|closures?|closed|maintenance|renovation|strike|disruption|suspended)\b/i,
-  );
-  addCategory(
-    'weather',
-    /\b(?:weather|forecast|rain|rainy|storm|storms|heatwave|heat wave|air quality|snow|snowfall|temperature)\b/i,
-  );
-  addCategory(
-    'new_opening',
-    /\b(?:newly|recently)\s+opened\b|\bnew\s+openings?\b/i,
-  );
-  addCategory(
-    'travel_advisory',
-    /\b(?:visa|entry requirements?|travel advisories?|travel advisory|security advisories?|border rules?|passport requirements?)\b/i,
-  );
-  addCategory(
-    'price_or_reservation',
-    /\b(?:current|latest|today'?s?)\s+(?:admission|ticket|entry)\s+prices?\b|\b(?:admission|ticket)\s+prices?\b|\b(?:reservation|booking)\s+requirements?\b|\bsold\s+out\b/i,
-  );
-
-  const namedEvent = text.match(
-    /\b(?:oktoberfest|coachella|olympics|cherry blossoms?)\b/i,
-  )?.[0];
-  const generalEvent = text.match(/\b(?:festivals?|events?)\b/i)?.[0];
-  const eventStyleOnly = isEventStyleOnlyRequest(text);
-  if ((namedEvent || generalEvent) && !eventStyleOnly) {
-    categories.push('event');
-  }
-
-  return {
-    requiresFreshness: categories.length > 0,
-    categories: [...new Set(categories)],
-    eventKeyword: eventStyleOnly ? null : namedEvent || generalEvent || null,
-    eventStyleOnly,
-  };
-}
-
-function extractDateValidationInput(
-  summaryContext: TripPlannerRecord,
-  latestPatch: TripPlannerRecord,
-  currentUserMessage: string,
-): TripPlannerRecord | null {
-  const text = String(currentUserMessage || '');
-  const exactDate = text.match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0] || null;
-  const relativeDateIntent = text.match(
-    /\b(?:today|tomorrow|tonight|this week|next week|this weekend|next weekend|next month|this month)\b/i,
-  )?.[0];
-  const calendarIntent =
-    text.match(
-      /\b(?:spring|summer|autumn|fall|winter|january|february|march|april|june|july|august|september|october|november|december)\b/i,
-    )?.[0] ||
-    text.match(/\bMay\b/)?.[0] ||
-    text.match(/\b(?:in|during|around|for)\s+(may)\b/i)?.[1];
-  const freshnessIntent = deriveTripPlannerFreshnessIntent(text);
-  const dateIntent = relativeDateIntent || calendarIntent;
-
-  if (freshnessIntent.eventKeyword && !latestPatch?.outbound_date) {
-    const destination = summaryContext.destination.city;
-    return {
-      candidateDate: null,
-      eventKeyword: [freshnessIntent.eventKeyword, dateIntent, destination]
-        .filter(Boolean)
-        .join(' '),
-    };
-  }
-  if (
-    freshnessIntent.categories.includes('weather') &&
-    relativeDateIntent &&
-    !latestPatch?.outbound_date
-  ) {
-    const destination = summaryContext.destination.city;
-    return {
-      candidateDate: null,
-      eventKeyword: ['weather forecast', relativeDateIntent, destination]
-        .filter(Boolean)
-        .join(' '),
-    };
-  }
-  if (dateIntent && !latestPatch?.outbound_date) {
-    const destination = summaryContext.destination.city;
-    return {
-      candidateDate: null,
-      eventKeyword: [dateIntent, destination].filter(Boolean).join(' '),
-    };
-  }
-  if (latestPatch?.outbound_date || exactDate || summaryContext.outbound_date) {
-    return {
-      candidateDate:
-        latestPatch?.outbound_date || exactDate || summaryContext.outbound_date,
-      eventKeyword: null,
-    };
-  }
-  return null;
 }
 
 function deriveDateConstraints(summaryContext: TripPlannerRecord): TripPlannerRecord {
@@ -412,7 +281,6 @@ function relevantImageAssets(
 
 function deriveToolStrategy({
   summaryContext,
-  latestPatch,
   tripPlannerState,
   currentUserMessage,
   availableImageAssets,
@@ -421,37 +289,11 @@ function deriveToolStrategy({
   const scopeMode = tripPlannerState.scopeClassification?.mode || 'in_scope';
   if (scopeMode === 'excluded') {
     return {
-      dateValidation: { action: 'not_needed', input: null, fingerprint: null },
-      webSearch: {
-        action: 'not_needed',
-        reason: 'The latest request is outside Trip Planner scope.',
-        categories: [],
-      },
       images: { action: 'not_needed', itemCodes: [] },
       contextDetails: { action: 'not_needed', sections: [] },
       contextUpdate: { action: 'always_call_last' },
     };
   }
-
-  const validationInput = extractDateValidationInput(
-    summaryContext,
-    latestPatch,
-    currentUserMessage,
-  );
-  const validationFingerprint = buildTripPlannerDateValidationFingerprint(
-    validationInput || {},
-  );
-  const priorValidation = tripPlannerState.dateValidationState || null;
-  const dateValidation = !validationInput
-    ? { action: 'not_needed', input: null, fingerprint: null }
-    : priorValidation?.fingerprint === validationFingerprint
-      ? {
-          action: 'reuse',
-          input: validationInput,
-          fingerprint: validationFingerprint,
-          priorStatus: priorValidation.status || null,
-        }
-      : { action: 'call', input: validationInput, fingerprint: validationFingerprint };
 
   const itemCode = resolveTripPlannerDestinationIata(summaryContext.destination);
   const explicitlyRequestsVisuals =
@@ -471,9 +313,6 @@ function deriveToolStrategy({
     images = { action: 'call', itemCodes: [itemCode] };
   }
 
-  const freshnessIntent = deriveTripPlannerFreshnessIntent(currentUserMessage);
-  const requiresFreshness = freshnessIntent.requiresFreshness;
-  const eventNeedsValidation = Boolean(validationInput?.eventKeyword);
   const detailSections: string[] = [];
   if (
     summaryContext.placesOfInterest.length > 0 &&
@@ -499,18 +338,6 @@ function deriveToolStrategy({
   }
 
   return {
-    dateValidation,
-    webSearch: {
-      action: requiresFreshness
-        ? eventNeedsValidation
-          ? 'after_date_validation_if_required'
-          : 'call_once_for_current_fact'
-        : 'not_needed',
-      reason: requiresFreshness
-        ? `latest user request needs current information: ${freshnessIntent.categories.join(', ')}`
-        : null,
-      categories: freshnessIntent.categories,
-    },
     images,
     contextDetails: {
       action: detailSections.length > 0 ? 'call' : 'not_needed',
@@ -794,7 +621,6 @@ export function buildTripPlannerPlanningBrief({
 
   const toolStrategy = deriveToolStrategy({
     summaryContext: effectiveContext,
-    latestPatch,
     tripPlannerState,
     currentUserMessage,
     availableImageAssets,
@@ -835,7 +661,6 @@ export function buildTripPlannerPlanningBrief({
     },
     toolState: {
       availableImageAssets,
-      dateValidation: tripPlannerState.dateValidationState || null,
       previousSuggestedQuestions: Array.isArray(tripPlannerState.previousSuggestedQuestions)
         ? tripPlannerState.previousSuggestedQuestions.slice(0, 3)
         : [],
