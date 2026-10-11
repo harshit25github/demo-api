@@ -160,7 +160,53 @@ test('summary context hydrates only missing Flight fields and preserves active s
   assert.equal(active.flight.pax, 1);
 });
 
-test('SSE turn creates conversation, emits one delta, summarizes once, then persists the result', async () => {
+test('saved runtime context preserves explicit clears instead of restoring frozen legacy summary fields', () => {
+  const legacySummary = completedSummary();
+  legacySummary.return_date = '2026-09-12';
+  legacySummary.tripType = ['roundtrip'];
+  const runtimeSummary = {
+    pax: 3,
+    origin: { city: null, iata: null },
+    destination: { city: 'Paris', iata: null },
+    outbound_date: null,
+    return_date: null,
+    duration_days: 5,
+    budget: { amount: null, currency: null, per_person: null, total: null },
+    tripType: ['relaxed', 'family'],
+    placesOfInterest: [],
+    upcomingEvents: [],
+    suggestedQuestions: ['Would you like more museums?'],
+  };
+  const runtimeContext = {
+    summaryContext: runtimeSummary,
+    flight: {
+      tripType: 'oneway',
+      inboundDate: null,
+      outboundDate: null,
+      segments: [{ date: '', origin: '', destination: '', origin_iata: null, destination_iata: null }],
+      resolvedOrigin: { userCity: null, airportIATA: null, airportName: null },
+      resolvedDestination: { userCity: null, airportIATA: null, airportName: null },
+    },
+  };
+
+  const hydrated = hydrateGatewayContext(runtimeContext as any, legacySummary);
+  assert.deepEqual(hydrated.summaryContext, runtimeSummary);
+  assert.notEqual(hydrated.summaryContext, runtimeSummary);
+  assert.equal(hydrated.flight.tripType, 'oneway');
+  assert.equal(hydrated.flight.inboundDate, '');
+  assert.equal(hydrated.flight.outboundDate, null);
+  assert.equal(hydrated.flight.segments[0].origin, '');
+  assert.equal(hydrated.flight.segments[0].destination, '');
+  assert.equal(hydrated.flight.resolvedOrigin.airportIATA, null);
+  assert.equal(hydrated.flight.resolvedDestination.airportIATA, null);
+});
+
+test('active chat orchestration does not import or invoke the Summary Extractor', async () => {
+  const source = await readFile(new URL('../../src/api/chat/orchestrator.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /extractSummaryContext|runSummary|agents\/summary|summary\.started/);
+});
+
+test('nonstream and streaming SSE turns emit final output and persist without Summary extraction', async () => {
   const fixture = await temporaryStore();
   try {
     const chat = await fixture.store.createChat({ title: 'Flights next weekend' });
@@ -173,13 +219,14 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
     const writer = new SseWriter(response);
     writer.start();
 
-    let summaryRuns = 0;
     let sessionOptions = null;
+    const managerStreamingModes: boolean[] = [];
     const createConversationSession = (options) => {
       sessionOptions = options;
       return { getSessionId: async () => 'conv_test_123' };
     };
-    const runGateway = async ({ context, session }) => {
+    const runGateway = async ({ context, session, stream }) => {
+      managerStreamingModes.push(stream);
       assert.equal(session.getSessionId instanceof Function, true);
       context.flight.searchKey = 'search_sse_visibility';
       context.flight.showFlight = true;
@@ -194,14 +241,6 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
         lastResponseId: 'resp_test_123',
       };
     };
-    const runSummary = async ({ previousSummary, userMessage, agentResponse }) => {
-      summaryRuns += 1;
-      assert.deepEqual(previousSummary, createEmptySummaryContext());
-      assert.equal(userMessage, 'Find JFK to Delhi next weekend');
-      assert.equal(agentResponse, 'Authoritative final answer');
-      return completedSummary();
-    };
-
     await streamChatTurn({
       store: fixture.store,
       writer,
@@ -213,7 +252,6 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
       timeZone: 'Asia/Kolkata',
       createConversationSession,
       runGateway,
-      runSummary,
     });
 
     const events = parseEvents(raw);
@@ -224,7 +262,6 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
         'conversation.ready',
         'turn.started',
         'delta',
-        'summary.started',
         'done',
       ],
     );
@@ -240,6 +277,8 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
       'Authoritative final answer',
     );
     const done = events.find((item) => item.event === 'done').data;
+    assert.equal(done.summaryStatus, 'skipped');
+    assert.deepEqual(done.summaryContext, createEmptySummaryContext());
     assert.equal(Object.hasOwn(done, 'specialistsUsed'), false);
     assert.equal(Object.hasOwn(done, 'renderFlightOptions'), false);
     assert.equal(done.flightContext.showFlight, true);
@@ -249,7 +288,6 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
         .data.flightContext.searchResults.map((contract) => contract.display),
       [false, true],
     );
-    assert.equal(summaryRuns, 1);
 
     const stored = fixture.store.getChat(chat.chatId);
     assert.equal(stored.conversationId, 'conv_test_123');
@@ -257,8 +295,10 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
     assert.equal(stored.messages[1].content, 'Authoritative final answer');
     assert.equal(Object.hasOwn(stored.messages[1], 'specialistsUsed'), false);
     assert.equal(Object.hasOwn(stored.messages[1], 'renderFlightOptions'), false);
-    assert.equal(stored.messages[1].summaryContext.destination.iata, 'DEL');
+    assert.deepEqual(stored.summaryContext, createEmptySummaryContext());
+    assert.deepEqual(stored.messages[1].summaryContext, createEmptySummaryContext());
     assert.equal(stored.turns[0].status, 'completed');
+    assert.equal(stored.turns[0].summaryStatus, 'skipped');
     assert.equal(stored.turns[0].lastResponseId, 'resp_test_123');
     assert.equal(Object.hasOwn(stored.turns[0], 'specialistsUsed'), false);
     assert.equal(Object.hasOwn(stored.turns[0], 'renderFlightOptions'), false);
@@ -271,7 +311,8 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
     );
 
     const secondResponse = new TestResponse();
-    secondResponse.resume();
+    let secondRaw = '';
+    secondResponse.on('data', (chunk) => { secondRaw += chunk.toString(); });
     const secondWriter = new SseWriter(secondResponse);
     secondWriter.start();
     const secondChat = fixture.store.getChat(chat.chatId);
@@ -287,9 +328,19 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
       timeZone: 'Asia/Kolkata',
       createConversationSession,
       runGateway,
-      runSummary,
+      stream: true,
     });
     assert.deepEqual(sessionOptions, { conversationId: 'conv_test_123' });
+    assert.deepEqual(managerStreamingModes, [false, true]);
+    const secondEvents = parseEvents(secondRaw);
+    assert.deepEqual(secondEvents.map((item) => item.event), ['conversation.ready', 'turn.started', 'delta', 'done']);
+    assert.equal(secondEvents.at(-1).data.summaryStatus, 'skipped');
+    assert.deepEqual(secondEvents.at(-1).data.summaryContext, createEmptySummaryContext());
+    const secondStored = fixture.store.getChat(chat.chatId);
+    assert.equal(secondStored.messages.length, 4);
+    assert.equal(secondStored.turns[1].status, 'completed');
+    assert.equal(secondStored.turns[1].summaryStatus, 'skipped');
+    assert.deepEqual(secondStored.summaryContext, createEmptySummaryContext());
   } finally {
     await fixture.cleanup();
   }
@@ -298,7 +349,11 @@ test('SSE turn creates conversation, emits one delta, summarizes once, then pers
 test('terminal Gateway stream failure emits SSE error and keeps the turn process-safe', async () => {
   const fixture = await temporaryStore();
   try {
-    const chat = await fixture.store.createChat({ title: 'Timeout case' });
+    let chat = await fixture.store.createChat({ title: 'Timeout case' });
+    const previousSummary = completedSummary();
+    chat = await fixture.store.updateChat(chat.chatId, (record) => {
+      record.summaryContext = structuredClone(previousSummary);
+    });
     const releaseTurn = fixture.store.acquireTurn(chat.chatId);
     const response = new TestResponse();
     let raw = '';
@@ -311,7 +366,15 @@ test('terminal Gateway stream failure emits SSE error and keeps the turn process
       name: 'ModelTimeoutError',
       code: 'ETIMEDOUT',
     });
-    const runGateway = async () => { throw timeoutError; };
+    const runGateway = async ({ context, stream }) => {
+      assert.equal(stream, true);
+      context.summaryContext.tripType = ['family', 'relaxed'];
+      context.summaryContext.budget.amount = null;
+      context.flight.searchKey = 'search_before_failure';
+      context.flight.showFlight = true;
+      context.flight.searchResults = [{ id: 'completed-search-result', display: true }];
+      throw timeoutError;
+    };
 
     await streamChatTurn({
       store: fixture.store,
@@ -324,9 +387,7 @@ test('terminal Gateway stream failure emits SSE error and keeps the turn process
       timeZone: 'Asia/Kolkata',
       createConversationSession: () => ({ getSessionId: async () => 'conv_timeout' }),
       runGateway,
-      runSummary: async () => {
-        throw new Error('Summary must not run after Gateway failure.');
-      },
+      stream: true,
     });
 
     const events = parseEvents(raw);
@@ -339,7 +400,75 @@ test('terminal Gateway stream failure emits SSE error and keeps the turn process
       events.at(-1).data.message,
       'The request could not be completed. Please try again.',
     );
-    assert.equal(fixture.store.getChat(chat.chatId).turns[0].status, 'failed');
+    const stored = fixture.store.getChat(chat.chatId);
+    assert.equal(stored.turns[0].status, 'failed');
+    assert.equal(stored.turns[0].summaryStatus, 'skipped');
+    assert.deepEqual(stored.summaryContext, previousSummary);
+    assert.deepEqual(stored.runtimeContext.summaryContext.tripType, ['family', 'relaxed']);
+    assert.equal((stored.runtimeContext.summaryContext.budget as Record<string, unknown>).amount, null);
+    assert.equal(stored.runtimeContext.flight.searchKey, 'search_before_failure');
+    assert.deepEqual(stored.runtimeContext.flight.searchResults, [{ id: 'completed-search-result', display: true }]);
+    assert.equal(stored.messages.length, 1);
+    assert.equal(response.listenerCount('close'), 0);
+    const nextRelease = fixture.store.acquireTurn(chat.chatId);
+    assert.equal(typeof nextRelease, 'function');
+    nextRelease();
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test('client cancellation skips Summary extraction and preserves completed specialist context', async () => {
+  const fixture = await temporaryStore();
+  try {
+    let chat = await fixture.store.createChat({ title: 'Cancelled trip update' });
+    const previousSummary = completedSummary();
+    chat = await fixture.store.updateChat(chat.chatId, (record) => {
+      record.summaryContext = structuredClone(previousSummary);
+    });
+    const response = new TestResponse();
+    let raw = '';
+    response.on('data', (chunk) => { raw += chunk.toString(); });
+    const writer = new SseWriter(response);
+    writer.start();
+
+    await streamChatTurn({
+      store: fixture.store,
+      writer,
+      response,
+      chat,
+      isNewChat: false,
+      releaseTurn: fixture.store.acquireTurn(chat.chatId),
+      message: 'Clear my budget limit',
+      timeZone: 'Asia/Kolkata',
+      createConversationSession: () => ({ getSessionId: async () => 'conv_cancelled' }),
+      runGateway: async ({ context, signal }) => {
+        context.summaryContext.budget = { amount: null, currency: null, per_person: null, total: null };
+        context.summaryContext.suggestedQuestions = [];
+        context.flight.suggestedQuestions = ['Would you like nonstop flights?'];
+        response.emit('close');
+        assert.equal(signal.aborted, true);
+        throw Object.assign(new Error('Client closed the stream.'), { name: 'AbortError' });
+      },
+    });
+
+    const events = parseEvents(raw);
+    assert.deepEqual(events.map((item) => item.event), ['conversation.ready', 'turn.started', 'error']);
+    assert.equal(events.at(-1).data.code, 'CLIENT_ABORTED');
+    assert.equal(events.at(-1).data.message, 'The request was cancelled.');
+    const stored = fixture.store.getChat(chat.chatId);
+    assert.equal(stored.turns[0].status, 'aborted');
+    assert.equal(stored.turns[0].summaryStatus, 'skipped');
+    assert.deepEqual(stored.summaryContext, previousSummary);
+    assert.deepEqual(stored.runtimeContext.summaryContext.budget, {
+      amount: null, currency: null, per_person: null, total: null,
+    });
+    assert.deepEqual(stored.runtimeContext.flight.suggestedQuestions, ['Would you like nonstop flights?']);
+    assert.equal(stored.messages.length, 1);
+    assert.equal(response.listenerCount('close'), 0);
+    const nextRelease = fixture.store.acquireTurn(chat.chatId);
+    assert.equal(typeof nextRelease, 'function');
+    nextRelease();
   } finally {
     await fixture.cleanup();
   }
@@ -347,7 +476,9 @@ test('terminal Gateway stream failure emits SSE error and keeps the turn process
 
 test('HTTP API serves dashboard, creates chats over SSE, rejects unknown and busy chats', async () => {
   const fixture = await temporaryStore();
-  const runTurn = async ({ writer, response, chat, isNewChat, releaseTurn }) => {
+  const sdkStreamingModes: boolean[] = [];
+  const runTurn = async ({ writer, response, chat, isNewChat, releaseTurn, stream = false }) => {
+    sdkStreamingModes.push(stream);
     try {
       if (isNewChat) writer.send('chat.created', { chatId: chat.chatId });
       writer.send('conversation.ready', {
@@ -361,7 +492,7 @@ test('HTTP API serves dashboard, creates chats over SSE, rejects unknown and bus
         finalAgent: 'Flight Agent',
         finalText: 'HTTP test response',
         summaryContext: createEmptySummaryContext(),
-        summaryStatus: 'completed',
+        summaryStatus: 'skipped',
       });
     } finally {
       releaseTurn();
@@ -410,6 +541,16 @@ test('HTTP API serves dashboard, creates chats over SSE, rejects unknown and bus
     const chats = await fetch(`${baseUrl}/api/chats`).then((response) => response.json());
     assert.equal(chats.chats.length, 1);
     const chatId = chats.chats[0].chatId;
+    for (const stream of [true, 'true']) {
+      const optedIn = await fetch(`${baseUrl}/api/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, message: 'Continue', stream }),
+      });
+      assert.equal(optedIn.status, 200);
+      assert.equal(parseEvents(await optedIn.text()).at(-1).event, 'done');
+    }
+    assert.deepEqual(sdkStreamingModes, [false, true, false]);
 
     const unknown = await fetch(`${baseUrl}/api/chat/stream`, {
       method: 'POST',
@@ -436,16 +577,31 @@ test('HTTP API serves dashboard, creates chats over SSE, rejects unknown and bus
   }
 });
 
-test('Summary Extractor failure keeps the previous summary and still sends done', async () => {
+test('specialist-owned summary persists across disk reload and the next turn while legacy summary stays unchanged', async () => {
   const fixture = await temporaryStore();
   try {
     let chat = await fixture.store.createChat({ title: 'Existing Paris trip' });
     const previousSummary = completedSummary();
+    previousSummary.return_date = '2026-09-12';
+    previousSummary.budget = { amount: 1500, currency: 'USD', per_person: false, total: 1500 };
     chat = await fixture.store.updateChat(chat.chatId, (record) => {
       record.conversationId = 'conv_existing';
       record.summaryContext = structuredClone(previousSummary);
     });
 
+    const specialistSummary = {
+      pax: 3,
+      budget: { amount: null, currency: null, per_person: null, total: null },
+      origin: { city: null, iata: null },
+      destination: { city: 'Paris', iata: null },
+      tripType: ['family', 'relaxed'],
+      outbound_date: null,
+      return_date: null,
+      duration_days: 5,
+      upcomingEvents: [{ name: 'Museum night', date: '2026-11-07' }],
+      placesOfInterest: [{ placeName: 'Louvre', description: 'Art museum' }],
+      suggestedQuestions: ['Would you like a quieter day 3?'],
+    };
     const response = new TestResponse();
     let raw = '';
     response.on('data', (chunk) => {
@@ -465,25 +621,94 @@ test('Summary Extractor failure keeps the previous summary and still sends done'
       message: 'Make it lighter',
       timeZone: 'Asia/Kolkata',
       createConversationSession: () => ({ getSessionId: async () => 'conv_existing' }),
-      runGateway: async ({ context }) => ({
-        output: 'Lighter itinerary',
-        finalAgentName: 'Trip Planner Agent',
-        context,
-        lastResponseId: 'resp_summary_failure',
-      }),
-      runSummary: async () => {
-        throw new Error('Extractor unavailable');
+      runGateway: async ({ context }) => {
+        assert.equal(context.summaryContext.pax, 2);
+        assert.equal(context.summaryContext.destination.iata, 'DEL');
+        context.summaryContext = structuredClone(specialistSummary);
+        context.flight.tripType = 'oneway';
+        context.flight.inboundDate = null;
+        context.flight.outboundDate = null;
+        context.flight.segments = [{ date: '', origin: '', destination: '', origin_iata: null, destination_iata: null }];
+        context.flight.resolvedOrigin = { userCity: null, airportIATA: null, airportName: null };
+        context.flight.resolvedDestination = { userCity: null, airportIATA: null, airportName: null };
+        context.tripPlanner.lastPlanArtifact = { destination: { city: 'Paris' }, output: 'Lighter itinerary' };
+        context.tripPlanner.currentUserMessage = 'Make it lighter';
+        context.tripPlanner.turnState = { phase: 'completed' };
+        context.tripPlanner.planningBrief = { transient: true };
+        return {
+          output: 'Lighter itinerary',
+          finalAgentName: 'Manager Agent',
+          context,
+          lastResponseId: 'resp_specialist_context',
+        };
       },
     });
 
-    const done = parseEvents(raw).find((item) => item.event === 'done').data;
-    assert.equal(done.summaryStatus, 'failed');
+    const events = parseEvents(raw);
+    assert.deepEqual(events.map((item) => item.event), ['conversation.ready', 'turn.started', 'delta', 'done']);
+    const done = events.find((item) => item.event === 'done').data;
+    assert.equal(done.summaryStatus, 'skipped');
     assert.deepEqual(done.summaryContext, previousSummary);
     const stored = fixture.store.getChat(chat.chatId);
     assert.deepEqual(stored.summaryContext, previousSummary);
+    assert.deepEqual(stored.messages[0].summaryContext, previousSummary);
+    assert.deepEqual(stored.messages[1].summaryContext, previousSummary);
+    assert.deepEqual(stored.runtimeContext.summaryContext, specialistSummary);
+    assert.deepEqual(stored.runtimeContext.tripPlanner.lastPlanArtifact, {
+      destination: { city: 'Paris' }, output: 'Lighter itinerary',
+    });
+    for (const key of ['currentUserMessage', 'turnState', 'planningBrief']) {
+      assert.equal(Object.hasOwn(stored.runtimeContext.tripPlanner, key), false);
+    }
     assert.equal(stored.turns[0].status, 'completed');
-    assert.equal(stored.turns[0].summaryStatus, 'failed');
+    assert.equal(stored.turns[0].summaryStatus, 'skipped');
     assert.equal(stored.messages[1].content, 'Lighter itinerary');
+
+    const restartedStore = await new JsonChatStore({ filePath: fixture.filePath }).init();
+    const reloaded = restartedStore.getChat(chat.chatId);
+    assert.deepEqual(reloaded, stored);
+    const nextResponse = new TestResponse();
+    let nextRaw = '';
+    nextResponse.on('data', (chunk) => { nextRaw += chunk.toString(); });
+    const nextWriter = new SseWriter(nextResponse);
+    nextWriter.start();
+    await streamChatTurn({
+      store: restartedStore,
+      writer: nextWriter,
+      response: nextResponse,
+      chat: reloaded,
+      isNewChat: false,
+      releaseTurn: restartedStore.acquireTurn(chat.chatId),
+      message: 'Keep the same preferences for day 3',
+      timeZone: 'Asia/Kolkata',
+      stream: true,
+      createConversationSession: ({ conversationId }) => {
+        assert.equal(conversationId, 'conv_existing');
+        return { getSessionId: async () => conversationId };
+      },
+      runGateway: async ({ context, stream }) => {
+        assert.equal(stream, true);
+        assert.deepEqual(context.summaryContext, specialistSummary);
+        assert.equal(context.flight.tripType, 'oneway');
+        assert.equal(context.flight.inboundDate, '');
+        assert.equal(context.flight.outboundDate, null);
+        assert.equal(context.flight.resolvedOrigin.airportIATA, null);
+        assert.equal(context.flight.resolvedDestination.airportIATA, null);
+        assert.equal(context.flight.segments[0].origin, '');
+        assert.equal(context.flight.segments[0].destination, '');
+        assert.equal(context.tripPlanner.lastPlanArtifact.output, 'Lighter itinerary');
+        return { output: 'Updated day 3', finalAgentName: 'Manager Agent', context, lastResponseId: 'resp_follow_up' };
+      },
+    });
+    const nextEvents = parseEvents(nextRaw);
+    assert.deepEqual(nextEvents.map((item) => item.event), ['conversation.ready', 'turn.started', 'delta', 'done']);
+    assert.equal(nextEvents.at(-1).data.summaryStatus, 'skipped');
+    const nextStored = restartedStore.getChat(chat.chatId);
+    assert.deepEqual(nextStored.summaryContext, previousSummary);
+    assert.deepEqual(nextStored.runtimeContext.summaryContext, specialistSummary);
+    assert.equal(nextStored.turns[1].status, 'completed');
+    assert.equal(nextStored.turns[1].summaryStatus, 'skipped');
+    assert.equal(nextStored.messages[3].content, 'Updated day 3');
   } finally {
     await fixture.cleanup();
   }

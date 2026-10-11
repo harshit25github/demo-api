@@ -148,6 +148,7 @@ export function createChatServer({
           releaseTurn,
           message,
           timeZone: validTimeZone(body.timeZone),
+          stream: body.stream === true,
         });
         return;
       }

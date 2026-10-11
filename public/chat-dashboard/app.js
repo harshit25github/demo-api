@@ -200,8 +200,6 @@ async function sendMessage(message) {
       } else if (event === 'delta') {
         draft.text.textContent += data.text;
         elements.messages.scrollTop = elements.messages.scrollHeight;
-      } else if (event === 'summary.started') {
-        setStatus('Updating context');
       } else if (event === 'status' && data.status === 'retrying') {
         setStatus('Retrying');
       } else if (event === 'done') {
@@ -223,7 +221,7 @@ async function sendMessage(message) {
         // prior cards even when the current state hides or empties the listing.
         clearFlightContracts();
         renderFlightContracts(draft.body, state.flightContext);
-        setStatus(data.summaryStatus === 'completed' ? 'Ready' : 'Ready, context unchanged');
+        setStatus('Ready');
       } else if (event === 'error') {
         draft.article.classList.remove('streaming');
         draft.article.classList.add('failed');

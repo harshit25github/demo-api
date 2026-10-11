@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { TRIP_PLANNER } from '../../src/agents/trip-planner/prompt.js';
+import { TRIP_PLANNER, TRIP_PLANNER_STANDALONE_PRESENTATION } from '../../src/agents/trip-planner/prompt.js';
 import {
   TripPlannerAgent as TripPlannerAgentDefinition,
   buildTripPlannerDynamicContext,
@@ -682,11 +682,13 @@ describe('Dummy Trip Planner Agent setup', () => {
     assert.ok(estimateTripPlannerContextTokens(dynamic) < 800);
     assert.match(TRIP_PLANNER, /<planning_intelligence>/);
     assert.match(TRIP_PLANNER, /Context-Aware Planning Intelligence/);
-    assert.match(TRIP_PLANNER, /Adaptive use of this format/);
+    assert.match(TRIP_PLANNER_STANDALONE_PRESENTATION, /Adaptive use of this format/);
     assert.match(TRIP_PLANNER, /discovery_cards/);
     assert.match(TRIP_PLANNER, /compact_patch/);
-    assert.match(TRIP_PLANNER, /maximum 18 words/);
-    assert.match(TRIP_PLANNER, /Do not repeat it as a second text profile/);
+    assert.match(TRIP_PLANNER_STANDALONE_PRESENTATION, /maximum 18 words/);
+    assert.match(TRIP_PLANNER_STANDALONE_PRESENTATION, /not a second text profile/);
+    assert.match(TRIP_PLANNER, /Full plans include Morning, Afternoon, and Evening for every day/);
+    assert.match(TRIP_PLANNER, /Never repeat an attraction/);
     assert.doesNotMatch(TRIP_PLANNER, /planningAllowances/);
     assert.doesNotMatch(TRIP_PLANNER, /localTransport/);
     assert.match(TRIP_PLANNER, /ONLY evidence for current facts/);

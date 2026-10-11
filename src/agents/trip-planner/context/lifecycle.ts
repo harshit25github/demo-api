@@ -4,6 +4,7 @@ import {
 } from './summary-context.js';
 import {
   buildTripPlannerPlanningBrief,
+  canonicalTripPlannerQuestionKeys,
   mergeTripPlannerAskedQuestionKeys,
   mergeTripPlannerPreferenceSignals,
 } from './planning-brief.js';
@@ -20,6 +21,7 @@ import {
   invalidateTripPlannerKnowledge,
   setTripPlannerLastPlanArtifact,
 } from './store.js';
+import type { TripPlannerManagerOutput } from '../manager-output.js';
 type TripPlannerRecord = Record<string, any>;
 
 const CLEARABLE_CONTEXT_FIELDS = new Set([
@@ -418,19 +420,24 @@ export function finalizeTripPlannerTurn({
   output = '',
   responseMode = null,
   storePlanArtifact = true,
-}: TripPlannerRecord = {}) {
+  feedback,
+}: TripPlannerRecord & { feedback?: TripPlannerManagerOutput } = {}) {
   const state = ensureTripPlannerState(context);
   if (!state.turnState?.suggestionsUpdated) {
     context.summaryContext.suggestedQuestions = [];
   }
-  state.askedQuestionKeys = mergeTripPlannerAskedQuestionKeys(
-    state.askedQuestionKeys,
-    output,
-  );
+  if (feedback) {
+    state.askedQuestionKeys = [...new Set([
+      ...(state.askedQuestionKeys || []),
+      ...feedback.nextQuestions.flatMap(({ key }) => [key, ...canonicalTripPlannerQuestionKeys(key)]),
+    ])];
+  } else {
+    state.askedQuestionKeys = mergeTripPlannerAskedQuestionKeys(state.askedQuestionKeys, output);
+  }
   const artifact =
     !storePlanArtifact || state.scopeClassification?.mode === 'excluded'
       ? null
-      : setTripPlannerLastPlanArtifact(context, { output, responseMode });
+      : setTripPlannerLastPlanArtifact(context, { output, responseMode, feedback });
   if (Array.isArray(context.toolCallLog) && context.toolCallLog.length > 20) {
     context.toolCallLog = context.toolCallLog.slice(-20);
   }

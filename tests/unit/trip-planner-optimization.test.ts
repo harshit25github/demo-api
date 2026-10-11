@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { TRIP_PLANNER } from '../../src/agents/trip-planner/prompt.js';
+import { TRIP_PLANNER, TRIP_PLANNER_STANDALONE_PRESENTATION } from '../../src/agents/trip-planner/prompt.js';
 import { buildTripPlannerPlanningBrief } from '../../src/agents/trip-planner/context/planning-brief.js';
 import { createTripPlannerSummaryContext } from '../../src/agents/trip-planner/context/summary-context.js';
 import {
@@ -516,7 +516,8 @@ describe('Trip Planner optimization and scope policy', () => {
       'food',
     ]);
     assert.equal(Object.hasOwn(budget, 'planningAllowances'), false);
-    assert.doesNotMatch(TRIP_PLANNER, /\|\s*(?:Stay|Local transport)\s*\|/i);
-    assert.match(TRIP_PLANNER, /\|\s*Planning focus\s*\|\s*Guidance\s*\|/);
+    assert.doesNotMatch(TRIP_PLANNER_STANDALONE_PRESENTATION, /\|\s*(?:Stay|Local transport)\s*\|/i);
+    assert.match(TRIP_PLANNER_STANDALONE_PRESENTATION, /\|\s*Planning focus\s*\|\s*Guidance\s*\|/);
+    assert.match(TRIP_PLANNER, /Keep food, activities, and flexible reserve guidance tied to known budget basis/);
   });
 });

@@ -1,5 +1,6 @@
 import { mergeTripPlannerSummaryContext } from './summary-context.js';
 import { CITY_IATA_CODE_BY_NAME } from '../../../shared/travel/city-codes.js';
+import { TRIP_PHASE_RULES } from '../manager-output.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 type TripPlannerRecord = Record<string, any>;
@@ -413,8 +414,7 @@ function derivePatchTargets({
   return [...targets];
 }
 
-function questionKeyWasAsked(questionKey: string, askedQuestionKeys: string[] = []) {
-  const asked = new Set<string>(askedQuestionKeys.map(String));
+export function canonicalTripPlannerQuestionKeys(questionKey: string): string[] {
   const aliases: Record<string, string[]> = {
     date_or_duration_conflict: ['dates', 'duration'],
     travel_dates_or_duration: ['dates', 'duration'],
@@ -422,7 +422,12 @@ function questionKeyWasAsked(questionKey: string, askedQuestionKeys: string[] = 
     budget_basis: ['budget'],
     budget_currency: ['budget'],
   };
-  return (aliases[questionKey] || [questionKey]).some((key) => asked.has(key));
+  return aliases[questionKey] || [questionKey];
+}
+
+function questionKeyWasAsked(questionKey: string, askedQuestionKeys: string[] = []) {
+  const asked = new Set(askedQuestionKeys.map(String).flatMap(canonicalTripPlannerQuestionKeys));
+  return canonicalTripPlannerQuestionKeys(questionKey).some((key) => asked.has(key));
 }
 
 export function buildTripPlannerPlanningBrief({
@@ -671,12 +676,8 @@ export function buildTripPlannerPlanningBrief({
       mode: responseMode,
       renderMode,
       provideValueBeforeQuestions: true,
-      maxBodyWords:
-        renderMode === 'discovery_cards' ? 90 : renderMode === 'compact_patch' ? 160 : 350,
-      targetBodyWords:
-        renderMode === 'discovery_cards' ? 75 : renderMode === 'compact_patch' ? 130 : 300,
-      maxIntroSentences: 1,
-      maxTimeBlockWords: renderMode === 'compact_full' ? 18 : null,
+      ...TRIP_PHASE_RULES[renderMode],
+      // Context-dependent values on top of the phase's fixed rules.
       maxPatchDaySections:
         renderMode === 'compact_patch'
           ? patchTargets.includes('budget') ||
@@ -684,31 +685,10 @@ export function buildTripPlannerPlanningBrief({
             ? 1
             : 2
           : null,
-      patchPresentation:
-        renderMode === 'compact_patch'
-          ? 'one_change_summary_then_up_to_2_bullets_and_only_the_most_affected_day_sections'
-          : null,
-      cardPolicy:
-        renderMode === 'discovery_cards'
-          ? 'exactly_3_cards'
-          : renderMode === 'compact_patch'
-            ? 'omit_unless_visuals_requested'
-            : 'render_once',
-      seasonPolicy: explicitlyRequestsSeasonComparison
-        ? 'season_comparison_requested'
-        : renderMode === 'discovery_cards'
-          ? 'card_field_only'
-          : renderMode === 'compact_patch'
-            ? 'omit_unless_changed'
-            : 'one_relevant_trip_season_note',
-      budgetPolicy:
-        renderMode === 'discovery_cards'
-          ? 'card_field_only'
-          : renderMode === 'compact_patch' && !patchTargets.includes('budget')
-            ? 'omit_unchanged'
-            : 'compact_two_column_table',
-      includeUnchangedContent: renderMode !== 'compact_patch',
-      requiresAllTimeBlocks: renderMode === 'compact_full',
+      ...(explicitlyRequestsSeasonComparison ? { seasonPolicy: 'season_comparison_requested' } : {}),
+      ...(renderMode === 'compact_patch' && patchTargets.includes('budget')
+        ? { budgetPolicy: 'compact_two_column_table' }
+        : {}),
       patchTargets,
       maxQuestions: questionPriority.length,
       questionPriority,

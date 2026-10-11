@@ -5,7 +5,7 @@
  * Offline parser/grader checks (no server, model imports, or API calls):
  *   npx tsx tests/live/manager-http-context-live.ts --dry-run
  *
- * OpenAI models, Conversations, and Summary Extractor are live. Flight inventory,
+ * OpenAI models and Conversations are live. Flight inventory,
  * filtering/contracts, prediction repository, and Trip image URLs remain the
  * application's current dummy/local implementations; this is not live airfare QA.
  */
@@ -22,8 +22,6 @@ type Calls = {
   manager: ObservedFlightToolCall[];
   flight: ObservedFlightToolCall[];
   trip: ObservedFlightToolCall[];
-  summaryStarts: number;
-  summaryEnds: number;
   lifecycle: Array<{ agent: string; event: 'start' | 'end'; at: string }>;
 };
 type ResponseMetric = {
@@ -41,7 +39,7 @@ const USERS = [
 ];
 const BACKEND_BOUNDARY = {
   live: ['OpenAI Responses (gpt-5.2/low)', 'OpenAI Conversations session/history',
-    'Manager and nested specialists', 'Summary Extractor', 'HTTP/SSE', 'JSON chat persistence/reload'],
+    'Manager and nested specialists', 'Specialist-owned context', 'HTTP/SSE', 'JSON chat persistence/reload'],
   localOrDummy: ['Flight inventory', 'Flight filtering/contracts',
     'ClickHouse prediction placeholder (no rows)', 'Trip image URLs'],
   notTested: ['Browser DOM interaction', 'Real airline fares/availability', 'Successful production price prediction'],
@@ -112,16 +110,6 @@ function cheaperIntentIssues(calls: ObservedFlightToolCall[], feedback: any, fin
   return issues;
 }
 
-function londonSummaryEvidence(index: number, summary: any, flightCity: unknown) {
-  // Summary extracts literal evidence, unlike Flight's explicitly separated fields.
-  // Only this observed, evidence-backed Heathrow alias is acceptable at T3.
-  if (index === 2 && summary?.destination?.city === 'London Heathrow'
-    && summary.destination.iata === 'LHR' && flightCity === 'London') {
-    return { issue: null, deviation: 'Summary retained the evidenced London Heathrow/LHR alias; Flight stores canonical London/LHR separately.' };
-  }
-  return { issue: summary?.destination?.city === 'London' ? null : 'summary lost updated London destination', deviation: null };
-}
-
 function safeError(error: unknown): string {
   return `${(error as Error)?.name || 'Error'}: ${String((error as Error)?.message || error)}`
     .replace(/\bsk-[A-Za-z0-9_-]+/g, '[redacted]').slice(0, 500);
@@ -129,8 +117,8 @@ function safeError(error: unknown): string {
 
 async function main(): Promise<void> {
   if (process.argv.includes('--dry-run')) {
-    assert.deepEqual(parseEvents(': heartbeat\r\n\r\nid: 1\r\nevent: done\r\ndata: {"summaryStatus":"completed"}\r\n\r\n'),
-      [{ event: 'done', data: { summaryStatus: 'completed' } }]);
+    assert.deepEqual(parseEvents(': heartbeat\r\n\r\nid: 1\r\nevent: done\r\ndata: {"summaryStatus":"skipped"}\r\n\r\n'),
+      [{ event: 'done', data: { summaryStatus: 'skipped' } }]);
     assert.equal(tomorrowFromStartedAt('2026-10-07T20:00:00.000Z'), '2026-10-09');
     assert.deepEqual(cheaperIntentIssues([{ callId: 'read', tool: 'getGeneratedContractsContext', input: { mode: 'read', indexes: null }, completed: true }],
       { status: 'success', missingInformation: [] }), []);
@@ -146,9 +134,6 @@ async function main(): Promise<void> {
     assert.ok(cheaperIntentIssues([{ callId: 'search', tool: 'flight_search', input: {}, completed: true }],
       { status: 'success' }).length > 0);
     assert.ok(cheaperIntentIssues([], { status: 'needs_input', missingInformation: ['What is your origin?'] }).length > 0);
-    assert.equal(londonSummaryEvidence(2, { destination: { city: 'London Heathrow', iata: 'LHR' } }, 'London').issue, null);
-    assert.ok(londonSummaryEvidence(2, { destination: { city: 'London Heathrow', iata: 'NYC' } }, 'London').issue);
-    assert.ok(londonSummaryEvidence(3, { destination: { city: 'London Heathrow', iata: 'LHR' } }, 'London').issue);
     assert.deepEqual(parseEvents('event: done\ndata: {"incomplete":'), []);
     console.log(JSON.stringify({ offlineChecks: 'passed', apiCalls: 0, users: USERS,
       models: 'gpt-5.2', reasoning: 'low', backendBoundary: BACKEND_BOUNDARY }));
@@ -213,19 +198,19 @@ async function main(): Promise<void> {
   }) as typeof fetch;
 
   const [{ createChatServer, publicChat }, { JsonChatStore }, { ManagerAgent }, { FlightManagerAgent },
-    { TripPlannerAgent }, { SummaryExtractorAgent }, { getRequestState }, { getGlobalTraceProvider }] = await Promise.all([
+    { TripPlannerManagerAgent }, { getRequestState }, { getGlobalTraceProvider }] = await Promise.all([
     import('../../src/api/chat/server.js'), import('../../src/api/chat/store.js'),
     import('../../src/agents/manager-orchestrator/agent.js'), import('../../src/agents/flight/agent.js'),
-    import('../../src/agents/trip-planner/agent.js'), import('../../src/agents/summary/agent.js'),
+    import('../../src/agents/trip-planner/agent.js'),
     import('../../src/shared/runtime/request-context.js'), import('@openai/agents'),
   ]);
-  for (const agent of [ManagerAgent, FlightManagerAgent, TripPlannerAgent, SummaryExtractorAgent]) {
+  for (const agent of [ManagerAgent, FlightManagerAgent, TripPlannerManagerAgent]) {
     agent.model = 'gpt-5.2';
     agent.modelSettings = { ...agent.modelSettings, reasoning: { effort: 'low' } };
   }
   const evidence = new Map<string, Calls>();
   function callsFor(requestId: string): Calls {
-    const calls = evidence.get(requestId) || { manager: [], flight: [], trip: [], summaryStarts: 0, summaryEnds: 0, lifecycle: [] };
+    const calls = evidence.get(requestId) || { manager: [], flight: [], trip: [], lifecycle: [] };
     evidence.set(requestId, calls);
     return calls;
   }
@@ -239,21 +224,8 @@ async function main(): Promise<void> {
     callsFor(activeRequestId).lifecycle.push({ agent: ManagerAgent.name, event: 'end', at: new Date().toISOString() });
     activeAgent = null;
   });
-  // Summary runs immediately after Manager within the same serial HTTP turn.
-  SummaryExtractorAgent.on('agent_start', () => {
-    activeAgent = SummaryExtractorAgent.name;
-    callsFor(activeRequestId).summaryStarts += 1;
-    callsFor(activeRequestId).lifecycle.push({ agent: SummaryExtractorAgent.name, event: 'start', at: new Date().toISOString() });
-    console.log(JSON.stringify({ phase: 'summary.started', requestId: activeRequestId, at: new Date().toISOString() }));
-  });
-  SummaryExtractorAgent.on('agent_end', () => {
-    callsFor(activeRequestId).summaryEnds += 1;
-    callsFor(activeRequestId).lifecycle.push({ agent: SummaryExtractorAgent.name, event: 'end', at: new Date().toISOString() });
-    activeAgent = null;
-    console.log(JSON.stringify({ phase: 'summary.finished', requestId: activeRequestId, at: new Date().toISOString() }));
-  });
   for (const [agent, kind] of [[ManagerAgent, 'manager'], [FlightManagerAgent, 'flight'],
-    [TripPlannerAgent, 'trip']] as const) {
+    [TripPlannerManagerAgent, 'trip']] as const) {
     if (kind !== 'manager') {
       agent.on('agent_start', (context) => {
         activeAgent = agent.name;
@@ -285,7 +257,7 @@ async function main(): Promise<void> {
   const storePath = path.join(directory, 'chats.json');
   const reportPath = path.join(directory, 'report.json');
   const store = await new JsonChatStore({ filePath: storePath }).init();
-  const server = createChatServer({ store }); // Default real runTurn, session, and summary implementations.
+  const server = createChatServer({ store }); // Default real runTurn and session implementations.
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
@@ -363,9 +335,9 @@ async function main(): Promise<void> {
       if (events.some((event) => event.event === 'error')) issues.push('SSE emitted a terminal error');
       if (events.filter((event) => event.event === 'done').length !== 1) issues.push('SSE did not emit exactly one done event');
       if (events.at(-1)?.event !== 'done') issues.push('SSE terminal event was not done');
-      if (events.filter((event) => event.event === 'summary.started').length !== 1) issues.push('summary.started missing or duplicated');
-      if (done?.summaryStatus !== 'completed' || currentTurn?.summaryStatus !== 'completed') issues.push('real Summary Extractor did not complete');
-      if (calls.summaryStarts !== 1 || calls.summaryEnds !== 1) issues.push('expected exactly one completed native Summary Extractor run');
+      if (events.some((event) => event.event === 'summary.started')) issues.push('removed Summary workflow emitted summary.started');
+      if (done?.summaryStatus !== 'skipped' || currentTurn?.summaryStatus !== 'skipped') issues.push('removed Summary workflow was not skipped');
+      if (apiCalls.some((call) => call.requestId === started?.requestId && !call.agent)) issues.push('unexpected model call outside Manager/specialist lifecycle');
       if (currentTurn?.status !== 'completed') issues.push('persisted HTTP turn did not complete');
       if (!ready?.conversationId || ready.conversationId !== conversationId || saved?.conversationId !== conversationId
         || done?.conversationId !== conversationId) issues.push('conversation ID was absent or changed');
@@ -402,7 +374,7 @@ async function main(): Promise<void> {
       const flightSequence = comparableToolSequence(calls.flight);
       if (index < 3 && flightSequence.at(-1) !== 'update_flight_suggested_questions') issues.push('Flight suggestions were not last');
       const flight: any = saved?.runtimeContext.flight || {};
-      const summary = saved?.summaryContext;
+      const specialistContext: any = saved?.runtimeContext.summaryContext;
       const searchKey = flight.searchKey || null;
       const previousKey = previous?.runtimeContext.flight.searchKey || null;
       const search = calls.flight.find((call) => call.tool === 'flight_search');
@@ -438,23 +410,22 @@ async function main(): Promise<void> {
           acceptableDeviations.push('Cheaper ones was treated as genuine current-price versus flexible-date ambiguity; no search/filter mutation was made.');
         }
       }
-      if (summary?.origin.city !== 'Delhi' || summary?.outbound_date !== expectedOutbound || summary?.passengerData.adults !== 1) {
-        issues.push('persisted Summary Extractor context lost known origin/date/passenger');
+      if (flight.resolvedOrigin?.userCity !== 'Delhi' || flight.outboundDate !== expectedOutbound || flight.passengerData?.adults !== 1) {
+        issues.push('persisted Flight context lost known origin/date/passenger');
       }
-      if (index < 2 && !['New York', 'New York City'].includes(summary?.destination.city || '')) issues.push('summary lost New York destination');
-      if (index >= 2) {
-        const location = londonSummaryEvidence(index, summary, flight.segments?.[0]?.destination);
-        if (location.issue) issues.push(location.issue);
-        if (location.deviation) acceptableDeviations.push(location.deviation);
-      }
+      if (index < 2 && !['New York', 'New York City'].includes(flight.resolvedDestination?.userCity || '')) issues.push('Flight context lost New York destination');
+      if (index >= 2 && flight.resolvedDestination?.userCity !== 'London') issues.push('Flight context lost updated London destination');
       if (index === 3) {
-        const tripOutput = String(calls.manager[0]?.output || '');
+        const tripOutput = calls.manager[0]?.output;
         const plan: any = saved?.runtimeContext.tripPlanner.lastPlanArtifact;
         if (calls.flight.length || searchKey !== previousKey || searchCore(saved) !== searchCore(previous)) issues.push('Trip-only turn unnecessarily changed Flight search');
         if (!plan?.id || !plan.content || plan.destination?.city !== 'London') issues.push('Trip output was not persisted as a London plan artifact');
-        if (summary?.duration_days !== 3) issues.push('summary did not save three-day trip duration');
-        if (!tripOutput.trim() || !done?.finalText?.includes(tripOutput)) issues.push('Manager omitted or rewrote native Trip Planner output');
-        if (![1, 2, 3].every((day) => new RegExp(`\\bDay\\s*${day}\\b`, 'i').test(tripOutput))) issues.push('Trip did not deliver all three itinerary days');
+        if (specialistContext?.duration_days !== 3 || specialistContext?.destination?.city !== 'London'
+          || specialistContext?.origin?.city !== 'Delhi' || specialistContext?.outbound_date !== expectedOutbound
+          || specialistContext?.pax !== 1) issues.push('specialist-owned Trip context lost duration or known flight facts');
+        if (tripOutput?.status !== 'success' || tripOutput?.mode !== 'compact_full') issues.push('Trip did not return successful full-plan facts');
+        if (![1, 2, 3].every((day) => tripOutput?.itineraryDays?.some((entry: any) => entry.day === day)
+          && new RegExp(`\\bDay\\s*${day}\\b`, 'i').test(done?.finalText || ''))) issues.push('Trip facts or Manager markdown omitted requested itinerary days');
       }
       const item = { turn: index + 1, user, expectedOutbound, requestId: started?.requestId,
         traceId: started?.traceId, conversationId: ready?.conversationId, calls,
