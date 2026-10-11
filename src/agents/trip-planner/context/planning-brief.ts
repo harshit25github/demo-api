@@ -339,10 +339,12 @@ function deriveToolStrategy({
 
   return {
     images,
-    contextDetails: {
-      action: detailSections.length > 0 ? 'call' : 'not_needed',
-      sections: detailSections,
-    },
+    contextDetails: detailSections.length > 0
+      ? { action: 'call', sections: detailSections }
+      // A saved plan stays readable; Trip decides when its contents matter.
+      : tripPlannerState.lastPlanArtifact
+        ? { action: 'agent_decides', sections: ['last_plan'] }
+        : { action: 'not_needed', sections: [] },
     contextCapture: { action: 'completed' },
     suggestedQuestions: { action: 'always_call_last' },
   };
@@ -572,17 +574,16 @@ export function buildTripPlannerPlanningBrief({
       currentDestination &&
       currentDestination !== previousDestination,
   );
-  const latestHasAdjustment =
-    Object.keys(latestPatch || {}).length > 0 ||
-    /\b(?:make|change|add|remove|skip|avoid|more|less|instead)\b/i.test(currentUserMessage) ||
-    /\bday\s*\d{1,2}\b/i.test(currentUserMessage) ||
-    (tripPlannerState.latestPreferenceSignals?.positive?.length || 0) > 0 ||
-    (tripPlannerState.latestPreferenceSignals?.negative?.length || 0) > 0;
+  // A follow-up on a saved plan revises it, however it is worded, unless a whole new plan is asked for.
+  const requestsFullPlan =
+    /\b(?:full|complete|whole|entire|new|fresh)\s+(?:plan|itinerary)\b|\b(?:start over|from scratch|re-?plan)\b/i.test(
+      currentUserMessage,
+    );
   const responseMode = !known.includes('destination')
     ? 'destination_suggestions'
     : destinationChanged
       ? 'new_destination_itinerary'
-      : latestHasAdjustment && tripPlannerState.lastPlanSnapshot
+      : tripPlannerState.lastPlanSnapshot && !requestsFullPlan
         ? 'patch_existing_itinerary'
         : 'destination_itinerary';
   const renderMode =
@@ -656,7 +657,7 @@ export function buildTripPlannerPlanningBrief({
       previousPlanAvailable: Boolean(tripPlannerState.lastPlanSnapshot),
       destinationChanged,
       shouldPatchPreviousPlan:
-        Boolean(tripPlannerState.lastPlanSnapshot) && latestHasAdjustment && !destinationChanged,
+        Boolean(tripPlannerState.lastPlanSnapshot) && !requestsFullPlan && !destinationChanged,
       askedQuestionKeys,
     },
     toolState: {
