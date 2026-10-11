@@ -44,6 +44,7 @@ export interface SummaryContext {
 }
 
 export interface PersistedRuntimeContext {
+  summaryContext?: FlightAppContext['summaryContext'];
   flight: Partial<FlightAppContext['flight']>;
   tripPlanner: Record<string, unknown>;
   flightSearchRuntime: FlightSearchRuntime | null;

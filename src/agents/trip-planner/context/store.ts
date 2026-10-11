@@ -1,15 +1,25 @@
 import { createTripPlannerSummaryContext } from './summary-context.js';
 import { resolveTripPlannerDestinationIata } from './planning-brief.js';
+import type { TripPlannerManagerOutput } from '../manager-output.js';
 
 const MAX_DESCRIPTION_LENGTH = 180;
 const MAX_PLAN_LENGTH = 12_000;
 type TripPlannerContextRecord = Record<string, any>;
+type StoredPlanFacts = Pick<TripPlannerManagerOutput,
+  'destinationCards' | 'recommendation' | 'notes' | 'tables' | 'limitations'
+> & { legacyContent?: string };
 
 export interface PlanDay {
   day: number;
   title: string;
   content: string;
+  morning?: string | null;
+  afternoon?: string | null;
+  evening?: string | null;
+  legacyContent?: string;
 }
+
+const TIME_BLOCKS = ['morning', 'afternoon', 'evening'] as const;
 
 const tripPlannerSessionLocks = new Map<string, Promise<void>>();
 
@@ -48,6 +58,48 @@ function extractPlanDays(output = ''): PlanDay[] {
     days.push(current);
   }
   return days;
+}
+
+function recoverDayBlocks(day: PlanDay): PlanDay {
+  if (TIME_BLOCKS.some((block) => Object.hasOwn(day, block))) return { ...day };
+  const matches = [...day.content.matchAll(
+    /(?:\p{Extended_Pictographic}\uFE0F?\s*)?\*{0,2}(Morning|Afternoon|Evening)\s*:\s*\*{0,2}/giu,
+  )];
+  const recovered: PlanDay = { ...day };
+  for (const [index, match] of matches.entries()) {
+    const block = match[1].toLowerCase() as typeof TIME_BLOCKS[number];
+    recovered[block] = compactText(
+      day.content.slice(match.index! + match[0].length, matches[index + 1]?.index).replace(/\*\*/g, ''),
+      700,
+    );
+  }
+  const unstructured = matches.length ? day.content.slice(0, matches[0].index).trim() : day.content;
+  if (unstructured) recovered.legacyContent = compactText(unstructured, 700);
+  return recovered;
+}
+
+function mergePlanDay(
+  patch: TripPlannerManagerOutput['itineraryDays'][number],
+  previous?: PlanDay,
+): PlanDay {
+  const day = previous ? recoverDayBlocks(previous) : { day: patch.day, title: '', content: '' };
+  day.title = patch.title === null ? day.title : compactText(patch.title, 100);
+  for (const block of TIME_BLOCKS) {
+    day[block] = patch[block] === null ? day[block] ?? null : compactText(patch[block], 700);
+  }
+  day.content = compactText(JSON.stringify({
+    ...(day.legacyContent ? { previousUnstructuredGuidance: day.legacyContent } : {}),
+    morning: day.morning,
+    afternoon: day.afternoon,
+    evening: day.evening,
+  }), 700);
+  return day;
+}
+
+function sameDestination(before: TripPlannerContextRecord, after: TripPlannerContextRecord): boolean {
+  if (before.iata && after.iata && String(before.iata).toUpperCase() !== String(after.iata).toUpperCase()) return false;
+  if (before.city && after.city && String(before.city).toLowerCase() !== String(after.city).toLowerCase()) return false;
+  return Boolean((before.iata && after.iata) || (before.city && after.city));
 }
 
 export function ensureTripPlannerState(
@@ -132,10 +184,49 @@ export function invalidateTripPlannerKnowledge(context: TripPlannerContextRecord
 
 export function setTripPlannerLastPlanArtifact(
   context: TripPlannerContextRecord = {},
-  { output = '', responseMode = null }: { output?: string; responseMode?: string | null } = {},
+  { output = '', responseMode = null, feedback }: {
+    output?: string;
+    responseMode?: string | null;
+    feedback?: TripPlannerManagerOutput;
+  } = {},
 ) {
   const state = ensureTripPlannerState(context);
-  const text = compactText(output, MAX_PLAN_LENGTH);
+  if (state.scopeClassification?.mode === 'excluded') return null;
+  let days = extractPlanDays(output);
+  let facts: Partial<StoredPlanFacts> = {};
+  if (feedback) {
+    if (['failure', 'needs_input'].includes(feedback.status) || feedback.mode === 'answer') return null;
+    const previous = feedback.mode === 'compact_patch' && state.lastPlanArtifact &&
+      sameDestination(state.lastPlanArtifact.destination || {}, context.summaryContext.destination)
+      ? state.lastPlanArtifact
+      : null;
+    if (!feedback.itineraryDays.length && !feedback.destinationCards.length &&
+      !(previous && (feedback.notes.length || feedback.tables.length || feedback.recommendation))) return null;
+    const currentDays = new Map<number, PlanDay>(
+      (previous?.days || []).map((day: PlanDay) => [day.day, recoverDayBlocks(day)]),
+    );
+    for (const day of feedback.itineraryDays) currentDays.set(day.day, mergePlanDay(day, currentDays.get(day.day)));
+    days = [...currentDays.values()].sort((left, right) => left.day - right.day);
+    facts = {
+      ...((previous?.legacyContent || (previous && !previous.destinationCards && !previous.days?.length && previous.content)) ? {
+        legacyContent: compactText(previous.legacyContent || previous.content, MAX_PLAN_LENGTH),
+      } : {}),
+      destinationCards: structuredClone(feedback.destinationCards.length ? feedback.destinationCards : previous?.destinationCards || []),
+      recommendation: feedback.recommendation ?? previous?.recommendation ?? null,
+      notes: structuredClone([
+        ...(previous?.notes || []).filter((note: TripPlannerContextRecord) => !feedback.notes.some((next) => next.kind === note.kind)),
+        ...feedback.notes,
+      ]),
+      tables: structuredClone([
+        ...(previous?.tables || []).filter((table: TripPlannerContextRecord) => !feedback.tables.some((next) => next.kind === table.kind)),
+        ...feedback.tables,
+      ]),
+      limitations: [...feedback.limitations],
+    };
+    responseMode = feedback.mode;
+  }
+  // Private compatibility text reflects merged facts; it is never rendered or parsed as a plan.
+  const text = compactText(feedback ? JSON.stringify({ ...facts, days }) : output, MAX_PLAN_LENGTH);
   if (!text) {
     return null;
   }
@@ -145,8 +236,9 @@ export function setTripPlannerLastPlanArtifact(
     createdAt: new Date().toISOString(),
     destination: { ...context.summaryContext.destination },
     responseMode,
-    days: extractPlanDays(output),
+    days,
     content: text,
+    ...facts,
   };
   state.lastPlanArtifact = artifact;
   state.lastPlanSnapshot = {
@@ -198,6 +290,7 @@ export function getTripPlannerContextDetails(
 ) {
   const state = ensureTripPlannerState(context);
   const safeLimit = Math.max(1, Math.min(10, Number(limit) || 5));
+  const factQuery = /\bday\s*\d+\b/i.test(query || '') ? null : query;
   const requested = new Set(sections);
   const details: TripPlannerContextRecord = {};
 
@@ -225,8 +318,19 @@ export function getTripPlannerContextDetails(
           revision: state.lastPlanArtifact.revision,
           responseMode: state.lastPlanArtifact.responseMode,
           days: (state.lastPlanArtifact.days || [])
+            .map((day: PlanDay) => recoverDayBlocks(day))
             .filter((day: PlanDay) => matchesPlanDay(day, query))
             .slice(0, safeLimit),
+          ...(state.lastPlanArtifact.destinationCards ? {
+            destinationCards: state.lastPlanArtifact.destinationCards
+              .filter((card: TripPlannerContextRecord) => matchesQuery(card, factQuery))
+              .slice(0, safeLimit),
+            recommendation: state.lastPlanArtifact.recommendation,
+            notes: (state.lastPlanArtifact.notes || []).filter((note: TripPlannerContextRecord) => matchesQuery(note, factQuery)).slice(0, safeLimit),
+            tables: (state.lastPlanArtifact.tables || []).filter((table: TripPlannerContextRecord) => matchesQuery(table, factQuery)).slice(0, safeLimit),
+            limitations: (state.lastPlanArtifact.limitations || []).filter((limitation: string) => matchesQuery(limitation, factQuery)).slice(0, safeLimit),
+            ...(state.lastPlanArtifact.legacyContent ? { legacyContent: compactText(state.lastPlanArtifact.legacyContent, 2_000) } : {}),
+          } : {}),
           content: compactText(state.lastPlanArtifact.content, 2_000),
         }
       : null;

@@ -6,7 +6,6 @@ import { runGatewayAgent } from '../../agents/manager-orchestrator/runner.js';
 import { hydrateGatewayContext, snapshotGatewayContext } from './context-hydration.js';
 import type { JsonChatStore } from './store.js';
 import type { SseWriter } from './sse.js';
-import { extractSummaryContext } from '../../agents/summary/runner.js';
 import type { StoredChat } from './types.js';
 import type { FlightAppContext } from '../../agents/flight/types.js';
 
@@ -28,12 +27,12 @@ interface StreamChatTurnOptions {
   message: string;
   timeZone: string;
   maxTurns?: number;
+  stream?: boolean;
   now?: Date;
   createConversationSession?: (options: {
     conversationId?: string;
   }) => OpenAIConversationsSession;
   runGateway?: (options: Record<string, any>) => Promise<GatewayResult>;
-  runSummary?: typeof extractSummaryContext;
 }
 
 function errorDetails(error: unknown) {
@@ -60,10 +59,10 @@ export async function streamChatTurn({
   message,
   timeZone,
   maxTurns,
+  stream = false,
   now,
   createConversationSession = (options) => new OpenAIConversationsSession(options),
   runGateway = runGatewayAgent as unknown as StreamChatTurnOptions['runGateway'],
-  runSummary = extractSummaryContext,
 }: StreamChatTurnOptions): Promise<void> {
   const turnId = randomUUID();
   const requestId = randomUUID();
@@ -122,7 +121,7 @@ export async function streamChatTurn({
         traceId,
         lastResponseId: null,
         finalAgent: null,
-        summaryStatus: 'pending',
+        summaryStatus: 'skipped',
         startedAt,
         completedAt: null,
         error: null,
@@ -142,8 +141,8 @@ export async function streamChatTurn({
     const appContext = hydrateGatewayContext(chat.runtimeContext, previousSummary);
     gatewayContext = appContext;
 
-    // The existing nonstream runner returns the Manager's final answer. Flight
-    // cards remain separate data in shared context, not markers in this text.
+    // SDK streaming can be requested internally, but only the sanitized final
+    // Manager answer reaches SSE. Flight cards remain separate shared context.
     const gatewayResult = await runGateway!({
       input: message,
       requestId,
@@ -153,6 +152,7 @@ export async function streamChatTurn({
       session: conversationSession,
       signal: abortController.signal,
       maxTurns,
+      stream,
       now: turnNow,
       timeZone,
     });
@@ -162,22 +162,8 @@ export async function streamChatTurn({
       draftText = finalText;
       writer.send('delta', { chatId: chat.chatId, turnId, text: finalText });
     }
-    writer.send('summary.started', { chatId: chat.chatId, turnId });
-
-    let summaryContext = previousSummary;
-    let summaryStatus = 'completed';
-    try {
-      summaryContext = await runSummary({
-        previousSummary,
-        userMessage: message,
-        agentResponse: finalText,
-        now: turnNow,
-        timeZone,
-        usageCorrelation: { requestId, traceId, sessionId: chat.chatId },
-      });
-    } catch {
-      summaryStatus = 'failed';
-    }
+    const summaryContext = previousSummary;
+    const summaryStatus = 'skipped';
 
     const assistantMessageId = randomUUID();
     const completedAt = new Date().toISOString();

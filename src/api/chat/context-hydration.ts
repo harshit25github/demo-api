@@ -134,8 +134,11 @@ export function hydrateGatewayContext(
     structuredClone(runtimeContext || {}) as MutableRecord,
   ) as FlightAppContext;
   const summary = structuredClone(summaryContext || createEmptySummaryContext());
-  hydrateFlightFromSummary(context, summary);
-  context.summaryContext = tripPlannerSummary(summary, context.summaryContext);
+  // Legacy summaries seed old chats only; current runtime state may clear fields.
+  if (!runtimeContext.summaryContext) hydrateFlightFromSummary(context, summary);
+  context.summaryContext = runtimeContext.summaryContext
+    ? structuredClone(runtimeContext.summaryContext)
+    : tripPlannerSummary(summary, context.summaryContext);
   context.tripPlanner = context.tripPlanner || {};
 
   const searchKey = context.flight.searchKey;
@@ -158,6 +161,8 @@ export function snapshotGatewayContext(
 ): PersistedRuntimeContext {
   const flight = structuredClone((context.flight || {}) as FlightContext);
   return {
+    // Specialist-owned context must survive without post-turn extraction.
+    summaryContext: structuredClone(context.summaryContext),
     flight,
     tripPlanner: durableTripPlannerState(context.tripPlanner as MutableRecord),
     flightSearchRuntime: snapshotFlightSearchRuntime(flight.searchKey),
