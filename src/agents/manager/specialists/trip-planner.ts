@@ -5,7 +5,7 @@ import { sanitizeTripPlannerOutput } from '../../trip-planner/scope-policy.js';
 import { getRequestState, getScopedRequestText } from '../../../shared/runtime/request-context.js';
 
 const TRIP_PLANNER_TOOL_DESCRIPTION =
-  'Create or revise destination ideas, activities, attractions, and day plans. Give only the relevant Trip subtask and use confirmed flight facts only when the plan depends on them. Do not rank flight results or explain an existing selected booking itinerary.';
+  'Create or revise destination ideas, activities, attractions, and day plans. Input: the traveler\'s own words for the Trip part, with references resolved and known trip facts added; confirmed flight facts only when the plan depends on them. Do not rank flight results or explain an existing selected booking itinerary.';
 
 // Preserve Trip's existing context-capture lifecycle without a Manager turn
 // closure. Standalone runs already prepare themselves and have no toolInput.
