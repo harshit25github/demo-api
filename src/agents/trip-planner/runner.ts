@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { assertOpenAIConfig } from '../flight/config.js';
 import { sanitizeTripPlannerOutput } from './scope-policy.js';
 import { log } from '../../shared/logging/logger.js';
+import { createRequestContext } from '../../shared/runtime/request-context.js';
+import { createRequestClock } from '../../shared/time/request-clock.js';
 import {
   createTripPlannerSummaryContext,
   mergeTripPlannerSummaryContext,
@@ -63,6 +65,8 @@ interface RunTripPlannerOptions {
   requestId?: string;
   traceId?: string;
   sessionId?: string;
+  now?: Date | string | number;
+  timeZone?: string;
 }
 
 function compactText(value: unknown, maxLength = 700): string {
@@ -288,6 +292,8 @@ async function runTripPlannerAgentInternal({
   context,
   requestId = randomUUID(),
   sessionId = 'trip-planner-default',
+  now,
+  timeZone,
 }: RunTripPlannerOptions) {
   if (!input) {
     throw new Error('input is required.');
@@ -303,7 +309,8 @@ async function runTripPlannerAgentInternal({
     requestId,
     sessionId,
   });
-  const dynamicInstructions = buildTripPlannerDynamicContext({ context: appContext });
+  const requestContext = createRequestContext(appContext, createRequestClock({ now, timeZone }));
+  const dynamicInstructions = buildTripPlannerDynamicContext({ context: requestContext });
   const beforeToolCallCount = appContext.toolCallLog.length;
   let streamEventCount = 0;
 
@@ -317,7 +324,7 @@ async function runTripPlannerAgentInternal({
 
   try {
     const result = await tripPlannerRunner.run(TripPlannerAgent, input, {
-      context: appContext,
+      context: requestContext,
       maxTurns: tripPlannerAgentConfig.maxTurns,
       session: getTripPlannerSession(sessionId),
       stream: true,

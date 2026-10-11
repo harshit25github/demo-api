@@ -1,5 +1,5 @@
 import { Agent } from '@openai/agents';
-import { getRequestState } from '../../shared/runtime/request-context.js';
+import { getRequestClock, getRequestState } from '../../shared/runtime/request-context.js';
 import { TRIP_PLANNER } from './prompt.js';
 import { buildTripPlannerCompactContext } from './context/serializer.js';
 import { tripPlannerTools } from './tools/index.js';
@@ -25,8 +25,14 @@ export function buildTripPlannerDynamicContext(runContext: TripPlannerRunContext
   if (context.tripPlanner && compactContext.planningBrief) {
     context.tripPlanner.planningBrief = compactContext.planningBrief;
   }
+  // The request clock the Manager and Flight use; Trip resolves dates from it.
+  const clock = getRequestClock(runContext?.context as object | undefined);
 
-  return `${compactContext.text}
+  return `<turn_clock>
+${clock ? `today=${clock.localDate}|time_zone=${clock.timeZone}` : 'today=unknown'}
+</turn_clock>
+
+${compactContext.text}
 
 <turn_rules>
 If phase=context_capture, call update_trip_planner_context before any planning, other tool, or final text.
@@ -35,9 +41,9 @@ Normalize concise durable values; do not add raw synonyms beside canonical tripT
 After capture succeeds, reread the refreshed trip_state and turn_plan.
 If phase=planning, never call update_trip_planner_context again.
 During planning, obey every compact turn_plan value and the static format, scope, card, and question rules; never ask for known fields.
-If scope=excluded, call no date, image, web, or detail tool. Give only the configured in-scope capability redirect.
+If scope=excluded, call no image, web, or detail tool. Give only the configured in-scope capability redirect.
 If scope=mixed, ignore excluded portions and answer only the in-scope request.
-Use web_search only when tools says webSearch:call. Current facts must come only from that result.
+web_search is your decision: call it only when the requested outcome depends on a current, time-sensitive fact, with the query anchored to turn_clock and the trip window. Current facts must come only from this turn's results.
 Call update_trip_planner_suggested_questions last with the current revision and exactly three 3-8 word scope-safe suggestions.
 Suggestions must avoid every completed value and semantic category, including reworded synonyms.
 If the suggestions updater reports INVALID_SUGGESTIONS, correct them once. After success, call no more tools and return only the user-facing response.

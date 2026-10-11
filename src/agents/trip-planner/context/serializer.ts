@@ -33,20 +33,11 @@ function compactToolAction(strategy: TripPlannerRecord, key: string): string {
     return `${key}:not_needed`;
   }
   const details: string[] = [];
-  if (value.input?.candidateDate) {
-    details.push(`date=${value.input.candidateDate}`);
-  }
-  if (value.input?.eventKeyword) {
-    details.push(`event=${value.input.eventKeyword}`);
-  }
   if (value.itemCodes?.length) {
     details.push(`codes=${value.itemCodes.join('+')}`);
   }
   if (value.sections?.length) {
     details.push(`sections=${value.sections.join('+')}`);
-  }
-  if (value.categories?.length) {
-    details.push(`categories=${value.categories.join('+')}`);
   }
   return `${key}:${value.action || 'not_needed'}${
     details.length ? `|${details.join('|')}` : ''
@@ -163,10 +154,9 @@ export function buildTripPlannerCompactContext({
     `patch=${response.patchTargets.join(',') || 'none'}`,
     `questions=${response.questionPriority.join(',') || 'none'}`,
     `tools=${[
-      compactToolAction(brief.toolStrategy, 'dateValidation'),
-      compactToolAction(brief.toolStrategy, 'webSearch'),
       compactToolAction(brief.toolStrategy, 'images'),
       compactToolAction(brief.toolStrategy, 'contextDetails'),
+      scopeMode === 'excluded' ? 'webSearch:not_needed' : 'webSearch:agent_decides',
       'suggested_questions:always_last',
     ].join(',')}`,
     tripPlannerState.previousSuggestedQuestions?.length
