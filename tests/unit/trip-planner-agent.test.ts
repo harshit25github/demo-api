@@ -694,6 +694,48 @@ describe('Dummy Trip Planner Agent setup', () => {
     assert.match(TRIP_PLANNER, /<\/privacy_and_identity_guardrail>/);
   });
 
+  it('treats any follow-up on a saved plan as a revision unless a full plan is asked for', () => {
+    const saved = { lastPlanSnapshot: fullContext, lastPlanArtifact: { id: 'plan_1', days: [] } };
+    const mode = (currentUserMessage: string) => buildTripPlannerPlanningBrief({
+      summaryContext: fullContext, currentUserMessage, tripPlannerState: saved,
+    }).responseStrategy.renderMode;
+    // Worded without any "add/change/make" verb, as the Manager sometimes paraphrases it.
+    assert.equal(mode('Check events on those dates and place good ones on the right evenings'), 'compact_patch');
+    assert.equal(mode('Include a flamenco night somewhere'), 'compact_patch');
+    assert.equal(mode('Show me the full itinerary again'), 'compact_full');
+    assert.equal(mode('Start over with a fresh plan'), 'compact_full');
+  });
+
+  it('keeps a saved plan readable for any follow-up and mandatory for explicit day references', async () => {
+    const saved = { lastPlanSnapshot: fullContext, lastPlanArtifact: { id: 'plan_1', days: [] } };
+    const generic = buildTripPlannerPlanningBrief({
+      summaryContext: fullContext,
+      currentUserMessage: 'If a festival is on, add it to the right day',
+      tripPlannerState: saved,
+    });
+    assert.deepEqual(generic.toolStrategy.contextDetails, { action: 'agent_decides', sections: ['last_plan'] });
+    const explicit = buildTripPlannerPlanningBrief({
+      summaryContext: fullContext,
+      currentUserMessage: 'Make day 2 lighter',
+      tripPlannerState: saved,
+    });
+    assert.deepEqual(explicit.toolStrategy.contextDetails, { action: 'call', sections: ['last_plan'] });
+    const fresh = buildTripPlannerPlanningBrief({
+      summaryContext: fullContext,
+      currentUserMessage: 'Plan my trip',
+      tripPlannerState: {},
+    });
+    assert.equal(fresh.toolStrategy.contextDetails.action, 'not_needed');
+
+    const context: any = { summaryContext: fullContext, tripPlanner: structuredClone(saved) };
+    prepareTripPlannerTurn({ context, input: 'If a festival is on, add it to the right day' });
+    applyTripPlannerContextUpdate(context, {
+      baseRevision: context.tripPlanner.turnState.baseRevision,
+      contextPatch: null,
+    });
+    assert.equal(await GetTripPlannerContextDetailsTool.isEnabled({ context }, TripPlannerAgent), true);
+  });
+
   it('hydrates the request clock and leaves the web research decision to the agent', () => {
     const state = {
       summaryContext: fullContext,

@@ -31,7 +31,7 @@ const contextDetailsSchema = z.object({
 export const GetTripPlannerContextDetailsTool = tool({
   name: TRIP_PLANNER_TOOL_NAMES.getContextDetails,
   description:
-    'Read compact saved places, events, or the last itinerary only when turn_plan says contextDetails:call. Never use for excluded-scope requests.',
+    'Read compact saved places, events, or the last itinerary when turn_plan says contextDetails:call, or with contextDetails:agent_decides before changing or referring to saved days. Never use for excluded-scope requests.',
   parameters: contextDetailsSchema,
   strict: true,
   isEnabled: ({ runContext }) => {
@@ -39,7 +39,7 @@ export const GetTripPlannerContextDetailsTool = tool({
     return (
       state?.turnState?.contextCaptured === true &&
       state?.scopeClassification?.mode !== 'excluded' &&
-      state?.planningBrief?.toolStrategy?.contextDetails?.action === 'call'
+      ['call', 'agent_decides'].includes(state?.planningBrief?.toolStrategy?.contextDetails?.action)
     );
   },
   execute(input, runContext) {
