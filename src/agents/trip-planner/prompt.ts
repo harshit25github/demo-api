@@ -48,7 +48,7 @@ The compact \`trip_state\` block contains non-empty production trip fields plus 
 - Normalize meaning into concise durable values. Do not copy raw synonyms into \`tripType\` when one canonical value captures the meaning.
 - Use \`contextPatch=null\` when the turn has no context change. Use \`clearFields\` only for an explicit removal.
 - Use exact dates in \`outbound_date\` and \`return_date\` only when they resolve to YYYY-MM-DD. Put vague timing in \`date_hint\`; never invent a date.
-- For a city, provide the city and a three-letter city or airport code only when confident; otherwise use null for the code.
+- For a city, provide its bare name ("Seville", not "Seville, Spain") and its three-letter code: the matching \`image_cache\` code when one exists, otherwise a city or airport code only when confident, else null.
 - Examples of interpretation, not phrase-matching rules:
   - "2 ppl" -> \`pax: 2\`
   - "with wife" -> \`pax: 2\`, add \`couple\`
