@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  mapPostBookingDecision,
+  classifyPostBooking,
   postBookingGuardrailConfig,
   postBookingGuardrailOutputSchema,
   type PostBookingInput,
@@ -18,18 +18,22 @@ import {
 } from '../../src/agents/gaurdrail/agent.js';
 import { POST_BOOKING_QUESTION } from '../../src/agents/gaurdrail/prompt.js';
 
-const REPORT_JSON = path.join(process.cwd(), 'tests', 'results', 'post-booking-guardrail-comparison-latest.json');
-const REPORT_TXT = path.join(process.cwd(), 'tests', 'results', 'post-booking-guardrail-comparison-latest.txt');
+const REPORT_LABEL = /^[a-z0-9-]{1,60}$/.test(process.env.GUARDRAIL_EVAL_LABEL || '') ? process.env.GUARDRAIL_EVAL_LABEL! : 'latest';
+const REPORT_JSON = path.join(process.cwd(), 'tests', 'results', `post-booking-guardrail-comparison-${REPORT_LABEL}.json`);
+const REPORT_TXT = path.join(process.cwd(), 'tests', 'results', `post-booking-guardrail-comparison-${REPORT_LABEL}.txt`);
 const CONCURRENCY = positiveInteger('GUARDRAIL_EVAL_CONCURRENCY', 8, 32);
 const REPEATS = positiveInteger('GUARDRAIL_EVAL_REPEATS', 3, 20);
 const TIMEOUT_MS = positiveInteger('GUARDRAIL_EVAL_TIMEOUT_MS', 60_000, 600_000);
 const LEGACY_MODEL = 'gpt-5.4-nano';
 
 type Turn = { role: 'user' | 'assistant'; content: string };
+// corpus: the cases below. holdout/validation: the R&D fixtures, kept out of prompt tuning.
+type Suite = 'corpus' | 'holdout' | 'validation';
 
 interface GuardrailCase {
   id: string;
   category: string;
+  suite?: Suite;
   history?: Turn[];
   pageContext?: string;
   message: string;
@@ -372,6 +376,29 @@ const cases: GuardrailCase[] = [
   },
 ];
 
+interface FixtureCase {
+  id: string;
+  message: string;
+  history?: Turn[];
+  pageContext?: string;
+  expected: { isPostBooking: boolean; intents: PostBookingIntent[] };
+}
+
+async function loadFixtureSuite(suite: Exclude<Suite, 'corpus'>): Promise<GuardrailCase[]> {
+  const items = JSON.parse(await fs.readFile(new URL(`../fixtures/post-booking-rnd-${suite}.json`, import.meta.url), 'utf8')) as FixtureCase[];
+  return items.map(({ expected, ...item }) => ({
+    ...item, category: `rnd-${suite}`, suite,
+    expectedPostBooking: expected.isPostBooking, expectedIntents: expected.intents,
+  }));
+}
+
+function listSetting<T extends string>(name: string, fallback: T[], allowed: readonly T[]): T[] {
+  const raw = (process.env[name] || '').split(',').map((value) => value.trim()).filter(Boolean);
+  const values = raw.includes('all') ? [...allowed] : raw.length ? raw : fallback;
+  if (values.some((value) => !allowed.includes(value as T))) throw new Error(`${name} must list values from: ${allowed.join(', ')}, or all.`);
+  return [...new Set(values as T[])];
+}
+
 function toInputItems(testCase: GuardrailCase): AgentInputItem[] {
   const items: AgentInputItem[] = [];
   for (const turn of testCase.history || []) {
@@ -487,6 +514,8 @@ const pricing = {
 };
 
 function estimateCost(engine: Engine, usage: TokenUsage[], transports: TransportAttempt[]) {
+  // A decision settled by a deterministic rule sends no request and costs nothing.
+  if (engine === 'decisions' && !usage.length && !transports.length) return { estimatedCostUsd: 0, costIncompleteReason: null };
   let incompleteReason: string | null = null;
   if (!usage.length) incompleteReason = 'missing_usage';
   else if (transports.length !== usage.length || transports.some((transport) => transport.failed)) incompleteReason = 'retry_or_unaccounted_transport';
@@ -503,16 +532,20 @@ function estimateCost(engine: Engine, usage: TokenUsage[], transports: Transport
   return { estimatedCostUsd: usd, costIncompleteReason: null };
 }
 
-const transportScope = new AsyncLocalStorage<TransportAttempt[]>();
+// Records every HTTP attempt and, for Decisions, each raw response body (usage and probabilities),
+// so the eval can call the production classifyPostBooking path unchanged.
+const transportScope = new AsyncLocalStorage<{ transports: TransportAttempt[]; decisions: unknown[] }>();
 const observedFetch: typeof globalThis.fetch = async (input, init) => {
-  const transports = transportScope.getStore();
+  const scope = transportScope.getStore();
   const startedAt = performance.now();
   try {
     const response = await globalThis.fetch(input, init);
-    transports?.push({ status: response.status, requestId: requestId(response.headers.get('x-request-id')), latencyMs: performance.now() - startedAt, failed: !response.ok });
+    scope?.transports.push({ status: response.status, requestId: requestId(response.headers.get('x-request-id')), latencyMs: performance.now() - startedAt, failed: !response.ok });
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (response.ok && new URL(url).pathname.endsWith('/decisions')) scope?.decisions.push(await response.clone().json());
     return response;
   } catch (error) {
-    transports?.push({ status: null, requestId: null, latencyMs: performance.now() - startedAt, failed: true });
+    scope?.transports.push({ status: null, requestId: null, latencyMs: performance.now() - startedAt, failed: true });
     throw error;
   }
 };
@@ -537,7 +570,8 @@ async function runAttempt(engine: Engine, testCase: GuardrailCase, client: OpenA
   let model = engine === 'legacy' ? LEGACY_MODEL : postBookingGuardrailConfig.model;
   let probabilities: Probability[] | null = null;
   let usage: TokenUsage[] = [];
-  await transportScope.run(transportAttempts, async () => {
+  const decisions: unknown[] = [];
+  await transportScope.run({ transports: transportAttempts, decisions }, async () => {
     try {
       const signal = AbortSignal.timeout(TIMEOUT_MS);
       if (engine === 'legacy') {
@@ -546,21 +580,20 @@ async function runAttempt(engine: Engine, testCase: GuardrailCase, client: OpenA
         model = String(result.rawResponses.at(-1)?.providerData?.model ?? LEGACY_MODEL);
         actual = postBookingGuardrailOutputSchema.parse(result.finalOutput);
       } else {
-        const response = await client.decisions.create({
-          model: postBookingGuardrailConfig.model,
-          input: JSON.stringify(toDecisionInput(testCase)),
-          questions: [POST_BOOKING_QUESTION],
-        }, { signal });
-        model = response.model;
-        usage = [normalizeUsage(response.usage)];
-        const answer = response.answers[0];
-        if (answer?.type === 'choice') probabilities = answer.probabilities;
-        actual = mapPostBookingDecision(response);
+        actual = await classifyPostBooking(toDecisionInput(testCase), { client, signal });
       }
     } catch (caught) {
       error = safeError(caught);
     }
   });
+  if (engine === 'decisions') {
+    // Usage covers every Decisions request the classifier made; probabilities come from the first.
+    usage = decisions.map((payload) => normalizeUsage(record(payload).usage));
+    const first = record(decisions[0]);
+    if (typeof first.model === 'string') model = first.model;
+    const answer = record(Array.isArray(first.answers) ? first.answers[0] : undefined);
+    if (answer.type === 'choice' && Array.isArray(answer.probabilities)) probabilities = answer.probabilities as Probability[];
+  }
   return {
     engine, model, promptHash, actual, error,
     postBookingPass: !!actual && actual.isPostBooking === testCase.expectedPostBooking,
@@ -615,6 +648,15 @@ function summarize(results: CaseResult[], elapsedMs: number) {
     const matching = results.filter((result) => result.category === category);
     return { category, cases: matching.length, passed: matching.filter((result) => result.pass).length };
   });
+  const bySuite = [...new Set(results.map((result) => result.suite ?? 'corpus'))].map((suite) => {
+    const matching = results.filter((result) => (result.suite ?? 'corpus') === suite);
+    const suiteAttempts = matching.flatMap((result) => result.attempts);
+    return {
+      suite, cases: matching.length, passedCases: matching.filter((result) => result.pass).length,
+      classificationAccuracy: suiteAttempts.filter((attempt) => attempt.postBookingPass).length / suiteAttempts.length,
+      intentAccuracy: suiteAttempts.filter((attempt) => attempt.intentPass).length / suiteAttempts.length,
+    };
+  });
   return {
     cases: results.length, attempts: attempts.length, passedCases: results.filter((result) => result.pass).length,
     classificationAccuracy: attempts.filter((attempt) => attempt.postBookingPass).length / attempts.length,
@@ -638,6 +680,7 @@ function summarize(results: CaseResult[], elapsedMs: number) {
     estimatedCostPerAttemptUsd: costsComplete ? attempts.reduce((sum, attempt) => sum + attempt.estimatedCostUsd!, 0) / attempts.length : null,
     costComplete: costsComplete, pricedAttempts: attempts.filter((attempt) => attempt.estimatedCostUsd !== null).length,
     costIncompleteReasons: [...new Set(attempts.flatMap((attempt) => attempt.costIncompleteReason ? [attempt.costIncompleteReason] : []))],
+    bySuite,
     byCategory,
   };
 }
@@ -652,6 +695,8 @@ function selfCheck() {
   assert.ok(Math.abs(estimateCost('decisions', [usage], transports).estimatedCostUsd! - 0.00008 * regionalPremium) < 1e-12);
   assert.equal(estimateCost('decisions', [usage], [...transports, ...transports]).costIncompleteReason, 'retry_or_unaccounted_transport');
   assert.equal(estimateCost('legacy', [normalizeUsage({})], transports).costIncompleteReason, 'missing_usage');
+  assert.deepEqual(estimateCost('decisions', [], []), { estimatedCostUsd: 0, costIncompleteReason: null });
+  assert.equal(estimateCost('legacy', [], []).costIncompleteReason, 'missing_usage');
   assert.deepEqual(safeError({ name: 'User secret', message: 'sk-secret', status: 429, request_id: 'req_example' }), { name: 'Error', status: 429, requestId: 'req_example' });
   assert.equal(privacyPass({ isPostBooking: true, intent: 'BOOKING_INFO', confidence: 1, reason: 'Booking 12345678' }), false);
   assert.equal(privacyPass({ isPostBooking: false, intent: 'NEW_BOOKING', confidence: 1, reason: 'Pre-booking travel assistance.' }), true);
@@ -661,16 +706,21 @@ async function main() {
   selfCheck();
   // Retain original gold labels as a separate metric, including all unchanged cases.
   for (const item of cases.slice(0, 96)) item.historicalExpected ??= { isPostBooking: item.expectedPostBooking, intents: [...item.expectedIntents] };
+  const suites = listSetting<Suite>('GUARDRAIL_EVAL_SUITES', ['corpus'], ['corpus', 'holdout', 'validation']);
+  const engines = listSetting<Engine>('GUARDRAIL_EVAL_ENGINES', ['legacy', 'decisions'], ['legacy', 'decisions']);
+  const available: GuardrailCase[] = [];
+  for (const suite of suites) available.push(...(suite === 'corpus' ? cases.map((item) => ({ ...item, suite })) : await loadFixtureSuite(suite)));
+  assert.equal(new Set(available.map((item) => item.id)).size, available.length, 'Case IDs must be unique across suites.');
   const selectedIds = new Set((process.env.GUARDRAIL_EVAL_CASE_IDS || '').split(',').map((id) => id.trim()).filter(Boolean));
-  const selected = selectedIds.size ? cases.filter((item) => selectedIds.has(item.id)) : cases;
-  if (!selected.length || selectedIds.size !== 0 && selectedIds.size !== selected.length) throw new Error('GUARDRAIL_EVAL_CASE_IDS must contain existing case IDs.');
+  const selected = selectedIds.size ? available.filter((item) => selectedIds.has(item.id)) : available;
+  if (!selected.length || selectedIds.size !== 0 && selectedIds.size !== selected.length) throw new Error('GUARDRAIL_EVAL_CASE_IDS must contain existing case IDs from the selected suites.');
   const legacyPrompt = await fs.readFile(new URL('../fixtures/post-booking-legacy-prompt.txt', import.meta.url), 'utf8');
   const promptHashes = {
     legacy: createHash('sha256').update(legacyPrompt).digest('hex'),
     decisions: createHash('sha256').update(JSON.stringify(POST_BOOKING_QUESTION)).digest('hex'),
   };
   if (process.argv.includes('--dry-run')) {
-    console.log(JSON.stringify({ dryRun: true, cases: selected.length, totalCases: cases.length, historicalCases: 96, correctedGoldCases: cases.filter((item) => item.historicalExpected && item.historicalExpected.isPostBooking !== item.expectedPostBooking).length, heldOutCases: selected.filter((item) => item.heldOut).length, criticalCases: selected.filter((item) => item.critical).length, repeats: REPEATS, concurrency: CONCURRENCY, promptHashes, pricing }, null, 2));
+    console.log(JSON.stringify({ dryRun: true, suites, engines, cases: selected.length, totalCases: available.length, historicalCases: 96, correctedGoldCases: cases.filter((item) => item.historicalExpected && item.historicalExpected.isPostBooking !== item.expectedPostBooking).length, heldOutCases: selected.filter((item) => item.heldOut).length, criticalCases: selected.filter((item) => item.critical).length, repeats: REPEATS, concurrency: CONCURRENCY, promptHashes, pricing, report: REPORT_JSON }, null, 2));
     return;
   }
   if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is required for this live eval.');
@@ -682,8 +732,8 @@ async function main() {
     modelSettings: { reasoning: { effort: 'high' }, text: { verbosity: 'low' }, preserveRawUsage: true },
     outputType: postBookingGuardrailOutputSchema, tools: [],
   });
-  const runs = {} as Record<Engine, { summary: ReturnType<typeof summarize>; results: CaseResult[] }>;
-  for (const engine of ['legacy', 'decisions'] as const) {
+  const runs = {} as Partial<Record<Engine, { summary: ReturnType<typeof summarize>; results: CaseResult[] }>>;
+  for (const engine of engines) {
     const startedAt = performance.now();
     let completed = 0;
     const results = await runPool(selected, CONCURRENCY, async (item) => {
@@ -694,10 +744,11 @@ async function main() {
     });
     runs[engine] = { summary: summarize(results, performance.now() - startedAt), results };
   }
-  const baseline = runs.legacy.summary;
-  const candidate = runs.decisions.summary;
-  const acceptance = {
-    fullCorpusWithThreeRepeats: selected.length === cases.length && REPEATS >= 3,
+  const baseline = runs.legacy?.summary;
+  const candidate = runs.decisions?.summary;
+  // Rollout acceptance compares the two engines, so it exists only when both ran.
+  const acceptance = baseline && candidate ? {
+    fullCorpusWithThreeRepeats: selected.length === available.length && suites.includes('corpus') && REPEATS >= 3,
     noErrors: candidate.errors === 0,
     noPrivacyFailures: candidate.privacyFailures === 0,
     allCriticalCasesPass: candidate.criticalPassedCases === candidate.criticalCases,
@@ -710,34 +761,35 @@ async function main() {
     fasterMedian: candidate.p50LatencyMs !== null && baseline.p50LatencyMs !== null && candidate.p50LatencyMs < baseline.p50LatencyMs,
     fasterP95: candidate.p95LatencyMs !== null && baseline.p95LatencyMs !== null && candidate.p95LatencyMs < baseline.p95LatencyMs,
     cheaper: candidate.estimatedCostPerAttemptUsd !== null && baseline.estimatedCostPerAttemptUsd !== null && candidate.estimatedCostPerAttemptUsd < baseline.estimatedCostPerAttemptUsd,
-  };
-  const disagreements = selected.map((item, index) => {
-    const oldAttempts = runs.legacy.results[index].attempts;
-    const newAttempts = runs.decisions.results[index].attempts;
+  } : null;
+  const disagreements = runs.legacy && runs.decisions ? selected.map((item, index) => {
+    const oldAttempts = runs.legacy!.results[index].attempts;
+    const newAttempts = runs.decisions!.results[index].attempts;
     return { id: item.id, category: item.category, expectedPostBooking: item.expectedPostBooking, expectedIntents: item.expectedIntents, legacy: oldAttempts.map((attempt) => attempt.actual && `${attempt.actual.isPostBooking}/${attempt.actual.intent}`), decisions: newAttempts.map((attempt) => attempt.actual && `${attempt.actual.isPostBooking}/${attempt.actual.intent}`) };
-  }).filter((item) => JSON.stringify(item.legacy) !== JSON.stringify(item.decisions));
-  const readyForRollout = Object.values(acceptance).every(Boolean);
+  }).filter((item) => JSON.stringify(item.legacy) !== JSON.stringify(item.decisions)) : null;
+  const readyForRollout = !!acceptance && Object.values(acceptance).every(Boolean);
   const report = {
     generatedAt: new Date().toISOString(), models: { legacy: LEGACY_MODEL, decisions: postBookingGuardrailConfig.model },
-    repeats: REPEATS, concurrency: CONCURRENCY, requestTimeoutMs: TIMEOUT_MS,
-    executionOrder: ['legacy', 'decisions'], promptHashes, pricing, acceptance, readyForRollout, disagreements, runs,
-    notes: ['Both engines receive the same latest request, history and page context. The legacy engine receives role-bearing messages; Decisions receives a JSON evidence string.', 'Latency includes transport retries and model runtime. Each engine runs separately at the same concurrency.', 'Historical gold-label agreement is separate from current policy accuracy. Four original labels were adjudicated against the completed-purchase evidence rule: three bare-possessive requests and generic booking status. Historical expectations remain recorded.', 'Cost estimates use reported usage and exclude unmeasured retries or unknown premiums. They are not invoice totals.'],
+    suites, repeats: REPEATS, concurrency: CONCURRENCY, requestTimeoutMs: TIMEOUT_MS,
+    executionOrder: engines, promptHashes, pricing, acceptance, readyForRollout, disagreements, runs,
+    notes: ['Both engines receive the same latest request, history and page context. The legacy engine receives role-bearing messages; Decisions runs the production classifyPostBooking path.', 'Latency includes transport retries and model runtime. Each engine runs separately at the same concurrency.', 'Historical gold-label agreement is separate from current policy accuracy. Four original labels were adjudicated against the completed-purchase evidence rule: three bare-possessive requests and generic booking status. Historical expectations remain recorded.', 'Cost estimates use reported usage and exclude unmeasured retries or unknown premiums. They are not invoice totals.'],
   };
-  const lines = ['POST-BOOKING GUARDRAIL COMPARISON', `cases: ${selected.length}/${cases.length}; repeats: ${REPEATS}; concurrency: ${CONCURRENCY}`, `ready for rollout: ${readyForRollout}`, ''];
-  for (const engine of ['legacy', 'decisions'] as const) {
-    lines.push(`${engine.toUpperCase()} (${report.models[engine]})`, JSON.stringify(runs[engine].summary, null, 2), 'FAILURES');
-    for (const result of runs[engine].results.filter((item) => !item.pass)) {
+  const lines = ['POST-BOOKING GUARDRAIL COMPARISON', `suites: ${suites.join(', ')}; cases: ${selected.length}/${available.length}; repeats: ${REPEATS}; concurrency: ${CONCURRENCY}`, `ready for rollout: ${acceptance ? readyForRollout : 'n/a (single engine)'}`, ''];
+  for (const engine of engines) {
+    const run = runs[engine]!;
+    lines.push(`${engine.toUpperCase()} (${report.models[engine]})`, JSON.stringify(run.summary, null, 2), 'FAILURES');
+    for (const result of run.results.filter((item) => !item.pass)) {
       lines.push(`${result.id} expected ${result.expectedPostBooking}/${result.expectedIntents.join('|')}: ${result.attempts.map((attempt) => attempt.actual ? `${attempt.actual.isPostBooking}/${attempt.actual.intent}` : `ERROR ${attempt.error?.name}`).join(', ')}`);
     }
     lines.push('');
   }
-  lines.push('ACCEPTANCE', JSON.stringify(acceptance, null, 2), 'DISAGREEMENTS', JSON.stringify(disagreements, null, 2));
+  if (acceptance) lines.push('ACCEPTANCE', JSON.stringify(acceptance, null, 2), 'DISAGREEMENTS', JSON.stringify(disagreements, null, 2));
   const textReport = lines.join('\n');
   console.log(textReport);
   await fs.mkdir(path.dirname(REPORT_JSON), { recursive: true });
   await fs.writeFile(REPORT_JSON, JSON.stringify(report, null, 2), 'utf8');
   await fs.writeFile(REPORT_TXT, textReport, 'utf8');
-  process.exitCode = readyForRollout ? 0 : 1;
+  process.exitCode = (acceptance ? readyForRollout : Object.values(runs).every((run) => run.results.every((item) => item.pass))) ? 0 : 1;
 }
 
 await main();
