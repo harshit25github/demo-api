@@ -1,0 +1,291 @@
+[
+  {
+    "id": "rnd-code-alternating-letter-first",
+    "message": "H3V8N2",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-code-alternating-digit-first",
+    "message": "4L7S2D",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-code-without-coupon-context",
+    "message": "B9C4K7",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-code-with-coupon-context",
+    "message": "B9C4K7",
+    "history": [
+      { "role": "user", "content": "I am choosing a new fare and want to apply a discount before paying." },
+      { "role": "assistant", "content": "What is the coupon code you want to enter at checkout?" }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-code-without-flight-number-context",
+    "message": "J6B2P8",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-code-with-flight-number-context",
+    "message": "J6B2P8",
+    "history": [
+      { "role": "user", "content": "Before I buy, I want to compare a charter flight whose search result shows an alphanumeric flight number." },
+      { "role": "assistant", "content": "Which flight number should I compare? Enter the exact six-character flight number displayed in that unpaid search result." }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-five-digits-without-context",
+    "message": "37491",
+    "expected": { "isPostBooking": false, "intents": ["none"] }
+  },
+  {
+    "id": "rnd-six-digits-without-context",
+    "message": "374910",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-five-digits-labeled-pnr",
+    "message": "PNR 37491",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-five-digits-requested-identifier",
+    "message": "37491",
+    "history": [
+      { "role": "user", "content": "I purchased a ticket this week and need to retrieve it." },
+      { "role": "assistant", "content": "Please share the booking number for the ticket you bought." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-five-digits-budget-answer",
+    "message": "37491",
+    "history": [
+      { "role": "user", "content": "Find a holiday itinerary for me; I have not booked anything." },
+      { "role": "assistant", "content": "What is your maximum budget in rupees?" }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-six-digits-budget-answer",
+    "message": "374910",
+    "history": [
+      { "role": "user", "content": "Find a holiday itinerary for me; I have not booked anything." },
+      { "role": "assistant", "content": "What is your maximum budget in rupees?" }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-six-digits-date-answer",
+    "message": "181127",
+    "history": [
+      { "role": "user", "content": "I need to search for flights departing in November 2027." },
+      { "role": "assistant", "content": "Which departure date? Enter it as DDMMYY." }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-six-digits-numbered-search-option",
+    "message": "374910",
+    "history": [
+      { "role": "user", "content": "Show me available flights for a new trip to Prague." },
+      { "role": "assistant", "content": "The unpaid search results have six-digit option numbers. Which displayed option number would you like to compare?" }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-six-digits-price-answer",
+    "message": "374910",
+    "history": [
+      { "role": "user", "content": "Compare this quoted fare with other flights before I pay." },
+      { "role": "assistant", "content": "What price in rupees is displayed for the fare you are comparing?" }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-pnr-inherits-cancellation",
+    "message": "F7Q2M8",
+    "history": [
+      { "role": "user", "content": "Please cancel the ticket I purchased on Monday." },
+      { "role": "assistant", "content": "What is the PNR for the ticket you want cancelled?" }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["CANCELLATION"] }
+  },
+  {
+    "id": "rnd-short-number-inherits-reschedule",
+    "message": "62719",
+    "history": [
+      { "role": "user", "content": "Move my confirmed reservation to a departure one day later." },
+      { "role": "assistant", "content": "Please provide its booking number so I can handle the date change." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["FLIGHT_CHANGE"] }
+  },
+  {
+    "id": "rnd-pnr-inherits-baggage",
+    "message": "N4J8R2",
+    "history": [
+      { "role": "user", "content": "Add one checked suitcase to the ticket I bought earlier today." },
+      { "role": "assistant", "content": "Which PNR should the extra baggage be added to?" }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["SEATS_BAGGAGE"] }
+  },
+  {
+    "id": "rnd-pnr-inherits-insurance",
+    "message": "A7L3K9",
+    "history": [
+      { "role": "user", "content": "I have already paid for my flight. Add travel insurance to that reservation." },
+      { "role": "assistant", "content": "Give me the PNR for the completed reservation that needs insurance." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["TRAVEL_SERVICES"] }
+  },
+  {
+    "id": "rnd-pnr-inherits-invoice",
+    "message": "C8Z4P2",
+    "history": [
+      { "role": "user", "content": "Send me an invoice for the ticket I paid for last Thursday." },
+      { "role": "assistant", "content": "What is the PNR for the invoice request?" }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["PAYMENT_BILLING"] }
+  },
+  {
+    "id": "rnd-pnr-general-lookup",
+    "message": "D2W6S8",
+    "history": [
+      { "role": "user", "content": "I completed a flight purchase and need to see its details." },
+      { "role": "assistant", "content": "Please provide the confirmation code for that purchase." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-seat-history-only-with-checkout",
+    "message": "Move me to an aisle seat.",
+    "history": [
+      { "role": "user", "content": "I paid for a ticket last week, confirmation G2P8R4." },
+      { "role": "assistant", "content": "That paid reservation is available." }
+    ],
+    "pageContext": "seat selection",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-seat-latest-identifier-with-checkout",
+    "message": "Move me to an aisle seat on the other completed reservation G2P8R4.",
+    "history": [
+      { "role": "user", "content": "I paid for a ticket last week, confirmation G2P8R4." },
+      { "role": "assistant", "content": "That paid reservation is available." }
+    ],
+    "pageContext": "seat selection",
+    "expected": { "isPostBooking": true, "intents": ["SEATS_BAGGAGE"] }
+  },
+  {
+    "id": "rnd-seat-history-without-checkout",
+    "message": "Move me to an aisle seat.",
+    "history": [
+      { "role": "user", "content": "I paid for a ticket last week, confirmation G2P8R4." },
+      { "role": "assistant", "content": "That paid reservation is available." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["SEATS_BAGGAGE"] }
+  },
+  {
+    "id": "rnd-discount-history-only-with-checkout",
+    "message": "Can you apply a discount to it?",
+    "history": [
+      { "role": "user", "content": "I bought a ticket on Wednesday and already received the receipt." },
+      { "role": "assistant", "content": "I have that completed purchase in context." }
+    ],
+    "pageContext": "payment",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-discount-latest-purchase-with-checkout",
+    "message": "Can you apply a discount to the other ticket I bought on Wednesday?",
+    "history": [
+      { "role": "user", "content": "I bought a ticket on Wednesday and already received the receipt." },
+      { "role": "assistant", "content": "I have that completed purchase in context." }
+    ],
+    "pageContext": "payment",
+    "expected": { "isPostBooking": true, "intents": ["PAYMENT_BILLING"] }
+  },
+  {
+    "id": "rnd-discount-history-without-checkout",
+    "message": "Can you apply a discount to it?",
+    "history": [
+      { "role": "user", "content": "I bought a ticket on Wednesday and already received the receipt." },
+      { "role": "assistant", "content": "I have that completed purchase in context." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["PAYMENT_BILLING"] }
+  },
+  {
+    "id": "rnd-name-history-only-with-checkout",
+    "message": "Correct the spelling of my surname.",
+    "history": [
+      { "role": "user", "content": "I have a paid reservation, PNR R7L2V8." },
+      { "role": "assistant", "content": "That confirmed reservation is in context." }
+    ],
+    "pageContext": "passenger details",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-name-latest-identifier-with-checkout",
+    "message": "Correct the spelling of my surname on the other confirmed reservation R7L2V8.",
+    "history": [
+      { "role": "user", "content": "I have a paid reservation, PNR R7L2V8." },
+      { "role": "assistant", "content": "That confirmed reservation is in context." }
+    ],
+    "pageContext": "passenger details",
+    "expected": { "isPostBooking": true, "intents": ["FLIGHT_CHANGE"] }
+  },
+  {
+    "id": "rnd-bag-history-only-with-checkout",
+    "message": "Add a checked suitcase.",
+    "history": [
+      { "role": "user", "content": "The flight ticket I purchased last night is confirmed." },
+      { "role": "assistant", "content": "I have the completed purchase in context." }
+    ],
+    "pageContext": "review",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-bag-latest-purchase-with-checkout",
+    "message": "Add a checked suitcase to the separate flight ticket I purchased last night.",
+    "history": [
+      { "role": "user", "content": "The flight ticket I purchased last night is confirmed." },
+      { "role": "assistant", "content": "I have the completed purchase in context." }
+    ],
+    "pageContext": "review",
+    "expected": { "isPostBooking": true, "intents": ["SEATS_BAGGAGE"] }
+  },
+  {
+    "id": "rnd-fresh-search-after-completed-booking",
+    "message": "Start a new search for a one-way flight to Vienna.",
+    "history": [
+      { "role": "user", "content": "I want to manage the ticket I purchased, confirmation P4Z7K2." },
+      { "role": "assistant", "content": "The completed reservation has been located." }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "rnd-boarding-pass-exception-with-checkout",
+    "message": "Where is the boarding pass for the flight I am checking in for?",
+    "pageContext": "review",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "rnd-account-exception-with-checkout",
+    "message": "My password reset link does not work; restore access to my profile.",
+    "pageContext": "payment",
+    "expected": { "isPostBooking": true, "intents": ["ACCOUNT_LOYALTY"] }
+  },
+  {
+    "id": "rnd-pnr-inherits-support-escalation",
+    "message": "V6H2N9",
+    "history": [
+      { "role": "user", "content": "I purchased a ticket last week, but the unresolved complaint about that purchase needs escalation to a support agent." },
+      { "role": "assistant", "content": "What is the PNR for the existing-booking complaint that should be escalated?" }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["SUPPORT"] }
+  }
+]

@@ -1,0 +1,295 @@
+[
+  {
+    "id": "validation-contextless-one-digit",
+    "message": "7",
+    "expected": { "isPostBooking": false, "intents": ["none"] }
+  },
+  {
+    "id": "validation-contextless-two-digits",
+    "message": "63",
+    "expected": { "isPostBooking": false, "intents": ["none"] }
+  },
+  {
+    "id": "validation-contextless-three-digits",
+    "message": "819",
+    "expected": { "isPostBooking": false, "intents": ["none"] }
+  },
+  {
+    "id": "validation-contextless-four-digits",
+    "message": "7428",
+    "expected": { "isPostBooking": false, "intents": ["none"] }
+  },
+  {
+    "id": "validation-contextless-five-digits",
+    "message": "61837",
+    "expected": { "isPostBooking": false, "intents": ["none"] }
+  },
+  {
+    "id": "validation-explicit-short-booking-number",
+    "message": "Booking number 819",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "validation-requested-two-digit-id-inherits-invoice",
+    "message": "63",
+    "history": [
+      { "role": "user", "content": "I need the invoice for the reservation I paid for on Tuesday." },
+      { "role": "assistant", "content": "Please reply with the booking number for the invoice you need." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["PAYMENT_BILLING"] }
+  },
+  {
+    "id": "validation-contextless-six-digits",
+    "message": "618370",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "validation-six-digit-coupon-answer",
+    "message": "618370",
+    "history": [
+      { "role": "user", "content": "I am buying a new ticket and have a numeric discount coupon to try before payment." },
+      { "role": "assistant", "content": "What is the coupon number printed on your offer?" }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-five-digit-coupon-answer",
+    "message": "61837",
+    "history": [
+      { "role": "user", "content": "I am buying a new ticket and have a numeric discount coupon to try before payment." },
+      { "role": "assistant", "content": "What is the coupon number printed on your offer?" }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-six-digit-search-date",
+    "message": "090228",
+    "history": [
+      { "role": "user", "content": "Find departures for my new trip in February 2028." },
+      { "role": "assistant", "content": "Enter your preferred departure date using DDMMYY." }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-five-digit-search-budget",
+    "message": "61837",
+    "history": [
+      { "role": "user", "content": "Plan an affordable new trip; no tickets have been purchased." },
+      { "role": "assistant", "content": "How much can you spend in rupees altogether?" }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-code-inherits-cancellation",
+    "message": "K2D7S4",
+    "history": [
+      { "role": "user", "content": "I paid for a flight this morning and now need that purchase cancelled." },
+      { "role": "assistant", "content": "Reply with its confirmation code to continue the cancellation request." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["CANCELLATION"] }
+  },
+  {
+    "id": "validation-code-inherits-flight-change",
+    "message": "8P1T6L",
+    "history": [
+      { "role": "user", "content": "The flight I booked needs to leave two days earlier." },
+      { "role": "assistant", "content": "Which PNR belongs to the flight whose date should be moved?" }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["FLIGHT_CHANGE"] }
+  },
+  {
+    "id": "validation-code-inherits-seat-management",
+    "message": "C5G2R8",
+    "history": [
+      { "role": "user", "content": "I already bought the ticket; please move my assigned seat farther forward." },
+      { "role": "assistant", "content": "Please send the booking code for that seat-management request." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["SEATS_BAGGAGE"] }
+  },
+  {
+    "id": "validation-code-inherits-travel-service",
+    "message": "M7V4B9",
+    "history": [
+      { "role": "user", "content": "The ticket purchase is complete. Add the Support Package to that booking." },
+      { "role": "assistant", "content": "What confirmation code should the Support Package be added to?" }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["TRAVEL_SERVICES"] }
+  },
+  {
+    "id": "validation-code-inherits-existing-booking-support",
+    "message": "9Q2F6H",
+    "history": [
+      { "role": "user", "content": "Escalate the unresolved complaint about the flight ticket I purchased last month." },
+      { "role": "assistant", "content": "Share the PNR associated with that completed-booking complaint." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["SUPPORT"] }
+  },
+  {
+    "id": "validation-code-inherits-general-booking-lookup",
+    "message": "E3N8J5",
+    "history": [
+      { "role": "user", "content": "Show the details of the ticket I bought a few days ago." },
+      { "role": "assistant", "content": "Send the confirmation code so the completed booking can be retrieved." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "validation-seat-history-only-current-checkout",
+    "message": "Put me in a window seat instead.",
+    "history": [
+      { "role": "user", "content": "My paid ticket from Friday has confirmation W3F8L2." },
+      { "role": "assistant", "content": "That completed reservation is available for reference." }
+    ],
+    "pageContext": "seat selection",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-seat-latest-proof-current-checkout",
+    "message": "Put me in a window seat instead on the other paid ticket W3F8L2.",
+    "history": [
+      { "role": "user", "content": "My paid ticket from Friday has confirmation W3F8L2." },
+      { "role": "assistant", "content": "That completed reservation is available for reference." }
+    ],
+    "pageContext": "seat selection",
+    "expected": { "isPostBooking": true, "intents": ["SEATS_BAGGAGE"] }
+  },
+  {
+    "id": "validation-seat-history-without-checkout",
+    "message": "Put me in a window seat instead.",
+    "history": [
+      { "role": "user", "content": "My paid ticket from Friday has confirmation W3F8L2." },
+      { "role": "assistant", "content": "That completed reservation is available for reference." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["SEATS_BAGGAGE"] }
+  },
+  {
+    "id": "validation-promo-history-only-current-checkout",
+    "message": "Is a promo code applicable to it?",
+    "history": [
+      { "role": "user", "content": "The ticket I bought on Saturday has already been charged to my card." },
+      { "role": "assistant", "content": "I have that completed purchase in context." }
+    ],
+    "pageContext": "payment",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-promo-latest-proof-current-checkout",
+    "message": "Is a promo code applicable to the separate ticket I bought on Saturday?",
+    "history": [
+      { "role": "user", "content": "The ticket I bought on Saturday has already been charged to my card." },
+      { "role": "assistant", "content": "I have that completed purchase in context." }
+    ],
+    "pageContext": "payment",
+    "expected": { "isPostBooking": true, "intents": ["PAYMENT_BILLING"] }
+  },
+  {
+    "id": "validation-promo-history-without-checkout",
+    "message": "Is a promo code applicable to it?",
+    "history": [
+      { "role": "user", "content": "The ticket I bought on Saturday has already been charged to my card." },
+      { "role": "assistant", "content": "I have that completed purchase in context." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["PAYMENT_BILLING"] }
+  },
+  {
+    "id": "validation-passenger-history-only-current-checkout",
+    "message": "Change the family name entered for the passenger.",
+    "history": [
+      { "role": "user", "content": "I have a confirmed ticket, PNR T4C9G2." },
+      { "role": "assistant", "content": "That purchased ticket is available for reference." }
+    ],
+    "pageContext": "passenger details",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-passenger-latest-proof-current-checkout",
+    "message": "Change the passenger family name on the separate confirmed ticket T4C9G2.",
+    "history": [
+      { "role": "user", "content": "I have a confirmed ticket, PNR T4C9G2." },
+      { "role": "assistant", "content": "That purchased ticket is available for reference." }
+    ],
+    "pageContext": "passenger details",
+    "expected": { "isPostBooking": true, "intents": ["FLIGHT_CHANGE"] }
+  },
+  {
+    "id": "validation-boarding-pass-current-checkout-exception",
+    "message": "Help retrieve the boarding pass for my check-in.",
+    "pageContext": "listing",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "validation-held-credit-current-checkout-exception",
+    "message": "The travel credit already in my wallet is missing; help recover it.",
+    "pageContext": "payment",
+    "expected": { "isPostBooking": true, "intents": ["ACCOUNT_LOYALTY"] }
+  },
+  {
+    "id": "validation-general-invoice-issuance-current-checkout",
+    "message": "At what point will an invoice be issued if I finish paying for this new trip?",
+    "pageContext": "payment",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-generic-gift-card-payment-method",
+    "message": "Are gift cards accepted as a way to pay for a new flight?",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-existing-gift-card-account-problem",
+    "message": "The gift card already saved in my account cannot be accessed.",
+    "expected": { "isPostBooking": true, "intents": ["ACCOUNT_LOYALTY"] }
+  },
+  {
+    "id": "validation-generic-baggage-policy",
+    "message": "What are the usual rules for adding a checked suitcase before buying a fare?",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-purchased-ticket-baggage-action",
+    "message": "Add a checked suitcase to the fare I purchased this afternoon.",
+    "expected": { "isPostBooking": true, "intents": ["SEATS_BAGGAGE"] }
+  },
+  {
+    "id": "validation-generic-refund-policy",
+    "message": "Before purchasing, what refund conditions should I know about?",
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-existing-refund-status",
+    "message": "Has the refund for the ticket I paid for been processed yet?",
+    "expected": { "isPostBooking": true, "intents": ["CANCELLATION"] }
+  },
+  {
+    "id": "validation-contextless-human-agent-request",
+    "message": "Please connect me with a person.",
+    "expected": { "isPostBooking": false, "intents": ["none"] }
+  },
+  {
+    "id": "validation-completed-purchase-general-help",
+    "message": "I completed a ticket purchase on Sunday and need help understanding that booking.",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "validation-new-search-after-old-booking",
+    "message": "Look for a brand-new return flight to Oslo for next summer.",
+    "history": [
+      { "role": "user", "content": "I needed help with the ticket I purchased under confirmation Q5H8V3." },
+      { "role": "assistant", "content": "That earlier booking request has been addressed." }
+    ],
+    "expected": { "isPostBooking": false, "intents": ["NEW_BOOKING"] }
+  },
+  {
+    "id": "validation-code-without-pending-action",
+    "message": "K2D7S4",
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  },
+  {
+    "id": "validation-requested-one-digit-booking-number",
+    "message": "7",
+    "history": [
+      { "role": "user", "content": "Retrieve the ticket I paid for; I have its booking number ready." },
+      { "role": "assistant", "content": "Please reply with that booking number to retrieve the completed purchase." }
+    ],
+    "expected": { "isPostBooking": true, "intents": ["BOOKING_INFO"] }
+  }
+]
