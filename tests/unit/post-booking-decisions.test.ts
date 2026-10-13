@@ -6,12 +6,14 @@ import {
   formatDecisionInput,
   mapPostBookingDecision,
   postBookingGuardrailConfig,
+} from '../../src/agents/gaurdrail/agent.js';
+import { POST_BOOKING_QUESTION } from '../../src/agents/gaurdrail/prompt.js';
+import {
   postBookingGuardrailOutputSchema,
   postBookingIntentSchema,
   type PostBookingInput,
   type PostBookingIntent,
-} from '../../src/agents/gaurdrail/agent.js';
-import { POST_BOOKING_QUESTION } from '../../src/agents/gaurdrail/prompt.js';
+} from '../../src/agents/gaurdrail/schema.js';
 
 const intents = postBookingIntentSchema.options;
 const sensitiveText = 'ABC123 traveller@example.invalid';

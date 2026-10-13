@@ -2,65 +2,26 @@ import OpenAI from 'openai';
 import { getDefaultOpenAIClient } from '@openai/agents-openai';
 import { z } from 'zod';
 import { POST_BOOKING_QUESTION } from './prompt.js';
+import {
+  postBookingGuardrailOutputSchema,
+  postBookingInputSchema,
+  postBookingIntentSchema,
+  type PostBookingGuardrailOutput,
+  type PostBookingInput,
+  type PostBookingIntent,
+} from './schema.js';
+
+// Post-booking classification on the Decisions API. classifyPostBooking runs these steps in order:
+// 1. A bare number or code with no conversation or page is decided by the identifier rule, with no request.
+// 2. Otherwise the input is sent as a quoted transcript with the choice question from prompt.ts.
+// 3. The chosen intent becomes the output object from schema.ts; isPostBooking and reason are set here.
+// 4. On a booking-flow page, a checkout intent earned only by history is re-checked on the latest message.
 
 export const postBookingGuardrailConfig = {
   model: 'gpt-6-luna',
 };
 
-export const postBookingIntentSchema = z.enum([
-  'CANCELLATION',
-  'FLIGHT_CHANGE',
-  'SEATS_BAGGAGE',
-  'PAYMENT_BILLING',
-  'BOOKING_INFO',
-  'NEW_BOOKING',
-  'TRAVEL_SERVICES',
-  'ACCOUNT_LOYALTY',
-  'SUPPORT',
-  'none',
-]);
-
-export const postBookingGuardrailOutputSchema = z
-  .object({
-    isPostBooking: z.boolean(),
-    intent: postBookingIntentSchema,
-    confidence: z.number().min(0).max(1),
-    reason: z
-      .string()
-      .trim()
-      .min(1)
-      .describe('Short sanitized classification summary; never include identifiers or personal data.'),
-  })
-  .strict();
-
-export type PostBookingIntent = z.infer<typeof postBookingIntentSchema>;
-export type PostBookingGuardrailOutput = z.infer<typeof postBookingGuardrailOutputSchema>;
-
-export type PostBookingInput = {
-  message: string;
-  history?: readonly { role: 'user' | 'assistant'; content: string }[];
-  pageContext?: string;
-};
-
-const inputSchema = z.object({
-  message: z.string(),
-  history: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() }).strict()).optional(),
-  pageContext: z.string().optional(),
-}).strict();
-
-const responseSchema = z.object({ answers: z.array(z.unknown()).length(1) });
-const choiceSchema = z.object({
-  type: z.literal('choice'),
-  name: z.literal(POST_BOOKING_QUESTION.name),
-  choice: postBookingIntentSchema,
-  confidence: z.number().min(0).max(1),
-  probabilities: z.array(z.object({
-    value: postBookingIntentSchema,
-    probability: z.number().min(0).max(1),
-  })).length(postBookingIntentSchema.options.length),
-});
-const refusalSchema = z.object({ type: z.literal('refusal'), name: z.literal(POST_BOOKING_QUESTION.name) });
-
+// Decisions returns no text, so each intent has a fixed summary that can never carry personal data.
 const reasons: Record<PostBookingIntent, string> = {
   CANCELLATION: 'Existing-booking cancellation or refund request.',
   FLIGHT_CHANGE: 'Existing-booking flight change request.',
@@ -74,24 +35,28 @@ const reasons: Record<PostBookingIntent, string> = {
   none: 'Search abandonment or no discernible travel intent.',
 };
 
-// The purchase on these pages is still in progress and unpaid.
-const bookingFlowPages = new Set(['listing', 'review', 'passenger details', 'seat selection', 'payment']);
-// Checkout topics a booking-flow page keeps in normal flow: seats and bags, fares and passenger
-// details, promo codes and payment, and add-ons.
-const checkoutIntents = new Set<PostBookingIntent>(['SEATS_BAGGAGE', 'FLIGHT_CHANGE', 'PAYMENT_BILLING', 'TRAVEL_SERVICES']);
-
 const isPostBookingIntent = (intent: PostBookingIntent) => intent !== 'NEW_BOOKING' && intent !== 'none';
-
-function isBookingFlowPage(pageContext: string | undefined): boolean {
-  const page = pageContext?.toLowerCase().replace(/[\s_-]+/g, ' ').trim().replace(/ page$/, '');
-  return !!page && bookingFlowPages.has(page);
-}
 
 // A message that is only a number, or only a code mixing letters and digits.
 function bareValue(message: string): { kind: 'number' | 'code'; length: number } | undefined {
   const value = message.trim();
   if (/^\d+$/.test(value)) return { kind: 'number', length: value.length };
   if (/^[a-z\d]+$/i.test(value) && /\d/.test(value) && /[a-z]/i.test(value)) return { kind: 'code', length: value.length };
+  return undefined;
+}
+
+function ruleDecision(intent: PostBookingIntent): PostBookingGuardrailOutput {
+  return { isPostBooking: isPostBookingIntent(intent), intent, confidence: 1, reason: reasons[intent] };
+}
+
+// The identifier rule is lexical when no conversation or page can give the value another meaning:
+// six or more digits, or a six-character letter-and-digit code, is a booking identifier, and a
+// shorter number never is.
+function contextFreeValueDecision({ message, history = [], pageContext }: PostBookingInput) {
+  if (history.length || pageContext?.trim()) return undefined;
+  const value = bareValue(message);
+  if (value?.kind === 'number') return ruleDecision(value.length >= 6 ? 'BOOKING_INFO' : 'none');
+  if (value?.kind === 'code' && value.length === 6) return ruleDecision('BOOKING_INFO');
   return undefined;
 }
 
@@ -111,20 +76,18 @@ export function formatDecisionInput({ message, history = [], pageContext }: Post
   return lines.join('\n');
 }
 
-function ruleDecision(intent: PostBookingIntent): PostBookingGuardrailOutput {
-  return { isPostBooking: isPostBookingIntent(intent), intent, confidence: 1, reason: reasons[intent] };
-}
-
-// The identifier rule is lexical when no conversation or page can give the value another meaning:
-// six or more digits, or a six-character letter-and-digit code, is a booking identifier, and a
-// shorter number never is.
-function contextFreeValueDecision({ message, history = [], pageContext }: PostBookingInput) {
-  if (history.length || pageContext?.trim()) return undefined;
-  const value = bareValue(message);
-  if (value?.kind === 'number') return ruleDecision(value.length >= 6 ? 'BOOKING_INFO' : 'none');
-  if (value?.kind === 'code' && value.length === 6) return ruleDecision('BOOKING_INFO');
-  return undefined;
-}
+const responseSchema = z.object({ answers: z.array(z.unknown()).length(1) });
+const choiceSchema = z.object({
+  type: z.literal('choice'),
+  name: z.literal(POST_BOOKING_QUESTION.name),
+  choice: postBookingIntentSchema,
+  confidence: z.number().min(0).max(1),
+  probabilities: z.array(z.object({
+    value: postBookingIntentSchema,
+    probability: z.number().min(0).max(1),
+  })).length(postBookingIntentSchema.options.length),
+});
+const refusalSchema = z.object({ type: z.literal('refusal'), name: z.literal(POST_BOOKING_QUESTION.name) });
 
 export function mapPostBookingDecision(response: unknown): PostBookingGuardrailOutput {
   const parsed = responseSchema.safeParse(response);
@@ -148,13 +111,24 @@ export function mapPostBookingDecision(response: unknown): PostBookingGuardrailO
   });
 }
 
+// The purchase on these pages is still in progress and unpaid.
+const bookingFlowPages = new Set(['listing', 'review', 'passenger details', 'seat selection', 'payment']);
+// Checkout topics a booking-flow page keeps in normal flow: seats and bags, fares and passenger
+// details, promo codes and payment, and add-ons.
+const checkoutIntents = new Set<PostBookingIntent>(['SEATS_BAGGAGE', 'FLIGHT_CHANGE', 'PAYMENT_BILLING', 'TRAVEL_SERVICES']);
+
+function isBookingFlowPage(pageContext: string | undefined): boolean {
+  const page = pageContext?.toLowerCase().replace(/[\s_-]+/g, ' ').trim().replace(/ page$/, '');
+  return !!page && bookingFlowPages.has(page);
+}
+
 let defaultClient: OpenAI | undefined;
 
 export async function classifyPostBooking(
   input: PostBookingInput,
   options: { client?: OpenAI; signal?: AbortSignal } = {},
 ): Promise<PostBookingGuardrailOutput> {
-  const parsed = inputSchema.safeParse(input);
+  const parsed = postBookingInputSchema.safeParse(input);
   if (!parsed.success) throw new Error('Invalid post-booking classification input.');
   const ruled = contextFreeValueDecision(parsed.data);
   if (ruled) return ruled;

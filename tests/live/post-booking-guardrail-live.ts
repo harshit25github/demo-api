@@ -8,15 +8,14 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { classifyPostBooking, postBookingGuardrailConfig } from '../../src/agents/gaurdrail/agent.js';
+import { POST_BOOKING_QUESTION } from '../../src/agents/gaurdrail/prompt.js';
 import {
-  classifyPostBooking,
-  postBookingGuardrailConfig,
   postBookingGuardrailOutputSchema,
   type PostBookingInput,
   type PostBookingGuardrailOutput,
   type PostBookingIntent,
-} from '../../src/agents/gaurdrail/agent.js';
-import { POST_BOOKING_QUESTION } from '../../src/agents/gaurdrail/prompt.js';
+} from '../../src/agents/gaurdrail/schema.js';
 
 const REPORT_LABEL = /^[a-z0-9-]{1,60}$/.test(process.env.GUARDRAIL_EVAL_LABEL || '') ? process.env.GUARDRAIL_EVAL_LABEL! : 'latest';
 const REPORT_JSON = path.join(process.cwd(), 'tests', 'results', `post-booking-guardrail-comparison-${REPORT_LABEL}.json`);
