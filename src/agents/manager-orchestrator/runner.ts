@@ -11,6 +11,7 @@ import {
   finalizeFlightSuggestedQuestions,
 } from '../flight/tools/suggested-questions-tool.js';
 import { createRequestContext } from '../../shared/runtime/request-context.js';
+import { modelDeadlineProvider } from '../../shared/runtime/model-deadline.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
 import { ManagerAgent } from './agent.js';
 import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
@@ -31,6 +32,8 @@ export interface ManagerRunOptions {
   session?: Session;
   /** Cancels the turn when the client disconnects. */
   signal?: AbortSignal;
+  /** Consume SDK model events internally; the API still sends one final answer. */
+  stream?: boolean;
   /** Substitute Runner, for tests that fake the run. Production uses the default. */
   runner?: Pick<Runner, 'run'>;
 }
@@ -45,6 +48,8 @@ export interface ManagerRunOptions {
  * calls; this enforces it locally even if it does.
  */
 export const mainChatRunner = new Runner({
+  modelProvider: modelDeadlineProvider,
+  modelSettings: { retry: { maxRetries: 0 } },
   toolExecution: { maxFunctionToolConcurrency: 1 },
   workflowName: 'travel-manager',
   traceIncludeSensitiveData: true,
@@ -87,18 +92,16 @@ export function buildGatewayContext({
 /**
  * Run one Manager turn.
  *
- * This is the production path. One nonstream `Runner.run()`: the Manager calls
- * the specialists it needs as SDK agent tools, then makes its own final model
- * call, and its answer is returned whole. There is no stream-resume
- * loop and no partial-answer reconstruction — a terminal failure throws and the
- * caller reports it.
+ * The Manager calls specialists as SDK agent tools and returns its final answer
+ * whole. Optional SDK streaming is consumed here, before the existing final
+ * output sanitizer. Neither mode restarts the run or reconstructs partial text.
  */
 export async function runGatewayAgent(options: ManagerRunOptions) {
   const requestId = options.requestId ?? randomUUID();
   const traceId = options.traceId ?? generateTraceId();
   const sessionId = options.sessionId ?? 'default';
   const {
-    input, context, session, signal, maxTurns = 12,
+    input, context, session, signal, stream = false, maxTurns = 12,
     now = new Date(), timeZone, runner = mainChatRunner,
   } = options;
   if (!input) {
@@ -118,12 +121,21 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   try {
     result = await withTrace(
       'travel-manager',
-      () => runner.run(ManagerAgent, input, {
-        context: requestContext,
-        maxTurns,
-        session,
-        signal,
-      }),
+      async () => {
+        const runOptions = { context: requestContext, maxTurns, session, signal };
+        if (!stream) return runner.run(ManagerAgent, input, runOptions);
+        const streamed = await runner.run(ManagerAgent, input, { ...runOptions, stream: true });
+        // Observe completion immediately: the iterator and completed promise
+        // can both reject for the same failure.
+        void streamed.completed.catch(() => undefined);
+        for await (const _event of streamed) { /* Keep partial/raw text private. */ }
+        await streamed.completed;
+        if (streamed.cancelled) {
+          signal?.throwIfAborted();
+          throw new Error('Manager run was cancelled.');
+        }
+        return streamed;
+      },
       { traceId, metadata: { requestId } },
     );
   } finally {
