@@ -244,9 +244,9 @@ flightAgentAsTool.outputGuardrails = [defineToolOutputGuardrail({
 
 The client draws cards from `flight.showFlight`, the search results, and each option's `display` flag after every reply. That includes a turn the Manager answered without Flight. If your production UI decides card display per reply, switch it to read that state ([public/chat-dashboard/flightContracts.js:47-51](../public/chat-dashboard/flightContracts.js#L47-L51)).
 
-**3. The Trip plan goes through the Manager's reply (only if you ship Trip Planner).**
+**3. The Manager renders Trip plans (only if you ship Trip Planner).**
 
-Trip returns its full plan text, and the Manager must copy it into its answer. The Manager runs on `gpt-5.4-mini` with `verbosity: 'low'` ([manager-orchestrator/config.ts](../src/agents/manager-orchestrator/config.ts)), so check a live Trip conversation to confirm long itineraries and the `:::cards` block arrive intact.
+Trip returns typed planning facts plus formatting rules, not a finished reply, and the Manager renders the cards and days. See [Trip Planner → Manager migration](trip-planner-migration.md).
 
 ---
 
@@ -265,7 +265,6 @@ Move these separately; this guide does not copy them.
 Notes on these prompts:
 - `MANAGER_PROMPT` names `trip_planner_agent` and offers trip planning elsewhere. If you register only Flight, remove those references when you move the prompt.
 - This repo's Flight prompt has picked up rules from live Manager testing, for example "never ask which leg a filter covers, even when the subtask raises that question" (`apply_filter` section of [prompt.ts](../src/agents/flight/prompt.ts)) and "no date after the booking window can be searched or predicted" ([date/prompt-context.ts](../src/agents/flight/date/prompt-context.ts)). Diff it against production's Flight prompt and port what is missing.
-- Rule 6 tells the Manager to include the Trip plan once in its own formatting. [manager-prompt.ts:78](../src/agents/manager-orchestrator/manager-prompt.ts#L78) still says "do not … repeat a large rendered itinerary", which the model could read as "leave it out". Reword one of them when you move the prompt.
 - The old Gateway prompt in [manager-prompt.ts](../src/agents/manager-orchestrator/manager-prompt.ts) is kept for reference only. Don't move it.
 
 ---
@@ -274,7 +273,7 @@ Notes on these prompts:
 
 - Context hydration and persistence ([api/chat/context-hydration.ts](../src/api/chat/context-hydration.ts)), the Summary extractor, and the chat store: unchanged.
 - [flight/runner.ts](../src/agents/flight/runner.ts): standalone Flight path only.
-- Trip Planner ([specialists/trip-planner.ts](../src/agents/manager/specialists/trip-planner.ts)): only if production has a real Trip Planner agent. It brings its own lifecycle dependencies, including its scope and link policy, `sanitizeTripPlannerOutput` in [trip-planner/scope-policy.ts](../src/agents/trip-planner/scope-policy.ts).
+- Trip Planner ([specialists/trip-planner.ts](../src/agents/manager/specialists/trip-planner.ts)): see [Trip Planner → Manager migration](trip-planner-migration.md).
 
 ---
 
