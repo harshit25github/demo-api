@@ -44,7 +44,9 @@ test('the configured Manager singleton registers only the two implemented specia
   assert.equal(ManagerAgent.modelSettings.parallelToolCalls, false);
   assert.deepEqual(ManagerAgent.tools, [flightAgentAsTool, tripPlannerAgentAsTool]);
   assert.deepEqual(ManagerAgent.tools.map((item) => item.name), ['flight_agent', 'trip_planner_agent']);
-  assert.equal(flightAgentAsTool.outputGuardrails?.length || 0, 0);
+  assert.deepEqual(flightAgentAsTool.inputGuardrails?.map((guardrail) => guardrail.name), ['flight_recovery_turn_boundary']);
+  assert.deepEqual(flightAgentAsTool.outputGuardrails?.map((guardrail) => guardrail.name), ['flight_recovery_feedback']);
+  assert.equal(flightAgentAsTool.timeoutMs, undefined, 'deadlines belong to model calls, not whole Flight tasks');
   assert.equal(tripPlannerAgentAsTool.outputGuardrails?.length || 0, 0);
   assert.equal(tripPlannerAgentAsTool.timeoutErrorFunction, undefined);
 });
