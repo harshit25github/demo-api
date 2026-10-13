@@ -261,9 +261,15 @@ const flightAgentDefinition = {
 /** Kept for standalone runs and handoff comparison during the transition. */
 export const FlightAgent = new Agent(flightAgentDefinition);
 
+// The shared Manager provider owns deadlines/retries. Keep standalone Flight's
+// settings intact; Agent settings otherwise override the parent Runner policy.
+const { timeoutMs: _standaloneTimeout, retry: _standaloneRetry, ...managedFlightModelSettings } =
+  flightAgentConfig.modelSettings;
+
 /** Same Flight intelligence and tools, with a typed internal result for Manager runs. */
 export const FlightManagerAgent = new Agent({
   ...flightAgentDefinition,
+  modelSettings: managedFlightModelSettings,
   instructions: (runContext: RunContext<unknown>) =>
     `${buildFlightAgentInstructions(runContext)}\n\n${FLIGHT_MANAGER_INSTRUCTIONS}`,
   outputType: flightManagerOutputSchema,
