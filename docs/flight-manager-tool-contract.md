@@ -28,10 +28,12 @@ Manager-specific instructions:
 }
 ```
 
-Flight authors every field from its assigned task, current context, and actual
-tool results. The SDK enforces the schema. There is no application mapper that
-infers success, projects facts, interprets option numbers, rewrites prediction
-failures, or invents a next step.
+On normal completion, Flight authors every field from its assigned task, current
+context, and actual tool results. The SDK enforces the schema, and valid feedback
+passes through unchanged. The application does not reinterpret options or rewrite
+business failures. If execution ends without valid feedback, a native tool guardrail
+returns partial/failure feedback using only confirmed work from that invocation;
+it does not invent route, price, result-count, or next-step facts.
 
 - `completedTask` and `summary` explain the outcome.
 - `findings` carries relevant verified route/date, count, filter, comparison,
@@ -57,9 +59,12 @@ default output extraction serializes `result.finalOutput` directly. No applicati
 outcome recorder or custom Flight output extractor is needed, and no specialist
 usage metadata is generated for the UI.
 
-The registration adds no Manager-specific tool-output guardrail, retry wrapper,
-or failure-recovery infrastructure. SDK-default nested-tool handling remains in
-effect. Existing Flight tools and suggestion lifecycle are unchanged.
+Native input/output guardrails capture an invocation baseline, preserve valid
+feedback, and provide controlled feedback when execution is interrupted. They
+prevent reopening failed Flight work in the same user turn; a fresh user turn can
+try again. One shared model-call policy retries only the unfinished request at
+25s/50s/75s, never the whole Flight task. Existing Flight tools, context, sessions,
+and suggestion lifecycle are unchanged.
 
 ## Manager and application responsibilities
 

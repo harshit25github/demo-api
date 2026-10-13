@@ -59,7 +59,7 @@ const [
   { runGatewayAgent },
   { hydrateGatewayContext, snapshotGatewayContext },
   { ManagerAgent },
-  { TripPlannerAgent },
+  { TripPlannerManagerAgent },
   { pinManagerLiveModels },
   { flightTools },
   { snapshotFlightSearchRuntime },
@@ -90,7 +90,7 @@ pinManagerLiveModels();
 const liveModels = {
   manager: ManagerAgent.model,
   flight: FlightManagerAgent.model,
-  tripPlanner: TripPlannerAgent.model,
+  tripPlanner: TripPlannerManagerAgent.model,
 };
 if (Object.values(liveModels).some((model) => model !== 'gpt-5.2')) {
   throw new Error(`All agents in this eval must use gpt-5.2: ${JSON.stringify(liveModels)}`);
@@ -101,7 +101,7 @@ if (FlightManagerAgent.modelSettings.reasoning?.effort !== 'low') {
 if (ManagerAgent.modelSettings.reasoning?.effort !== 'low') {
   throw new Error('Manager reasoning effort must be low for this eval.');
 }
-if (TripPlannerAgent.modelSettings.reasoning?.effort !== 'low') {
+if (TripPlannerManagerAgent.modelSettings.reasoning?.effort !== 'low') {
   throw new Error('Supporting-agent reasoning effort must be low for this eval.');
 }
 
