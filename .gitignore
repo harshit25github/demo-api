@@ -6,3 +6,6 @@ tests/results/
 .debug/
 data/chats.json
 data/chats.json.*
+
+# Live-run reports are local evidence; files already tracked stay tracked.
+artifacts/
