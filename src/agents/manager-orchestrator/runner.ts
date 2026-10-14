@@ -74,7 +74,6 @@ export function buildGatewayContext({
     appContext.tripPlanner && typeof appContext.tripPlanner === 'object'
       ? appContext.tripPlanner
       : {};
-  appContext.tripPlanner.currentUserMessage = String(input || '');
   // Captured before preparation, which may clear them when no search exists yet.
   const suggestionsShownBefore = [...appContext.flight.suggestedQuestions];
   prepareFlightAgentTurnContext(appContext, {

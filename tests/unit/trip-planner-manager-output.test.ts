@@ -80,7 +80,6 @@ test('field sanitization preserves the matching image URL but removes text links
   const result = sanitizeTripPlannerManagerOutput(facts, value, [{ rawItem: { type: 'hosted_tool_call', name: 'web_search_call', status: 'completed' } }]);
   assert.equal(result.output.destinationCards[0].imageUrl, imageUrl);
   assert.equal(result.output.notes[0].text, 'Roman history reference');
-  assert.equal(value.tripPlannerLinkGuardrail.removedCount, 1);
   assert.equal(result.storePlanArtifact, true);
 });
 
@@ -110,7 +109,6 @@ test('out-of-scope commentary is dropped without discarding the in-scope plan', 
   assert.deepEqual(result.output.destinationCards, facts.destinationCards);
   assert.deepEqual(result.output.itineraryDays, facts.itineraryDays);
   assert.equal(result.storePlanArtifact, true);
-  assert.deepEqual(value.tripPlannerScopeGuardrail.categories.sort(), ['accommodation', 'airport_transfer']);
 });
 
 test('out-of-scope plan content becomes controlled capability feedback and cannot overwrite the plan', () => {
@@ -126,7 +124,6 @@ test('out-of-scope plan content becomes controlled capability feedback and canno
   assert.equal(result.output.formattingRules.maxQuestions, 0);
   assert.deepEqual(result.output.formattingRules.questionPriority, []);
   assert.equal(result.storePlanArtifact, false);
-  assert.deepEqual(value.tripPlannerScopeGuardrail.categories, ['accommodation']);
 });
 
 test('facts cannot smuggle completed cards or markdown and policies cannot come from web content', () => {

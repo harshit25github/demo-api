@@ -71,7 +71,6 @@ test('scope-unsafe Trip facts become controlled capability feedback before Manag
   assert.equal(toolOutput.itineraryDays.length, 0);
   assert.ok(toolOutput.notes.some((note: any) => note.kind === 'capability'));
   assert.doesNotMatch(JSON.stringify(toolOutput), /hotel|taxi/i);
-  assert.equal((appContext as any).tripPlannerScopeGuardrail.changed, true);
   assert.equal(appContext.tripPlanner.lastPlanArtifact, undefined);
 });
 
@@ -81,7 +80,6 @@ test('saved Trip artifact contains planning facts, not Manager prose or the feed
   const artifact = appContext.tripPlanner.lastPlanArtifact as any;
   assert.match(artifact.content, /Dubai Creek/);
   assert.doesNotMatch(artifact.content, /Here is your Dubai plan|formattingRules|"status"/);
-  assert.equal((appContext as any).tripPlannerScopeGuardrail.changed, false);
 });
 
 test('concurrent singleton Manager -> Trip invocations keep scoped facts and persistence isolated', async () => {

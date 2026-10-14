@@ -154,7 +154,6 @@ export function prepareTripPlannerTurn({
   context = {},
   input = '',
   requestId = null,
-  sessionId = null,
 }: TripPlannerRecord = {}) {
   const state = ensureTripPlannerState(context);
   const summaryBefore = createTripPlannerSummaryContext(context.summaryContext);
@@ -168,7 +167,6 @@ export function prepareTripPlannerTurn({
   state.currentTurnToolCalls = [];
   state.turnState = {
     requestId,
-    sessionId,
     baseRevision: getTripPlannerContextRevision(context),
     contextCaptured: false,
     contextCaptureAttempts: 0,
@@ -438,9 +436,6 @@ export function finalizeTripPlannerTurn({
     !storePlanArtifact || state.scopeClassification?.mode === 'excluded'
       ? null
       : setTripPlannerLastPlanArtifact(context, { output, responseMode, feedback });
-  if (Array.isArray(context.toolCallLog) && context.toolCallLog.length > 20) {
-    context.toolCallLog = context.toolCallLog.slice(-20);
-  }
   return {
     summaryContext: createTripPlannerSummaryContext(context.summaryContext),
     revision: getTripPlannerContextRevision(context),

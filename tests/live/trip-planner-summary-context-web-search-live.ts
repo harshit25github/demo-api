@@ -258,7 +258,6 @@ async function runChat(chat) {
     });
     context.summaryContext = clone(result.context.summaryContext);
     context.tripPlanner = result.context.tripPlanner;
-    context.toolCallLog = result.context.toolCallLog;
     const summaryContextAfter = clone(result.context.summaryContext);
     const toolsCalled = clone(result.debug?.toolsCalled || []);
     const webSearchUsed = Boolean(result.debug?.webSearchUsed);

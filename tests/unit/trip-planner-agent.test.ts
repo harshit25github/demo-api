@@ -827,7 +827,7 @@ describe('Dummy Trip Planner Agent setup', () => {
     assert.equal(suggestions.status, 'SUCCESS');
     assert.equal(context.summaryContext.suggestedQuestions.length, 3);
     assert.deepEqual(
-      context.toolCallLog.map((entry) => entry.tool),
+      context.tripPlanner.currentTurnToolCalls.map((entry) => entry.tool),
       [
         TRIP_PLANNER_TOOL_NAMES.updateContext,
         TRIP_PLANNER_TOOL_NAMES.getPlaceImagesBatch,

@@ -944,7 +944,6 @@ async function runChat(chat) {
   let context = {
     summaryContext: clone(chat.initialSummaryContext),
     tripPlanner: {},
-    toolCallLog: [],
   };
   const turns = [];
 

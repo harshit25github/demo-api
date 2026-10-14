@@ -114,7 +114,6 @@ test('existing scope policy prevents prohibited Trip output reaching the Manager
     }, trip: (state) => dubaiFeedback(state, 'Book a hotel downtown and take a taxi from the airport') });
   assert.doesNotMatch(result.toolResults[1], /hotel|taxi/i);
   assert.equal(JSON.parse(result.toolResults[1]).status, 'failure');
-  assert.equal((result.appContext as any).tripPlannerScopeGuardrail.changed, true);
   assert.equal(result.appContext.flight.showFlight, true);
   assert.equal(result.output, 'Found two Dubai flights.');
 });

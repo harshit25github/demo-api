@@ -233,7 +233,6 @@ export function setTripPlannerLastPlanArtifact(
   const artifact = {
     id: `plan_${state.contextRevision}`,
     revision: state.contextRevision,
-    createdAt: new Date().toISOString(),
     destination: { ...context.summaryContext.destination },
     responseMode,
     days,
@@ -241,10 +240,9 @@ export function setTripPlannerLastPlanArtifact(
     ...facts,
   };
   state.lastPlanArtifact = artifact;
-  state.lastPlanSnapshot = {
-    ...createTripPlannerSummaryContext(context.summaryContext),
-    responseMode,
-  };
+  // Kept apart from the artifact: a destination change clears the artifact, and the
+  // next brief still needs the destination the last plan was for.
+  state.lastPlanSnapshot = { destination: { ...context.summaryContext.destination } };
   return artifact;
 }
 
@@ -352,8 +350,7 @@ export async function withTripPlannerSessionLock<T>(
   if (typeof operation !== 'function') {
     throw new TypeError('Trip Planner lock operation must be a function.');
   }
-  const state = ensureTripPlannerState(context);
-  const key = String(context.sessionId || state.sessionId || 'trip-planner-default');
+  const key = String(context.sessionId || 'trip-planner-default');
   const previous = tripPlannerSessionLocks.get(key) || Promise.resolve();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {

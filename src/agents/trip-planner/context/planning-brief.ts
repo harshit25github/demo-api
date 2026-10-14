@@ -10,9 +10,9 @@ const PARTY_TRIP_TYPES = new Set(['solo', 'couple', 'family', 'friends', 'busine
 const PACE_TRIP_TYPES = new Set(['relaxed', 'balanced', 'fast-paced']);
 
 const PACE_RULES = {
-  relaxed: { label: 'relaxed', minAnchorsPerFullDay: 1, maxAnchorsPerFullDay: 2, bufferStyle: 'generous', maxNeighborhoodsPerDay: 1 },
-  balanced: { label: 'balanced', minAnchorsPerFullDay: 2, maxAnchorsPerFullDay: 3, bufferStyle: 'standard', maxNeighborhoodsPerDay: 2 },
-  'fast-paced': { label: 'fast-paced', minAnchorsPerFullDay: 3, maxAnchorsPerFullDay: 4, bufferStyle: 'short', maxNeighborhoodsPerDay: 3 },
+  relaxed: { label: 'relaxed', maxAnchorsPerFullDay: 2, maxNeighborhoodsPerDay: 1 },
+  balanced: { label: 'balanced', maxAnchorsPerFullDay: 3, maxNeighborhoodsPerDay: 2 },
+  'fast-paced': { label: 'fast-paced', maxAnchorsPerFullDay: 4, maxNeighborhoodsPerDay: 3 },
 };
 type PaceName = keyof typeof PACE_RULES;
 
@@ -137,19 +137,11 @@ function deriveDateConstraints(summaryContext: TripPlannerRecord): TripPlannerRe
     conflicts.push('duration_does_not_match_date_range');
   }
 
-  const travelMonths = [...new Set(
-    [outbound, returnDate]
-      .filter((date): date is Date => Boolean(date))
-      .map((date) => date.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })),
-  )];
-
   return {
     outbound_date: summaryContext.outbound_date,
     return_date: summaryContext.return_date,
-    dateRangeDurationDays: dateRangeDuration,
     effectiveDurationDays,
     durationSource,
-    travelMonths,
     conflicts,
   };
 }
@@ -191,18 +183,11 @@ function deriveBudgetConstraints(
     dailyTotalBudget: roundedAmount(
       totalBudget && effectiveDurationDays ? totalBudget / effectiveDurationDays : null,
     ),
-    dailyPerPersonBudget: roundedAmount(
-      perPersonBudget && effectiveDurationDays ? perPersonBudget / effectiveDurationDays : null,
-    ),
     planningGuidance: {
       food: 'Use a value, balanced, or flexible tier.',
       activities: 'Use a free, mixed, or paid tier.',
       flexibleReserve: 'Keep part of the budget unallocated.',
     },
-    presentationRule:
-      totalBudget === null
-        ? 'Use cost tiers; no grounded numeric daily budget reference is available.'
-        : 'Use the daily amount only as a budget reference, not as a full-trip category allocation.',
   };
 }
 
@@ -224,7 +209,6 @@ function derivePartyConstraints(summaryContext: TripPlannerRecord): TripPlannerR
     groupLabel,
     travelerStyle,
     journeyType,
-    compositionKnown: Boolean(travelerStyle),
     childrenKnown: false,
     mobilityNeedsKnown: false,
   };
@@ -292,7 +276,6 @@ function deriveToolStrategy({
     return {
       images: { action: 'not_needed', itemCodes: [] },
       contextDetails: { action: 'not_needed', sections: [] },
-      contextUpdate: { action: 'always_call_last' },
     };
   }
 
@@ -634,9 +617,7 @@ export function buildTripPlannerPlanningBrief({
   });
 
   return {
-    version: 1,
     effectiveContext,
-    latestOverrides: latestPatch || {},
     known,
     assumptions,
     conflicts: [...new Set(conflicts)],
@@ -652,30 +633,18 @@ export function buildTripPlannerPlanningBrief({
         lastDayLoad,
         fullPlanningDays: Math.max(0, date.effectiveDurationDays - lightDayCount),
         anchorBudgetByDay,
-        arrivalPacingReason:
-          firstDayLoad === 'light'
-            ? 'Origin and destination are known; keep arrival day conservative without inventing journey duration.'
-            : null,
       },
     },
     continuity: {
-      previousPlanAvailable: Boolean(tripPlannerState.lastPlanSnapshot),
       destinationChanged,
       shouldPatchPreviousPlan:
         Boolean(tripPlannerState.lastPlanSnapshot) && !requestsFullPlan && !destinationChanged,
-      askedQuestionKeys,
     },
-    toolState: {
-      availableImageAssets,
-      previousSuggestedQuestions: Array.isArray(tripPlannerState.previousSuggestedQuestions)
-        ? tripPlannerState.previousSuggestedQuestions.slice(0, 3)
-        : [],
-    },
+    toolState: { availableImageAssets },
     toolStrategy,
     responseStrategy: {
       mode: responseMode,
       renderMode,
-      provideValueBeforeQuestions: true,
       ...TRIP_PHASE_RULES[renderMode],
       // Context-dependent values on top of the phase's fixed rules.
       maxPatchDaySections:

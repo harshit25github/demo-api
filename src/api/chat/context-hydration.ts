@@ -148,12 +148,24 @@ export function hydrateGatewayContext(
   return context;
 }
 
+// The Trip state a later turn reads. The rest is rebuilt each time Trip runs,
+// or only matters within one request.
+const DURABLE_TRIP_PLANNER_FIELDS = [
+  'contextRevision',
+  'dateHint',
+  'preferenceSignals',
+  'askedQuestionKeys',
+  'placeImageCache',
+  'lastPlanArtifact',
+  'lastPlanSnapshot',
+];
+
 function durableTripPlannerState(value: MutableRecord = {}) {
-  const state = structuredClone(value || {});
-  delete state.currentUserMessage;
-  delete state.turnState;
-  delete state.planningBrief;
-  return state;
+  const state = value || {};
+  return structuredClone(Object.fromEntries(
+    DURABLE_TRIP_PLANNER_FIELDS.filter((field) => Object.hasOwn(state, field))
+      .map((field) => [field, state[field]]),
+  ));
 }
 
 export function snapshotGatewayContext(

@@ -635,6 +635,9 @@ test('specialist-owned summary persists across disk reload and the next turn whi
         context.tripPlanner.currentUserMessage = 'Make it lighter';
         context.tripPlanner.turnState = { phase: 'completed' };
         context.tripPlanner.planningBrief = { transient: true };
+        context.tripPlanner.currentTurnToolCalls = [{ tool: 'update_trip_planner_context' }];
+        context.tripPlanner.lastContextUpdateRequestId = 'request-1';
+        context.tripPlanner.dateHint = 'next month';
         return {
           output: 'Lighter itinerary',
           finalAgentName: 'Manager Agent',
@@ -657,7 +660,8 @@ test('specialist-owned summary persists across disk reload and the next turn whi
     assert.deepEqual(stored.runtimeContext.tripPlanner.lastPlanArtifact, {
       destination: { city: 'Paris' }, output: 'Lighter itinerary',
     });
-    for (const key of ['currentUserMessage', 'turnState', 'planningBrief']) {
+    assert.equal(stored.runtimeContext.tripPlanner.dateHint, 'next month');
+    for (const key of ['currentUserMessage', 'turnState', 'planningBrief', 'currentTurnToolCalls', 'lastContextUpdateRequestId']) {
       assert.equal(Object.hasOwn(stored.runtimeContext.tripPlanner, key), false);
     }
     assert.equal(stored.turns[0].status, 'completed');
