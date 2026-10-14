@@ -65,8 +65,6 @@ export function recordToolCall<TOutput extends DynamicRecord>(
     status: output.status || (output.ok ? 'SUCCESS' : 'ERROR'),
     output: recordedOutput,
   };
-  context.toolCallLog ||= [];
-  context.toolCallLog.push(entry);
   state.currentTurnToolCalls ||= [];
   state.currentTurnToolCalls.push(entry);
 

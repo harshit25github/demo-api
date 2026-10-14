@@ -224,17 +224,15 @@ export function sanitizeTripPlannerOutput(output = '', context: Record<string, a
   const scope = sanitizeTripPlannerFinalOutput(output, { context });
   const links = sanitizeNoLinks(scope.text, { preserveCardImageUrls: true });
   assertNoLinks(links.text, { allowCardImageUrls: true });
-  context.tripPlannerScopeGuardrail = {
-    applied: true,
-    changed: scope.changed,
-    violationCount: scope.violationCount,
-    categories: scope.categories,
-  };
-  context.tripPlannerLinkGuardrail = { applied: true, changed: links.changed, removedCount: links.removedCount };
   return {
     output: links.text,
-    guardrail: context.tripPlannerLinkGuardrail,
-    scopeGuardrail: context.tripPlannerScopeGuardrail,
+    guardrail: { applied: true, changed: links.changed, removedCount: links.removedCount },
+    scopeGuardrail: {
+      applied: true,
+      changed: scope.changed,
+      violationCount: scope.violationCount,
+      categories: scope.categories,
+    },
   };
 }
 
@@ -264,12 +262,7 @@ export function sanitizeTripPlannerManagerOutput(
   // The model writes findings only; the phase's deterministic rules are attached here.
   const rules = getTripPlannerFormattingRules(context);
 
-  const violations = new Set<string>();
-  const strays = (text: string | null) => {
-    const { categories } = validateTripPlannerScopeText(text ?? '');
-    categories.forEach((category) => violations.add(category));
-    return categories.length > 0;
-  };
+  const strays = (text: string | null) => !validateTripPlannerScopeText(text ?? '').ok;
   // Commentary that strays into an excluded topic is dropped; planning content must itself stay in scope.
   const commentary = {
     recommendation: strays(feedback.recommendation) ? null : feedback.recommendation,
@@ -277,11 +270,9 @@ export function sanitizeTripPlannerManagerOutput(
     limitations: feedback.limitations.filter((limitation) => !strays(limitation)),
   };
   let contentViolation = false;
-  let removedCount = 0;
   const cleanFact = (text: string): string => {
     if (strays(text)) contentViolation = true;
     const links = sanitizeNoLinks(text);
-    removedCount += links.removedCount;
     assertNoLinks(links.text);
     // Emphasis and internal labels such as "Anchor 1:" are stripped; cards, headings or code mean a
     // completed answer was smuggled in.
@@ -322,11 +313,6 @@ export function sanitizeTripPlannerManagerOutput(
     nextQuestions: feedback.nextQuestions.map((question) => ({ ...question, purpose: cleanFact(question.purpose) })),
     limitations: commentary.limitations.map(cleanFact).filter(Boolean),
   };
-  context.tripPlannerScopeGuardrail = {
-    applied: true, changed: violations.size > 0,
-    violationCount: violations.size, categories: [...violations],
-  };
-  context.tripPlannerLinkGuardrail = { applied: true, changed: removedCount > 0, removedCount };
   if (contentViolation || state.scopeClassification?.mode === 'excluded') {
     return {
       output: tripPlannerManagerOutputSchema.parse({

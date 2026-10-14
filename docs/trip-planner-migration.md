@@ -196,10 +196,11 @@ Add this to the code that builds the Manager's context (`buildGatewayContext`, [
 ```ts
 appContext.tripPlanner =
   appContext.tripPlanner && typeof appContext.tripPlanner === 'object' ? appContext.tripPlanner : {};
-appContext.tripPlanner.currentUserMessage = String(input || '');
 ```
 
-`requestId` and `sessionId` must also be on the state. The idempotency checks and the session lock use them.
+Do not set any other Trip field here. The `agent_start` hook calls `prepareTripPlannerTurn`, which sets `currentUserMessage` from the Manager's subtask and resets every per-turn field.
+
+`requestId` and `sessionId` must also be on the state. Context and suggestion updates are idempotent per `requestId`, and the session lock is keyed by `sessionId`.
 
 ---
 
@@ -208,7 +209,7 @@ appContext.tripPlanner.currentUserMessage = String(input || '');
 Follow [context-hydration.ts:128-170](../src/api/chat/context-hydration.ts#L128-L170):
 
 - **Hydrate:** restore `summaryContext` and `tripPlanner` from the saved runtime context. Only for older chats without a runtime snapshot, seed `summaryContext` from the legacy summary (`tripPlannerSummary`).
-- **Snapshot:** save `summaryContext` and `tripPlanner`, but leave out the per-turn fields `currentUserMessage`, `turnState` and `planningBrief` (`durableTripPlannerState`). `prepareTripPlannerTurn` rebuilds them on every Trip call. Saved copies are stale and only make the stored record bigger.
+- **Snapshot:** save `summaryContext` whole, and only the durable `tripPlanner` fields below (`DURABLE_TRIP_PLANNER_FIELDS` in `durableTripPlannerState`). Everything else in `tripPlanner` is either rebuilt by `prepareTripPlannerTurn` on every Trip call or only matters within one request.
 
 Durable fields that follow-ups depend on:
 
@@ -216,10 +217,11 @@ Durable fields that follow-ups depend on:
 |---|---|
 | `summaryContext` (destination, dates, `duration_days`, `pax`, budget, `tripType`) | Not asking again for known facts |
 | `summaryContext.suggestedQuestions` | Suggestion chips |
-| `tripPlanner.contextRevision` | `baseRevision` checks |
+| `tripPlanner.contextRevision` | `baseRevision` checks, plan id |
 | `tripPlanner.lastPlanArtifact` | "Change day 2" patches and `get_trip_planner_context_details` |
+| `tripPlanner.lastPlanSnapshot` | Choosing a patch or a full plan: the destination the last plan was for |
 | `tripPlanner.placeImageCache` | Image reuse and the image URL check |
-| `tripPlanner.askedQuestionKeys`, `preferenceSignals`, `dateHint` | Not asking a question twice; keeping preferences |
+| `tripPlanner.askedQuestionKeys`, `preferenceSignals`, `dateHint` | Not asking a question twice; keeping preferences; the vague date phrase |
 
 ---
 

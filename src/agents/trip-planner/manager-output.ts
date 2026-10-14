@@ -126,7 +126,7 @@ const MARKDOWN_RULES = {
 export function getTripPlannerFormattingRules(context: Record<string, any>) {
   const strategy = context.tripPlanner?.planningBrief?.responseStrategy;
   if (!strategy) throw new Error('Trip planning brief is required before final feedback.');
-  const { mode: _mode, renderMode: _renderMode, provideValueBeforeQuestions: _valueFirst, ...rules } = strategy;
+  const { mode: _mode, renderMode: _renderMode, ...rules } = strategy;
   return tripPlannerFormattingRulesSchema.parse({ ...rules, ...MARKDOWN_RULES });
 }
 

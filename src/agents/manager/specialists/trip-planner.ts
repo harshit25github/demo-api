@@ -17,7 +17,6 @@ TripPlannerManagerAgent.on('agent_start', (runContext) => {
     context,
     input: getScopedRequestText(runContext, context.currentUserMessage),
     requestId: context.requestId,
-    sessionId: context.sessionId,
   });
 });
 

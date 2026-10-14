@@ -174,9 +174,6 @@ function getTripPlannerContext(
     ...(existing.tripPlanner || {}),
     ...(incomingContext?.tripPlanner || {}),
   };
-  appContext.toolCallLog = Array.isArray(existing.toolCallLog)
-    ? existing.toolCallLog
-    : [];
   tripPlannerContexts.set(sessionId, appContext);
   return appContext;
 }
@@ -307,11 +304,9 @@ async function runTripPlannerAgentInternal({
     context: appContext,
     input,
     requestId,
-    sessionId,
   });
   const requestContext = createRequestContext(appContext, createRequestClock({ now, timeZone }));
   const dynamicInstructions = buildTripPlannerDynamicContext({ context: requestContext });
-  const beforeToolCallCount = appContext.toolCallLog.length;
   let streamEventCount = 0;
 
   logPreparedTurn({
@@ -341,7 +336,6 @@ async function runTripPlannerAgentInternal({
       if (!hostedCall || (hostedCallId && streamedHostedCallIds.has(hostedCallId))) {
         continue;
       }
-      appContext.toolCallLog.push(hostedCall);
       appContext.tripPlanner.currentTurnToolCalls.push(hostedCall);
       if (hostedCallId) {
         streamedHostedCallIds.add(hostedCallId);
@@ -356,11 +350,6 @@ async function runTripPlannerAgentInternal({
     const toolsCalled = orderTurnToolCalls(
       result as unknown as DynamicRecord,
       recordedCalls,
-    );
-    appContext.toolCallLog.splice(
-      beforeToolCallCount,
-      appContext.toolCallLog.length - beforeToolCallCount,
-      ...toolsCalled,
     );
     const finalized = finalizeTripPlannerTurn({
       context: appContext,
