@@ -1,14 +1,6 @@
-import type { SummaryContext } from '../../api/chat/types.js';
-import { isRecord } from '../../shared/types/json.js';
-import { summaryAgentContextSchema } from '../summary/schema.js';
-import type { TripChanges } from './result.js';
+import type { ClientSummary, TripChanges } from './schema.js';
 import { isOutOfTripScope } from './scope.js';
 
-/**
- * The client's trip summary, in exactly the shape and key order the client requires.
- * summaryAgentContextSchema (the Summary Extractor's output) is the contract it is checked against.
- */
-export type ClientSummary = SummaryContext;
 type Passengers = ClientSummary['passengerData'];
 type ClearField = TripChanges['clear'][number];
 
@@ -27,6 +19,10 @@ const CANONICAL_TRIP_TYPES: Record<string, string> = {
 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
@@ -36,7 +32,7 @@ function threeLetterCode(value: unknown): string | null {
   return code && /^[A-Z]{3}$/.test(code) ? code : null;
 }
 
-export function calendarDate(value: unknown): string | null {
+function calendarDate(value: unknown): string | null {
   const date = text(value);
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
   const [year, month, day] = date.split('-').map(Number);
@@ -83,10 +79,6 @@ function canonicalTripType(value: string): string {
 
 function tripTypeCategory(value: string): Set<string> | null {
   return [JOURNEY_TYPES, PARTY_TYPES, PACE_TYPES].find((category) => category.has(value)) ?? null;
-}
-
-export function emptyClientSummary(): ClientSummary {
-  return createClientSummary({});
 }
 
 /** Any stored summary, including v1's Trip-only shape, in exactly the client's shape and key order. */
@@ -137,7 +129,7 @@ export function durationFromDates(outboundDate: string, returnDate: string): num
   return days < 0 ? null : Math.max(1, days);
 }
 
-export interface SummaryUpdate {
+interface SummaryUpdate {
   summary: ClientSummary;
   destinationChanged: boolean;
   datesChanged: boolean;
@@ -292,9 +284,4 @@ export function applyTripChanges(current: unknown, changes: TripChanges | null):
     datesChanged,
     limitations: [...new Set(limitations)],
   };
-}
-
-export function validateClientSummary(summary: ClientSummary): { ok: boolean; error: string | null } {
-  const result = summaryAgentContextSchema.safeParse(summary);
-  return { ok: result.success, error: result.success ? null : result.error.message };
 }

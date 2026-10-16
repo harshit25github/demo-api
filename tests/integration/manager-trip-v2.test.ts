@@ -14,7 +14,7 @@ const { flightAgentAsTool } = await import('../../src/agents/manager/specialists
 const { tripPlannerV2AgentAsTool } = await import('../../src/agents/manager/specialists/trip-planner-v2.js');
 const { TripPlannerV2Agent } = await import('../../src/agents/trip-planner-v2/agent.js');
 const { TRIP_PLANNER_V2_INSTRUCTIONS } = await import('../../src/agents/trip-planner-v2/prompt.js');
-const { tripFeedbackSchema } = await import('../../src/agents/trip-planner-v2/result.js');
+const { tripFeedbackSchema } = await import('../../src/agents/trip-planner-v2/schema.js');
 
 const managerV2 = createManagerAgent({ tripPlannerV2: true });
 const NOW = new Date('2026-10-16T14:00:00Z');
@@ -117,7 +117,7 @@ test('one Trip call: saved trip in its input, compact report to the Manager, car
   assert.deepEqual((result.context.tripPlanner as any).suggestions, DISCOVERY.suggestions);
 });
 
-test('a failed Trip run reaches the Manager as typed failure, and the same turn cannot reopen it', async () => {
+test('a failed Trip run reaches the Manager as typed failure, never SDK error text, each time', async () => {
   let tripCalls = 0;
   const managerInputs: any[] = [];
   const result = await withModels(
@@ -130,7 +130,8 @@ test('a failed Trip run reaches the Manager as typed failure, and the same turn 
     { async getResponse() { tripCalls += 1; throw new Error('model unavailable'); } },
     () => runTurn('plan 4 days in rome'),
   );
-  assert.equal(tripCalls, 1);
+  // Not retrying a failed task is the Manager prompt's rule; every attempt gets the same typed failure.
+  assert.equal(tripCalls, 2);
   const results = managerInputs[2].filter((item: any) => item.type === 'function_call_result');
   assert.equal(results.length, 2);
   for (const item of results) {

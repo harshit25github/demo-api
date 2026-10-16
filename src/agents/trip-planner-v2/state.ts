@@ -1,171 +1,26 @@
-import { sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
-import type { RequestClock } from '../../shared/time/request-clock.js';
-import { knownCityIataCode } from '../../shared/travel/city-codes.js';
-import { isRecord } from '../../shared/types/json.js';
-import { createClientSummary, type ClientSummary } from './client-summary.js';
-import type { TripCost, TripDay, TripFact, TripOption, TripPlanUpdate, TripPresentation } from './result.js';
-import { isOutOfTripScope } from './scope.js';
-
-export interface SavedTripOption extends Omit<TripOption, 'code'> {
-  code: string | null;
-}
-
-export interface TripPlanCard {
-  country: string;
-  knownFor: string;
-  bestTime: string;
-  cost: TripCost;
-}
-
-export interface TripPlan {
-  destination: ClientSummary['destination'];
-  card: TripPlanCard | null;
-  days: TripDay[];
-}
-
-export interface SavedTripFact extends TripFact {
-  checkedOn: string | null;
-}
-
-/** What the app shows with this request's reply. Never persisted. */
-export interface TripTurnView {
-  requestId: string | null;
-  presentation: TripPresentation;
-  presentationDays: number[];
-}
-
-/** Trip-owned state in context.tripPlanner. The trip facts themselves live in the client summary. */
-export interface TripPlannerV2State {
-  dateHint?: string | null;
-  options?: SavedTripOption[];
-  plan?: TripPlan | null;
-  facts?: SavedTripFact[];
-  lastQuestion?: string | null;
-  suggestions?: string[];
-  photos?: Record<string, string>;
-  turnView?: TripTurnView | null;
-}
-
-const ASSISTANT_STYLE = /^\s*(?:would\s+you\s+like|do\s+you\s+want|should\s+i|can\s+i)\b/i;
-
-export function getTripState(context: Record<string, any>): TripPlannerV2State {
-  if (!isRecord(context.tripPlanner)) context.tripPlanner = {};
-  return context.tripPlanner as TripPlannerV2State;
-}
+import { createClientSummary } from './client-summary.js';
+import type { ClientSummary, TripClock, TripPlannerV2State } from './schema.js';
 
 /** One plain line: no links, markdown emphasis or line breaks, which would break line-based cards. */
 export function plainText(value: string): string {
-  return sanitizeNoLinks(value).text.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
-}
-
-function code(value: string): string | null {
-  const candidate = value.trim().toUpperCase();
-  return /^[A-Z]{3}$/.test(candidate) ? candidate : null;
-}
-
-export function savedOptions(options: TripOption[]): SavedTripOption[] {
-  const seen = new Set<string>();
-  return options
-    .map((option) => ({
-      code: code(option.code),
-      city: plainText(option.city),
-      country: plainText(option.country),
-      why: plainText(option.why),
-      bestTime: plainText(option.bestTime),
-      cost: option.cost,
-    }))
-    .filter((option) => {
-      const key = `${option.city}|${option.country}`.toLowerCase();
-      if (!option.city || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-}
-
-function cleanDay(day: TripDay): TripDay {
-  const block = (value: string) => plainText(value) || 'Free time';
-  return {
-    day: day.day,
-    title: plainText(day.title) || `Day ${day.day}`,
-    morning: block(day.morning),
-    afternoon: block(day.afternoon),
-    evening: block(day.evening),
-    places: [...new Set(day.places.map(plainText).filter(Boolean))],
-  };
-}
-
-/** A full plan replaces the saved one; a days update replaces only those days. */
-export function mergePlan(
-  existing: TripPlan | null | undefined,
-  update: TripPlanUpdate,
-  destination: ClientSummary['destination'],
-): TripPlan {
-  const days = new Map<number, TripDay>();
-  if (update.scope === 'days' && existing) for (const day of existing.days) days.set(day.day, day);
-  for (const day of update.days) days.set(day.day, cleanDay(day));
-  for (const day of update.removeDays) days.delete(day);
-  const card = update.card
-    ? { country: plainText(update.card.country), knownFor: plainText(update.card.knownFor), bestTime: plainText(update.card.bestTime), cost: update.card.cost }
-    : existing?.card ?? null;
-  return { destination: { ...destination }, card, days: [...days.values()].sort((left, right) => left.day - right.day) };
-}
-
-/** The code the plan's photo is looked up by. The summary never gets an invented code; this is for the photo only. */
-export function planPhotoCode(plan: TripPlan): string | null {
-  return plan.destination.iata ?? knownCityIataCode(plan.destination.city);
-}
-
-export function mergeFacts(existing: SavedTripFact[] = [], facts: TripFact[], checkedOn: string | null): SavedTripFact[] {
-  const merged = [...existing];
-  for (const fact of facts) {
-    const text = plainText(fact.text);
-    const source = plainText(fact.source);
-    if (!text || !source || merged.some((saved) => saved.text.toLowerCase() === text.toLowerCase())) continue;
-    merged.push({ text, source, day: fact.day, checkedOn });
-  }
-  return merged.slice(-10);
-}
-
-/** placesOfInterest for the client summary: every named place in the current plan, once. */
-export function placesOfInterestFromPlan(plan: TripPlan): ClientSummary['placesOfInterest'] {
-  const places: ClientSummary['placesOfInterest'] = [];
-  for (const day of plan.days) {
-    for (const placeName of day.places) {
-      if (places.some((place) => place.placeName.toLowerCase() === placeName.toLowerCase())) continue;
-      places.push({ placeName, description: `Day ${day.day}: ${day.title}` });
-    }
-  }
-  return places;
-}
-
-/** update suggested questions: up to three 3-8 word chips, new and in scope. Invalid ones are dropped, never retried. */
-export function acceptedSuggestions(values: string[], previous: string[] = []): string[] {
-  const normalize = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
-  const seen = new Set(previous.map(normalize));
-  const accepted: string[] = [];
-  for (const value of values) {
-    const suggestion = plainText(value);
-    const words = suggestion.split(' ').filter(Boolean).length;
-    const key = normalize(suggestion);
-    if (words < 3 || words > 8 || ASSISTANT_STYLE.test(suggestion) || isOutOfTripScope(suggestion) || seen.has(key)) continue;
-    seen.add(key);
-    accepted.push(suggestion);
-  }
-  return accepted.slice(0, 3);
+  return value
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\bhttps?:\/\/\S+|\bwww\.\S+/gi, '')
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function place(endpoint: ClientSummary['origin']): string {
-  if (!endpoint.city && !endpoint.iata) return 'not set';
-  return endpoint.city && endpoint.iata ? `${endpoint.city} (${endpoint.iata})` : endpoint.city ?? endpoint.iata ?? 'not set';
-}
-
-function inclusiveDays(outboundDate: string, returnDate: string): number {
-  return Math.round((Date.parse(returnDate) - Date.parse(outboundDate)) / (24 * 60 * 60 * 1000)) + 1;
+  if (endpoint.city && endpoint.iata) return `${endpoint.city} (${endpoint.iata})`;
+  return endpoint.city ?? endpoint.iata ?? 'not set';
 }
 
 function dates(summary: ClientSummary, dateHint: string | null | undefined): string {
   if (summary.outbound_date && summary.return_date) {
-    return `${summary.outbound_date} to ${summary.return_date} (plan ${inclusiveDays(summary.outbound_date, summary.return_date)} days)`;
+    const days = Math.round((Date.parse(summary.return_date) - Date.parse(summary.outbound_date)) / 86_400_000) + 1;
+    return `${summary.outbound_date} to ${summary.return_date} (plan ${days} days)`;
   }
   const parts = [
     summary.outbound_date ? `from ${summary.outbound_date}` : null,
@@ -199,10 +54,10 @@ function budget(value: ClientSummary['budget']): string {
   return value.per_person === false ? `${money} total` : `${money}, per person or total not said`;
 }
 
-/** What Trip reads each run, appended after its static instructions so they stay cached. */
-export function describeTripForModel(context: Record<string, any>, clock: RequestClock | null): string {
+/** What Trip reads each run, added to its input so the static instructions stay cached. */
+export function describeTripForModel(context: Record<string, any>, clock: TripClock | null): string {
   const summary = createClientSummary(context.summaryContext);
-  const trip = isRecord(context.tripPlanner) ? (context.tripPlanner as TripPlannerV2State) : {};
+  const trip: TripPlannerV2State = context.tripPlanner ?? {};
   const plan = trip.plan?.days.length
     ? [
         `plan for ${place(trip.plan.destination)}:`,
@@ -237,7 +92,7 @@ function short(value: string, length = 40): string {
 /** The Manager's trip lines: enough to resolve "the second one" or "day 2" without the plan text in its history. */
 export function describeTripForManager(context: Record<string, any>): string[] {
   const summary = createClientSummary(context.summaryContext);
-  const trip = isRecord(context.tripPlanner) ? (context.tripPlanner as TripPlannerV2State) : {};
+  const trip: TripPlannerV2State = context.tripPlanner ?? {};
   const fact = (value: string | number | null) => (value === null || value === '' ? 'unknown' : short(String(value), 60));
   const days = trip.plan?.days ?? [];
   return [

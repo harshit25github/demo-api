@@ -1,14 +1,11 @@
 /** Client summary contract for Trip Planner v2. Cases marked "extractor" come from src/agents/summary/prompt.ts. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  applyTripChanges,
-  createClientSummary,
-  durationFromDates,
-  validateClientSummary,
-} from '../../src/agents/trip-planner-v2/client-summary.js';
+import { applyTripChanges, createClientSummary, durationFromDates } from '../../src/agents/trip-planner-v2/client-summary.js';
+import { clientSummarySchema, type TripChanges } from '../../src/agents/trip-planner-v2/schema.js';
 import { summaryAgentContextSchema } from '../../src/agents/summary/schema.js';
-import type { TripChanges } from '../../src/agents/trip-planner-v2/result.js';
+
+const isClientShape = (summary: unknown) => clientSummarySchema.safeParse(summary).success;
 
 const NO_CHANGES: TripChanges = {
   origin: null, destination: null, outbound_date: null, return_date: null, duration_days: null,
@@ -38,7 +35,24 @@ test('the client summary keeps exactly the client keys and order', () => {
   ]);
   assert.deepEqual(Object.keys(summary.budget), ['amount', 'currency', 'per_person', 'total']);
   assert.deepEqual(Object.keys(summary.passengerData), ['total', 'adults', 'seniors', 'children', 'lapInfants', 'seatInfants', 'childrenAges']);
-  assert.equal(validateClientSummary(summary).ok, true);
+  assert.equal(isClientShape(summary), true);
+});
+
+test("the local client schema accepts and rejects exactly what the Summary Extractor's schema does", () => {
+  const passengers = CLIENT_EXAMPLE.passengerData;
+  const samples = [
+    CLIENT_EXAMPLE,
+    { ...CLIENT_EXAMPLE, passengerData: { ...passengers, total: 3, adults: 2, seniors: 0, children: 1, lapInfants: 0, seatInfants: 0 } },
+    { ...CLIENT_EXAMPLE, passengerData: { ...passengers, total: 4, adults: 2, seniors: 0, children: 1, lapInfants: 0, seatInfants: 0 } },
+    { ...CLIENT_EXAMPLE, passengerData: { ...passengers, children: 2, childrenAges: [6] } },
+    { ...CLIENT_EXAMPLE, origin: { city: 'NEWDELHI', iata: 'del' } },
+    { ...CLIENT_EXAMPLE, outbound_date: '16-12-2026' },
+    { ...CLIENT_EXAMPLE, duration_days: 0 },
+    { ...CLIENT_EXAMPLE, pax: 2 },
+  ];
+  for (const sample of samples) {
+    assert.equal(isClientShape(sample), summaryAgentContextSchema.safeParse(sample).success, JSON.stringify(sample));
+  }
 });
 
 test("the client's example passes through unchanged and matches the Summary Extractor schema", () => {
@@ -72,7 +86,7 @@ test('extractor: a third traveler of unknown category keeps known adults and dro
     changes({ passengerData: passengers({ total: 3 }) }),
   );
   assert.deepEqual(summary.passengerData, { total: 3, adults: 2, seniors: null, children: null, lapInfants: null, seatInfants: null, childrenAges: [] });
-  assert.equal(validateClientSummary(summary).ok, true);
+  assert.equal(isClientShape(summary), true);
 });
 
 test('extractor: more travelers remove solo above one and couple above two', () => {
@@ -138,7 +152,7 @@ test('every merged summary passes the client schema', () => {
     passengerData: passengers({ total: 4, adults: 2, children: 2, childrenAges: [6, 9] }),
     tripType: { add: ['family', 'warm weather'], remove: [] },
   }));
-  assert.equal(validateClientSummary(summary).ok, true);
+  assert.equal(isClientShape(summary), true);
   assert.equal(summary.duration_days, 4);
   assert.equal(summary.origin.city, 'NEWDELHI');
 });

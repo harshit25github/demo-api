@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { applyTripResult } from '../../src/agents/trip-planner-v2/apply.js';
 import { createClientSummary } from '../../src/agents/trip-planner-v2/client-summary.js';
-import { tripFeedbackSchema, type TripDay, type TripResult } from '../../src/agents/trip-planner-v2/result.js';
+import { tripFeedbackSchema, type TripDay, type TripResult } from '../../src/agents/trip-planner-v2/schema.js';
 import { describeTripForManager, describeTripForModel } from '../../src/agents/trip-planner-v2/state.js';
 
 const NO_CHANGES = {
@@ -18,8 +18,8 @@ function result(fields: Partial<TripResult>): TripResult {
   };
 }
 
-function context(requestId = 'req-1'): Record<string, any> {
-  return { requestId, summaryContext: createClientSummary({}), tripPlanner: {}, currentUserMessage: 'hello' };
+function context(): Record<string, any> {
+  return { summaryContext: createClientSummary({}), tripPlanner: {}, currentUserMessage: 'hello' };
 }
 
 function day(number: number, title: string, places: string[] = []): TripDay {
@@ -31,7 +31,7 @@ const OPTIONS = [
   { code: 'ctg', city: 'Cartagena', country: 'Colombia', why: 'Walled city and Caribbean food', bestTime: 'Dec to Apr', cost: '$' as const },
   { code: 'MID', city: 'Mérida', country: 'Mexico', why: 'Yucatán food and cenotes', bestTime: 'Nov to Mar', cost: '$' as const },
 ];
-const APPLY = { requestId: 'req-1', researched: false, checkedOn: '2026-10-16' };
+const APPLY = { researched: false, checkedOn: '2026-10-16' };
 
 function planCartagena(state: Record<string, any>) {
   return applyTripResult(state, result({
@@ -58,7 +58,7 @@ function planCartagena(state: Record<string, any>) {
 test('suggesting destinations saves the options, chips and travelers, and reports trip_options', () => {
   const state = context();
   state.tripPlanner.suggestions = ['Compare the food in all three'];
-  const applied = applyTripResult(state, result({
+  const feedback = applyTripResult(state, result({
     intent: 'inspire',
     trip: { ...NO_CHANGES, passengerData: { total: 2, adults: null, seniors: null, children: null, lapInfants: null, seatInfants: null, childrenAges: [] },
       tripType: { add: ['warm weather', 'budget-conscious'], remove: [] } },
@@ -70,11 +70,10 @@ test('suggesting destinations saves the options, chips and travelers, and report
     suggestions: ['Compare the food in all three', 'Would you like more ideas?', 'Plan 5 days in Mérida'],
   }), APPLY);
 
-  assert.deepEqual(tripFeedbackSchema.parse(applied.feedback), applied.feedback);
-  assert.equal(applied.feedback.presentation, 'trip_options');
-  assert.equal(applied.feedback.nextStep, 'Which one should I plan?');
-  assert.doesNotMatch(JSON.stringify(applied.feedback), /formattingRules|imageUrl|https?:/);
-  assert.deepEqual(applied.photoCodes, ['SJU', 'CTG', 'MID']);
+  assert.deepEqual(tripFeedbackSchema.parse(feedback), feedback);
+  assert.equal(feedback.presentation, 'trip_options');
+  assert.equal(feedback.nextStep, 'Which one should I plan?');
+  assert.doesNotMatch(JSON.stringify(feedback), /formattingRules|imageUrl|https?:/);
   assert.equal(state.summaryContext.passengerData.total, 2);
   assert.deepEqual(state.summaryContext.tripType, ['warm weather', 'budget-conscious']);
   assert.equal(state.tripPlanner.dateHint, 'December 2026');
@@ -87,8 +86,8 @@ test('suggesting destinations saves the options, chips and travelers, and report
 test('a full plan saves the plan, the client summary and placesOfInterest, and reports trip_plan', () => {
   const state = context();
   state.tripPlanner.dateHint = 'December 2026';
-  const applied = planCartagena(state);
-  assert.equal(applied.feedback.presentation, 'trip_plan');
+  const feedback = planCartagena(state);
+  assert.equal(feedback.presentation, 'trip_plan');
   assert.equal(state.summaryContext.destination.iata, 'CTG');
   assert.equal(state.summaryContext.duration_days, 4);
   assert.equal(state.tripPlanner.dateHint, null);
@@ -103,8 +102,7 @@ test('a full plan saves the plan, the client summary and placesOfInterest, and r
 test('a day edit replaces only that day, updates placesOfInterest and reports trip_days', () => {
   const state = context();
   planCartagena(state);
-  state.requestId = 'req-2';
-  const applied = applyTripResult(state, result({
+  const feedback = applyTripResult(state, result({
     intent: 'revise',
     trip: { ...NO_CHANGES, passengerData: { total: 3, adults: null, seniors: null, children: null, lapInfants: null, seatInfants: null, childrenAges: [] },
       tripType: { add: ['minimal walking'], remove: [] } },
@@ -112,10 +110,10 @@ test('a day edit replaces only that day, updates placesOfInterest and reports tr
       days: [day(4, 'Gold Museum and a slow afternoon', ['Museo del Oro Zenú', 'Plaza de Bolívar'])] },
     summary: 'Made Day 4 low-walking.',
     nextStep: 'Day 2 is a walking tour too. Should I make it easier?',
-  }), { ...APPLY, requestId: 'req-2' });
+  }), APPLY);
 
-  assert.equal(applied.feedback.presentation, 'trip_days');
-  assert.deepEqual(applied.feedback.presentationDays, [4]);
+  assert.equal(feedback.presentation, 'trip_days');
+  assert.deepEqual(feedback.presentationDays, [4]);
   assert.equal(state.tripPlanner.plan.days.length, 5);
   assert.equal(state.tripPlanner.plan.days[3].title, 'Gold Museum and a slow afternoon');
   assert.equal(state.tripPlanner.plan.days[0].title, 'Arrival and the Walled City');
@@ -130,25 +128,25 @@ test('a new destination clears the old plan, facts and places before new content
   const state = context();
   planCartagena(state);
   state.tripPlanner.facts = [{ text: 'A concert on Dec 14', source: 'City events office', day: 3, checkedOn: '2026-10-16' }];
-  const applied = applyTripResult(state, result({
+  const feedback = applyTripResult(state, result({
     intent: 'details', trip: { ...NO_CHANGES, destination: { city: 'Mérida', iata: 'MID' } }, summary: 'Switched to Mérida.',
   }), APPLY);
   assert.equal(state.tripPlanner.plan, null);
   assert.deepEqual(state.tripPlanner.facts, []);
   assert.deepEqual(state.summaryContext.placesOfInterest, []);
-  assert.equal(applied.feedback.presentation, null);
+  assert.equal(feedback.presentation, null);
 });
 
 test('researched facts need a completed search; with one they become sourced findings', () => {
   const unverified = context();
   const missing = applyTripResult(unverified, result({ intent: 'research', facts: [{ text: 'A concert on Dec 14', source: 'City events office', day: 3 }] }), APPLY);
   assert.equal(unverified.tripPlanner.facts, undefined);
-  assert.ok(missing.feedback.limitations.includes('The requested current information could not be verified.'));
+  assert.ok(missing.limitations.includes('The requested current information could not be verified.'));
 
   const verified = context();
   const found = applyTripResult(verified, result({ intent: 'research', facts: [{ text: 'A concert on Dec 14', source: 'City events office', day: 3 }] }),
     { ...APPLY, researched: true });
-  assert.deepEqual(found.feedback.findings, ['A concert on Dec 14 (City events office)']);
+  assert.deepEqual(found.findings, ['A concert on Dec 14 (City events office)']);
   assert.equal(verified.tripPlanner.facts[0].checkedOn, '2026-10-16');
 });
 
@@ -156,11 +154,11 @@ test('a failed result changes nothing that was saved', () => {
   const state = context();
   planCartagena(state);
   const before = structuredClone(state);
-  const applied = applyTripResult(state, result({
+  const feedback = applyTripResult(state, result({
     status: 'failure', trip: { ...NO_CHANGES, destination: { city: 'Lima', iata: 'LIM' } }, options: OPTIONS, summary: 'Could not finish.',
   }), APPLY);
-  assert.equal(applied.feedback.status, 'failure');
-  assert.equal(applied.feedback.presentation, null);
+  assert.equal(feedback.status, 'failure');
+  assert.equal(feedback.presentation, null);
   assert.deepEqual(state, before);
 });
 
@@ -169,7 +167,7 @@ test("Trip's input carries the saved trip, today's date and the traveler's own w
   planCartagena(state);
   state.currentUserMessage = "my mom is coming too, she can't walk much";
   state.tripPlanner.lastQuestion = 'Want me to add a cooking class?';
-  const text = describeTripForModel(state, { localDate: '2026-10-16', localDateTime: '2026-10-16T09:00:00', timeZone: 'America/New_York' });
+  const text = describeTripForModel(state, { localDate: '2026-10-16', timeZone: 'America/New_York' });
   assert.match(text, /^<today>2026-10-16 · America\/New_York<\/today>/);
   assert.match(text, /destination: Cartagena \(CTG\)/);
   assert.match(text, /dates: 2026-12-12 to 2026-12-16 \(plan 5 days\)/);
