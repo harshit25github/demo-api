@@ -9,13 +9,13 @@ export const gatewayAgentConfig = {
   modelSettings: (isGpt5Model
     ? {
         toolChoice: 'auto',
-        parallelToolCalls: false,
+        parallelToolCalls: true,
         reasoning: { effort: process.env.OPENAI_GATEWAY_REASONING_EFFORT || 'low' },
         text: { verbosity: 'low' },
       }
     : {
         toolChoice: 'auto',
-        parallelToolCalls: false,
+        parallelToolCalls: true,
         temperature: 0,
       }) as ModelSettings,
 };

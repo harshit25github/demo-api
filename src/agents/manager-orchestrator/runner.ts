@@ -42,16 +42,14 @@ export interface ManagerRunOptions {
 /**
  * The one Runner the Manager turn uses.
  *
- * `maxFunctionToolConcurrency: 1` keeps specialists serial. They share one
- * application context, and Trip Planner in particular scopes its whole turn
- * inside it, so two specialists running at once would interleave that state.
- * `parallelToolCalls: false` already asks the provider not to emit overlapping
- * calls; this enforces it locally even if it does.
+ * Independent Flight and Trip tasks may overlap. Flight owns flight state and
+ * its tool log; Trip owns the summary and plan. The Manager awaits prerequisites
+ * and combines each specialist's work into one scoped call per batch.
  */
 export const mainChatRunner = new Runner({
   modelProvider: modelDeadlineProvider,
   modelSettings: { retry: { maxRetries: 0 } },
-  toolExecution: { maxFunctionToolConcurrency: 1 },
+  toolExecution: { maxFunctionToolConcurrency: 2 },
   workflowName: 'travel-manager',
   traceIncludeSensitiveData: true,
 });

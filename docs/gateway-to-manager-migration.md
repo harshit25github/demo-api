@@ -108,7 +108,7 @@ The SDK's default output extraction serializes Flight's structured feedback. No 
 
 | Copy | Replaces in production |
 |---|---|
-| [manager-orchestrator/config.ts](../src/agents/manager-orchestrator/config.ts) (`gatewayAgentConfig`) | Your Gateway config. It has the same shape (`toolChoice: 'auto'`, `parallelToolCalls: false`); you can keep yours and only check the model. |
+| [manager-orchestrator/config.ts](../src/agents/manager-orchestrator/config.ts) (`gatewayAgentConfig`) | Manager settings use `toolChoice: 'auto'` and `parallelToolCalls: true` for independent Flight and Trip work. |
 | [manager-orchestrator/agent.ts](../src/agents/manager-orchestrator/agent.ts) (`ManagerAgent`) | `GatewayAgent = Agent.create({ handoffs })` |
 
 `ManagerAgent` is exported once at module scope. It uses `tools`, not `handoffs`, and its `instructions` is `buildManagerInstructions` from the Manager prompt file. Dynamic instructions still read each run's context; a singleton does not imply shared conversation state.
@@ -147,9 +147,9 @@ const output = result.finalOutput;        // written by FlightAgent after the ha
 **After.** See [manager-orchestrator/runner.ts](../src/agents/manager-orchestrator/runner.ts).
 
 ```ts
-// Module level: one Runner. Specialists share one mutable context, so they must run one at a time.
+// Module level: one Runner. Independent Flight and Trip tasks own separate state fields.
 export const mainChatRunner = new Runner({
-  toolExecution: { maxFunctionToolConcurrency: 1 },
+  toolExecution: { maxFunctionToolConcurrency: 2 },
   workflowName: 'travel-manager',
 });
 
@@ -166,7 +166,7 @@ const output = String(result.finalOutput ?? '');
 
 **Notes:**
 - `run(...)` takes the same request-context wrapper as before. There is no additional Manager state object.
-- `maxFunctionToolConcurrency: 1` is retained to protect this application's shared mutable specialist state. It is not an SDK prerequisite for `asTool()` or singleton agents.
+- `maxFunctionToolConcurrency: 2` permits independent Flight and Trip tasks to overlap. The prompt combines each specialist's work into one call per batch and waits for prerequisites before dependent calls.
 - This repo still applies `sanitizeNoLinks` / `assertNoLinks` to the Manager's final text. Keep the existing output policy, not a new composition pipeline.
 
 **If production has `update_flight_suggested_questions` (Manager requirement):** copy these three spots too.
