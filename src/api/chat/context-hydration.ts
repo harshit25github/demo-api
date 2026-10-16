@@ -141,7 +141,7 @@ export function hydrateGatewayContext(
   if (!runtimeContext.summaryContext) hydrateFlightFromSummary(context, summary);
   // Trip v2 keeps the client summary itself, so a v1 chat's Trip-only copy converts to the client shape.
   context.summaryContext = tripPlannerV2
-    ? createClientSummary(runtimeContext.summaryContext ?? summary) as unknown as FlightAppContext['summaryContext']
+    ? createClientSummary(runtimeContext.summaryContext ?? summary)
     : runtimeContext.summaryContext
       ? structuredClone(runtimeContext.summaryContext)
       : tripPlannerSummary(summary, context.summaryContext);
