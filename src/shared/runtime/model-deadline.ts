@@ -18,6 +18,16 @@ export const modelDeadlineConfig = {
   maxBackoffMs: 2_000,
 } as const satisfies ModelDeadlineConfig;
 
+/** A request that can search the web often takes 30-45 s; 25 s would cut it off and replay it. */
+export const webSearchDeadlineConfig = {
+  ...modelDeadlineConfig,
+  timeoutsMs: [60_000, 75_000],
+} as const satisfies ModelDeadlineConfig;
+
+function isWebSearch(tool: ModelRequest['tools'][number]): boolean {
+  return tool.type === 'hosted_tool' && ['web_search', 'web_search_preview'].includes(String(tool.providerData?.type));
+}
+
 export class ModelDeadlineExhaustedError extends Error {
   constructor(
     readonly attempts: number,
@@ -134,8 +144,7 @@ function canReplay(request: ModelRequest, chain: Record<string, unknown>[], advi
   }
   if (request.prompt && !request.toolsExplicitlyProvided) return false;
   if (advice?.replaySafety === 'unsafe' || chain.some((value) => value.unsafeToReplay === true)) return false;
-  return request.tools.every((tool) => tool.type === 'function'
-    || (tool.type === 'hosted_tool' && ['web_search', 'web_search_preview'].includes(String(tool.providerData?.type))));
+  return request.tools.every((tool) => tool.type === 'function' || isWebSearch(tool));
 }
 
 function assertDeadlineConfig({ timeoutsMs, initialBackoffMs, maxBackoffMs }: ModelDeadlineConfig): void {
@@ -279,10 +288,11 @@ export const modelDeadlineProvider: ModelProvider = {
       useResponsesWebSocket: false,
     });
     const model = await openAIProvider.getModel(modelName);
+    const deadlineFor = (request: ModelRequest) => (request.tools.some(isWebSearch) ? webSearchDeadlineConfig : modelDeadlineConfig);
     return {
       supportsPromptModelSelection: model.supportsPromptModelSelection,
-      getResponse: (request) => getModelResponse(model, request, modelDeadlineConfig, modelName),
-      getStreamedResponse: (request) => getModelStream(model, request, modelDeadlineConfig, modelName),
+      getResponse: (request) => getModelResponse(model, request, deadlineFor(request), modelName),
+      getStreamedResponse: (request) => getModelStream(model, request, deadlineFor(request), modelName),
       // Do not expose another SDK retry owner.
     };
   },

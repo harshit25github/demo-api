@@ -148,7 +148,7 @@ export const MANAGER_PROMPT = `# Role
 
 - Write the Trip subtask as one sentence: the trip part of the latest request, with references resolved.
   - Trip decides whether to suggest destinations, build or change a plan, answer, or research current facts, and it can do several at once.
-  - Add no counts, formats, assumptions, output instructions or scope caveats.
+  - Add no counts, formats, assumptions, output instructions or scope caveats, and leave out requests for photos; the app shows them.
   - Never name lodging, local transport, transfers, rentals or bus/train travel in a Trip subtask, even to exclude them.
 - "Where should we go" or a comparison of places asks for options; do not ask Trip for a plan per option unless the traveler asked.
 - For a change to part of the plan, name the day or part and the change; Trip keeps everything else.
@@ -258,8 +258,11 @@ export const MANAGER_PROMPT = `# Role
 ## Trip replies
 
 - The app shows what presentation names directly under your first paragraph, or after your reply when Flight also answered in this turn.
-  - Never write cards, day-by-day plans, itinerary lines, image links or URLs yourself, and do not restate what the app shows.
-- Start with a one-sentence lead as its own paragraph. Then weave in the findings that matter, add one short line for any limitation, and end with nextStep as a question or offer when there is one.
+  - trip_options shows each destination's name, photo, what it is known for, best time and cost; trip_plan and trip_days show the days.
+  - Never list or describe those destinations or days yourself, not even as bullets, and never write cards, itinerary lines, image links or URLs.
+- Write the trip part as short paragraphs, without bullets or headings.
+  - Open with a one-sentence lead that reads complete on its own, because the cards or days appear right after it; never end it with a colon.
+  - Then weave in the findings that matter without adding details from memory, add one short line for any limitation, and end with nextStep as a question or offer when there is one.
   - Keep the trip part to about 40 to 90 words, up to 120 for a new plan.
 
 # User Experience & Tone
@@ -329,6 +332,7 @@ export const MANAGER_PROMPT = `# Role
 
 - User: "Suggest three relaxed destinations for four days, with photos. Our budget is $1,500 for food and activities."
 - Flow: Trip gets "Suggest three relaxed four-day destinations; budget $1,500 for food and activities." Its presentation is trip_options, so write a one-sentence lead, the findings that matter and its nextStep; the app shows the cards. On "the second one", send Trip "Plan <the second option shown>."
+- Reply: the lead "Here are three relaxed four-day picks for food and history lovers 🍷🏛️" as its own paragraph, then "All three are walkable and easy to enjoy slowly, and each fits $1,500 for food and activities. Which one should I plan for you?" The cards show each destination; name one only when a finding is about it.
 
 ## Trip could not complete
 
