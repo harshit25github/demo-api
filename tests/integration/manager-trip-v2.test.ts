@@ -6,9 +6,8 @@ process.env.OPENAI_AGENTS_DISABLE_TRACING = '1';
 process.env.OPENAI_API_KEY ||= 'test-key';
 
 const { Runner, Usage } = await import('@openai/agents');
-const { createManagerAgent, ManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
-const { buildManagerInstructions, buildManagerInstructionsV2, MANAGER_PROMPT, MANAGER_PROMPT_TRIP_V2 } =
-  await import('../../src/agents/manager-orchestrator/manager-prompt.js');
+const { ManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
+const { buildManagerInstructions, MANAGER_PROMPT } = await import('../../src/agents/manager-orchestrator/manager-prompt.js');
 const { runGatewayAgent } = await import('../../src/agents/manager-orchestrator/runner.js');
 const { flightAgentAsTool } = await import('../../src/agents/manager/specialists/flight.js');
 const { tripPlannerV2AgentAsTool } = await import('../../src/agents/manager/specialists/trip-planner-v2.js');
@@ -16,7 +15,6 @@ const { TripPlannerV2Agent } = await import('../../src/agents/trip-planner-v2/ag
 const { TRIP_PLANNER_V2_INSTRUCTIONS } = await import('../../src/agents/trip-planner-v2/prompt.js');
 const { tripFeedbackSchema } = await import('../../src/agents/trip-planner-v2/schema.js');
 
-const managerV2 = createManagerAgent({ tripPlannerV2: true });
 const NOW = new Date('2026-10-16T14:00:00Z');
 
 function message(text: string) {
@@ -47,37 +45,30 @@ const DISCOVERY = {
 };
 
 async function withModels<T>(manager: any, trip: any, run: () => Promise<T>): Promise<T> {
-  const originalManager = managerV2.model;
+  const originalManager = ManagerAgent.model;
   const originalTrip = TripPlannerV2Agent.model;
-  managerV2.model = manager;
+  ManagerAgent.model = manager;
   TripPlannerV2Agent.model = trip;
-  try { return await run(); } finally { managerV2.model = originalManager; TripPlannerV2Agent.model = originalTrip; }
+  try { return await run(); } finally { ManagerAgent.model = originalManager; TripPlannerV2Agent.model = originalTrip; }
 }
 
 function runTurn(input: string) {
-  return runGatewayAgent({ input, manager: managerV2, runner: new Runner({ tracingDisabled: true }), context: {},
+  return runGatewayAgent({ input, runner: new Runner({ tracingDisabled: true }), context: {},
     requestId: 'req-v2', sessionId: 'chat-v2', now: NOW, timeZone: 'America/New_York' });
 }
 
-test('the v2 Manager has the v2 Trip tool and prompt; v1 stays the default', () => {
-  assert.deepEqual(managerV2.tools, [flightAgentAsTool, tripPlannerV2AgentAsTool]);
-  assert.deepEqual(managerV2.tools.map((tool) => tool.name), ['flight_agent', 'trip_planner_agent']);
-  assert.notEqual(ManagerAgent.tools[1], tripPlannerV2AgentAsTool);
-  assert.match(MANAGER_PROMPT, /formattingRules/);
-  assert.doesNotMatch(MANAGER_PROMPT_TRIP_V2, /formattingRules|## Trip markdown|time-block labels|image provenance/);
+test('the Manager has the Trip v2 tool and Trip sections, with no v1 rules left', () => {
+  assert.deepEqual(ManagerAgent.tools, [flightAgentAsTool, tripPlannerV2AgentAsTool]);
+  assert.deepEqual(ManagerAgent.tools.map((tool) => tool.name), ['flight_agent', 'trip_planner_agent']);
+  assert.doesNotMatch(MANAGER_PROMPT, /formattingRules|## Trip markdown|time-block labels|image provenance|Previous trip plan available/);
   for (const section of ['## Trip references', '## Trip: one request, Trip decides the rest', '## Trip feedback', '## Trip replies']) {
-    assert.ok(MANAGER_PROMPT_TRIP_V2.includes(section), section);
+    assert.ok(MANAGER_PROMPT.includes(section), section);
   }
   // Known trip facts go into Flight subtasks only; "my itinerary" is the plan built in chat, not a booking.
-  assert.match(MANAGER_PROMPT, /\n {2}- Separate requested operations, known trip facts/);
-  assert.doesNotMatch(MANAGER_PROMPT_TRIP_V2, /\n {2}- Separate requested operations, known trip facts/);
-  assert.match(MANAGER_PROMPT_TRIP_V2, /For Flight, separate requested operations, known trip facts.*A Trip subtask stays one sentence/);
-  assert.match(MANAGER_PROMPT_TRIP_V2, /"My plan" or "my itinerary" means the trip plan Trip built in this chat, not a booking/);
-  // Flight guidance is shared text, not a copy.
-  const flightGuidance = MANAGER_PROMPT.slice(MANAGER_PROMPT.indexOf('## Flight: search versus current-result work'), MANAGER_PROMPT.indexOf('## Trip: destination discovery'));
-  assert.ok(MANAGER_PROMPT_TRIP_V2.includes(flightGuidance));
-  assert.match(buildManagerInstructions({ context: {} }), /Previous trip plan available: no\./);
-  assert.match(buildManagerInstructionsV2({ context: {} }), /- Trip options shown: none\.\n- Current trip plan: none\.\n- Last Trip question: none\.\n$/);
+  assert.doesNotMatch(MANAGER_PROMPT, /\n {2}- Separate requested operations, known trip facts/);
+  assert.match(MANAGER_PROMPT, /For Flight, separate requested operations, known trip facts.*A Trip subtask stays one sentence/);
+  assert.match(MANAGER_PROMPT, /"My plan" or "my itinerary" means the trip plan Trip built in this chat, not a booking/);
+  assert.match(buildManagerInstructions({ context: {} }), /- Trip options shown: none\.\n- Current trip plan: none\.\n- Last Trip question: none\.\n$/);
 });
 
 test('one Trip call: saved trip in its input, compact report to the Manager, cards rendered by the app', async () => {

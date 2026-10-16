@@ -10,8 +10,7 @@ const { MaxTurnsExceededError, RunContext, Runner, Usage } = await import('@open
 const { ManagerAgent } = await import('../../src/agents/manager-orchestrator/agent.js');
 const { buildGatewayContext, runGatewayAgent } = await import('../../src/agents/manager-orchestrator/runner.js');
 const { FlightManagerAgent } = await import('../../src/agents/flight/agent.js');
-const { TripPlannerManagerAgent } = await import('../../src/agents/trip-planner/agent.js');
-const { tripFeedback, tripManagerModel } = await import('../helpers/trip-manager.js');
+const { TripPlannerV2Agent } = await import('../../src/agents/trip-planner-v2/agent.js');
 const { ApplyFilterTool: ApplyFilterToolDefinition } = await import('../../src/agents/flight/tools/filter/tool.js');
 const { createProdFlightContext } = await import('../../src/agents/flight/context/flight-context.js');
 const { snapshotGatewayContext, hydrateGatewayContext } = await import('../../src/api/chat/context-hydration.js');
@@ -40,24 +39,17 @@ function toolCall(name: string, input: string, callId: string) {
 }
 async function runManagerTurn({ input, seed = {}, script, flight, trip }: {
   input: string; seed?: Record<string, unknown>; script: (call: number) => any;
-  flight?: (appContext: any) => unknown; trip?: (appContext: any) => unknown;
+  flight?: (appContext: any) => unknown; trip?: (request: any) => unknown;
 }) {
   const appContext = makeContext(input, seed);
   const originalManager = ManagerAgent.model;
   const originalFlight = FlightManagerAgent.model;
-  const originalTrip = TripPlannerManagerAgent.model;
+  const originalTrip = TripPlannerV2Agent.model;
   const inputs: any[][] = [];
   const order: string[] = [];
   try {
     if (flight) FlightManagerAgent.model = { async getResponse() { order.push('flight_agent'); return flight(appContext); } } as any;
-    if (trip) {
-      const model = tripManagerModel(() => appContext, (state) => trip(state) as any, ['DXB']);
-      let firstTripStep = true;
-      TripPlannerManagerAgent.model = { async getResponse(request: any) {
-        if (firstTripStep) { order.push('trip_planner_agent'); firstTripStep = false; }
-        return model.getResponse(request);
-      } } as any;
-    }
+    if (trip) TripPlannerV2Agent.model = { async getResponse(request: any) { order.push('trip_planner_agent'); return trip(request); } } as any;
     ManagerAgent.model = { async getResponse(request: any) { inputs.push(request.input); return script(inputs.length); } } as any;
     const result = await new Runner({ tracingDisabled: true, toolExecution: { maxFunctionToolConcurrency: 1 } })
       .run(ManagerAgent, input, { context: sdkContext(appContext), maxTurns: 8 });
@@ -65,19 +57,19 @@ async function runManagerTurn({ input, seed = {}, script, flight, trip }: {
     const toolResults = inputs.at(-1)!.filter((item: any) => item.type === 'function_call_result')
       .map((item: any) => String(item.output.text));
     return { appContext, inputs, order, toolResults, output: String(result.finalOutput) };
-  } finally { ManagerAgent.model = originalManager; FlightManagerAgent.model = originalFlight; TripPlannerManagerAgent.model = originalTrip; }
+  } finally { ManagerAgent.model = originalManager; FlightManagerAgent.model = originalFlight; TripPlannerV2Agent.model = originalTrip; }
 }
 
-function dubaiFeedback(state: any, morning = 'Dubai Creek and local food') {
-  return tripFeedback(state, { destinationCards: [{ itemCode: 'DXB', title: 'Dubai, UAE',
-    imageUrl: state.tripPlanner.placeImageCache.DXB.imageUrl, knownFor: 'Museums and food', weather: 'Warm season', budget: 'Activities budget' }],
-    itineraryDays: [{ day: 1, title: 'Historic Dubai', morning, afternoon: 'Free time', evening: 'Regional food' },
-      { day: 2, title: 'Culture', morning: 'Museums', afternoon: 'Beaches', evening: 'Regional food' }] });
-}
+const DUBAI_PLAN = {
+  status: 'success', intent: 'plan', trip: null, dateHint: null, options: null, facts: null,
+  plan: { scope: 'full', removeDays: [], card: { country: 'United Arab Emirates', knownFor: 'Museums and food', bestTime: 'Nov to Mar', cost: '$$' },
+    days: [{ day: 1, title: 'Historic Dubai', morning: 'Dubai Creek and local food', afternoon: 'Free time', evening: 'Regional food', places: ['Dubai Creek'] },
+      { day: 2, title: 'Culture', morning: 'Museums', afternoon: 'Beaches', evening: 'Regional food', places: [] }] },
+  summary: 'Built a 2-day Dubai plan for a 20 October arrival.', findings: [], limitations: [], nextStep: null, suggestions: [],
+};
 
-test('dependent Flight then Trip delegation is ordered and Trip reads confirmed shared flight facts', async () => {
-  const plan = 'Day 1: Dubai Creek and local food.\nDay 2: museums and beaches.';
-  const answer = `Found two Dubai flights for 20 October. Note: Prices shown are per person.\n\n${plan}`;
+test('dependent Flight then Trip delegation is ordered and Trip gets the confirmed flight date in its request', async () => {
+  const answer = 'Found two Dubai flights for 20 October. Note: Prices shown are per person.\n\nYour two Dubai days are below.';
   const result = await runManagerTurn({ input: 'Find flights to Dubai on 20 October, then plan what to do there',
     seed: { summaryContext: { destination: { city: 'Dubai', iata: 'DXB' }, duration_days: 2 } },
     script: (call) => call === 1 ? toolCall('flight_agent', 'Find flights to Dubai on 20 October', 'c1')
@@ -88,34 +80,18 @@ test('dependent Flight then Trip delegation is ordered and Trip reads confirmed 
       state.flight.showFlight = true;
       state.flight.outboundDate = '2026-10-20';
       return flightAnswer({ findings: ['Outbound date: 2026-10-20'], presentation: 'flight_cards_with_price_note' });
-    }, trip: (state) => {
-      assert.equal(state.flight.outboundDate, '2026-10-20');
-      assert.equal(state.tripPlanner.currentUserMessage, 'Plan Dubai activities for a 20 October arrival');
-      return dubaiFeedback(state);
+    }, trip: (request) => {
+      assert.match(JSON.stringify(request.input), /Plan Dubai activities for a 20 October arrival/);
+      return modelAnswer(JSON.stringify(DUBAI_PLAN));
     } });
   assert.deepEqual(result.order, ['flight_agent', 'trip_planner_agent']);
   assert.deepEqual(JSON.parse(result.toolResults[0]).findings, ['Outbound date: 2026-10-20']);
-  assert.equal(JSON.parse(result.toolResults[1]).itineraryDays[0].morning, 'Dubai Creek and local food');
   assert.equal(JSON.parse(result.toolResults[1]).status, 'success');
+  assert.equal(JSON.parse(result.toolResults[1]).presentation, 'trip_plan');
+  assert.equal(result.appContext.tripPlanner.plan.days[0].morning, 'Dubai Creek and local food');
   assert.equal(result.output, answer);
-  assert.equal(result.output.match(/Day 1: Dubai Creek/g)?.length, 1);
   assert.equal(result.appContext.flight.showFlight, true);
   assert.doesNotMatch(result.output, /\[\[render:|renderRef/);
-});
-
-test('existing scope policy prevents prohibited Trip output reaching the Manager while Flight state survives', async () => {
-  const result = await runManagerTurn({ input: 'Find Dubai flights and suggest activities; do not arrange hotels or taxis',
-    seed: { summaryContext: { destination: { city: 'Dubai', iata: 'DXB' }, duration_days: 2 } },
-    script: (call) => call === 1 ? toolCall('flight_agent', 'Find flights to Dubai', 'c1')
-      : call === 2 ? toolCall('trip_planner_agent', 'Suggest Dubai activities', 'c2') : modelAnswer('Found two Dubai flights.'),
-    flight: (state) => {
-      state.flight.searchResults = [{ id: 'f1' }, { id: 'f2' }]; state.flight.showFlight = true;
-      return flightAnswer({ summary: 'Found two Dubai options.' });
-    }, trip: (state) => dubaiFeedback(state, 'Book a hotel downtown and take a taxi from the airport') });
-  assert.doesNotMatch(result.toolResults[1], /hotel|taxi/i);
-  assert.equal(JSON.parse(result.toolResults[1]).status, 'failure');
-  assert.equal(result.appContext.flight.showFlight, true);
-  assert.equal(result.output, 'Found two Dubai flights.');
 });
 
 test('filter clearing uses the scoped subtask rather than the whole mixed turn', async () => {

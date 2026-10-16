@@ -8,7 +8,6 @@ import type {
   FlightContext,
 } from '../../agents/flight/types.js';
 import { createClientSummary } from '../../agents/trip-planner-v2/client-summary.js';
-import { tripPlannerV2Config } from '../../agents/trip-planner-v2/config.js';
 import type { PersistedRuntimeContext, SummaryContext } from './types.js';
 
 type MutableRecord = Record<string, any>;
@@ -45,33 +44,6 @@ export function createEmptySummaryContext(): SummaryContext {
       seatInfants: null,
       childrenAges: [],
     },
-  };
-}
-
-function endpointForTripPlanner(endpoint: MutableRecord = {}) {
-  return {
-    city: text(endpoint.city),
-    iata: text(endpoint.iata)?.toUpperCase() || null,
-  };
-}
-
-function tripPlannerSummary(summary: SummaryContext, existing: MutableRecord = {}) {
-  return {
-    pax: number(summary.passengerData?.total),
-    budget: structuredClone(summary.budget || createEmptySummaryContext().budget),
-    origin: endpointForTripPlanner(summary.origin),
-    destination: endpointForTripPlanner(summary.destination),
-    tripType: Array.isArray(summary.tripType) ? [...summary.tripType] : [],
-    outbound_date: text(summary.outbound_date),
-    return_date: text(summary.return_date),
-    duration_days: number(summary.duration_days),
-    upcomingEvents: Array.isArray(existing.upcomingEvents) ? structuredClone(existing.upcomingEvents) : [],
-    placesOfInterest: Array.isArray(summary.placesOfInterest)
-      ? structuredClone(summary.placesOfInterest)
-      : [],
-    suggestedQuestions: Array.isArray(existing.suggestedQuestions)
-      ? [...existing.suggestedQuestions]
-      : [],
   };
 }
 
@@ -131,7 +103,6 @@ function hydrateFlightFromSummary(
 export function hydrateGatewayContext(
   runtimeContext: Partial<PersistedRuntimeContext> = {},
   summaryContext: SummaryContext = createEmptySummaryContext(),
-  { tripPlannerV2 = tripPlannerV2Config.enabled }: { tripPlannerV2?: boolean } = {},
 ): FlightAppContext {
   const context = ensureFlightRuntimeContext(
     structuredClone(runtimeContext || {}) as MutableRecord,
@@ -139,12 +110,8 @@ export function hydrateGatewayContext(
   const summary = structuredClone(summaryContext || createEmptySummaryContext());
   // Legacy summaries seed old chats only; current runtime state may clear fields.
   if (!runtimeContext.summaryContext) hydrateFlightFromSummary(context, summary);
-  // Trip v2 keeps the client summary itself, so a v1 chat's Trip-only copy converts to the client shape.
-  context.summaryContext = tripPlannerV2
-    ? createClientSummary(runtimeContext.summaryContext ?? summary)
-    : runtimeContext.summaryContext
-      ? structuredClone(runtimeContext.summaryContext)
-      : tripPlannerSummary(summary, context.summaryContext);
+  // Trip keeps the client summary itself; an older chat's Trip-only copy (pax) converts to the client shape.
+  context.summaryContext = createClientSummary(runtimeContext.summaryContext ?? summary);
   context.tripPlanner = context.tripPlanner || {};
 
   const searchKey = context.flight.searchKey;
@@ -157,14 +124,7 @@ export function hydrateGatewayContext(
 // The Trip state a later turn reads. The rest is rebuilt each time Trip runs,
 // or only matters within one request.
 const DURABLE_TRIP_PLANNER_FIELDS = [
-  'contextRevision',
   'dateHint',
-  'preferenceSignals',
-  'askedQuestionKeys',
-  'placeImageCache',
-  'lastPlanArtifact',
-  'lastPlanSnapshot',
-  // Trip Planner v2
   'options',
   'plan',
   'facts',

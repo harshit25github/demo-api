@@ -129,7 +129,7 @@ test('summary context hydrates only missing Flight fields and preserves active s
   assert.equal(empty.flight.segments[0].destination, 'DEL');
   assert.equal(empty.flight.outboundDate, '2026-09-05');
   assert.equal(empty.flight.pax, 2);
-  assert.equal(empty.summaryContext.pax, 2);
+  assert.equal(empty.summaryContext.passengerData.total, 2);
 
   const active = hydrateGatewayContext(
     {
@@ -190,7 +190,19 @@ test('saved runtime context preserves explicit clears instead of restoring froze
   };
 
   const hydrated = hydrateGatewayContext(runtimeContext as any, legacySummary);
-  assert.deepEqual(hydrated.summaryContext, runtimeSummary);
+  // An older Trip-only runtime summary comes back in the client shape: pax becomes passengerData.total,
+  // and the legacy return date and roundtrip are not restored over the runtime clears.
+  assert.deepEqual(hydrated.summaryContext, {
+    origin: { city: null, iata: null },
+    destination: { city: 'Paris', iata: null },
+    outbound_date: null,
+    return_date: null,
+    duration_days: 5,
+    budget: { amount: null, currency: null, per_person: null, total: null },
+    tripType: ['relaxed', 'family'],
+    placesOfInterest: [],
+    passengerData: { total: 3, adults: null, seniors: null, children: null, lapInfants: null, seatInfants: null, childrenAges: [] },
+  });
   assert.notEqual(hydrated.summaryContext, runtimeSummary);
   assert.equal(hydrated.flight.tripType, 'oneway');
   assert.equal(hydrated.flight.inboundDate, '');
@@ -444,7 +456,6 @@ test('client cancellation skips Summary extraction and preserves completed speci
       createConversationSession: () => ({ getSessionId: async () => 'conv_cancelled' }),
       runGateway: async ({ context, signal }) => {
         context.summaryContext.budget = { amount: null, currency: null, per_person: null, total: null };
-        context.summaryContext.suggestedQuestions = [];
         context.flight.suggestedQuestions = ['Would you like nonstop flights?'];
         response.emit('close');
         assert.equal(signal.aborted, true);
@@ -577,7 +588,7 @@ test('HTTP API serves dashboard, creates chats over SSE, rejects unknown and bus
   }
 });
 
-test('specialist-owned summary persists across disk reload and the next turn while legacy summary stays unchanged', async () => {
+test('the client summary and Trip plan persist across disk reload and the next turn', async () => {
   const fixture = await temporaryStore();
   try {
     let chat = await fixture.store.createChat({ title: 'Existing Paris trip' });
@@ -589,19 +600,19 @@ test('specialist-owned summary persists across disk reload and the next turn whi
       record.summaryContext = structuredClone(previousSummary);
     });
 
-    const specialistSummary = {
-      pax: 3,
-      budget: { amount: null, currency: null, per_person: null, total: null },
+    const tripSummary = {
       origin: { city: null, iata: null },
       destination: { city: 'Paris', iata: null },
-      tripType: ['family', 'relaxed'],
       outbound_date: null,
       return_date: null,
       duration_days: 5,
-      upcomingEvents: [{ name: 'Museum night', date: '2026-11-07' }],
-      placesOfInterest: [{ placeName: 'Louvre', description: 'Art museum' }],
-      suggestedQuestions: ['Would you like a quieter day 3?'],
+      budget: { amount: null, currency: null, per_person: null, total: null },
+      tripType: ['family', 'relaxed'],
+      placesOfInterest: [{ placeName: 'Louvre', description: 'Day 1: Art day' }],
+      passengerData: { total: 3, adults: null, seniors: null, children: null, lapInfants: null, seatInfants: null, childrenAges: [] },
     };
+    const plan = { destination: { city: 'Paris', iata: null }, card: null,
+      days: [{ day: 1, title: 'Art day', morning: 'Louvre', afternoon: 'Rest', evening: 'Seine walk', places: ['Louvre'] }] };
     const response = new TestResponse();
     let raw = '';
     response.on('data', (chunk) => {
@@ -622,22 +633,20 @@ test('specialist-owned summary persists across disk reload and the next turn whi
       timeZone: 'Asia/Kolkata',
       createConversationSession: () => ({ getSessionId: async () => 'conv_existing' }),
       runGateway: async ({ context }) => {
-        assert.equal(context.summaryContext.pax, 2);
+        assert.equal(context.summaryContext.passengerData.total, 2);
         assert.equal(context.summaryContext.destination.iata, 'DEL');
-        context.summaryContext = structuredClone(specialistSummary);
+        context.summaryContext = structuredClone(tripSummary);
         context.flight.tripType = 'oneway';
         context.flight.inboundDate = null;
         context.flight.outboundDate = null;
         context.flight.segments = [{ date: '', origin: '', destination: '', origin_iata: null, destination_iata: null }];
         context.flight.resolvedOrigin = { userCity: null, airportIATA: null, airportName: null };
         context.flight.resolvedDestination = { userCity: null, airportIATA: null, airportName: null };
-        context.tripPlanner.lastPlanArtifact = { destination: { city: 'Paris' }, output: 'Lighter itinerary' };
-        context.tripPlanner.currentUserMessage = 'Make it lighter';
-        context.tripPlanner.turnState = { phase: 'completed' };
-        context.tripPlanner.planningBrief = { transient: true };
-        context.tripPlanner.currentTurnToolCalls = [{ tool: 'update_trip_planner_context' }];
-        context.tripPlanner.lastContextUpdateRequestId = 'request-1';
+        context.tripPlanner.plan = structuredClone(plan);
+        context.tripPlanner.suggestions = ['Add a quieter third day'];
         context.tripPlanner.dateHint = 'next month';
+        context.tripPlanner.turnView = { presentation: 'trip_days', presentationDays: [1] };
+        context.tripPlanner.currentUserMessage = 'Make it lighter';
         return {
           output: 'Lighter itinerary',
           finalAgentName: 'Manager Agent',
@@ -651,17 +660,16 @@ test('specialist-owned summary persists across disk reload and the next turn whi
     assert.deepEqual(events.map((item) => item.event), ['conversation.ready', 'turn.started', 'delta', 'done']);
     const done = events.find((item) => item.event === 'done').data;
     assert.equal(done.summaryStatus, 'skipped');
-    assert.deepEqual(done.summaryContext, previousSummary);
+    assert.deepEqual(done.summaryContext, tripSummary);
+    assert.deepEqual(done.tripContext.suggestedQuestions, ['Add a quieter third day']);
     const stored = fixture.store.getChat(chat.chatId);
-    assert.deepEqual(stored.summaryContext, previousSummary);
+    assert.deepEqual(stored.summaryContext, tripSummary);
     assert.deepEqual(stored.messages[0].summaryContext, previousSummary);
-    assert.deepEqual(stored.messages[1].summaryContext, previousSummary);
-    assert.deepEqual(stored.runtimeContext.summaryContext, specialistSummary);
-    assert.deepEqual(stored.runtimeContext.tripPlanner.lastPlanArtifact, {
-      destination: { city: 'Paris' }, output: 'Lighter itinerary',
-    });
+    assert.deepEqual(stored.messages[1].summaryContext, tripSummary);
+    assert.deepEqual(stored.runtimeContext.summaryContext, tripSummary);
+    assert.deepEqual(stored.runtimeContext.tripPlanner.plan, plan);
     assert.equal(stored.runtimeContext.tripPlanner.dateHint, 'next month');
-    for (const key of ['currentUserMessage', 'turnState', 'planningBrief', 'currentTurnToolCalls', 'lastContextUpdateRequestId']) {
+    for (const key of ['turnView', 'currentUserMessage']) {
       assert.equal(Object.hasOwn(stored.runtimeContext.tripPlanner, key), false);
     }
     assert.equal(stored.turns[0].status, 'completed');
@@ -692,7 +700,7 @@ test('specialist-owned summary persists across disk reload and the next turn whi
       },
       runGateway: async ({ context, stream }) => {
         assert.equal(stream, true);
-        assert.deepEqual(context.summaryContext, specialistSummary);
+        assert.deepEqual(context.summaryContext, tripSummary);
         assert.equal(context.flight.tripType, 'oneway');
         assert.equal(context.flight.inboundDate, '');
         assert.equal(context.flight.outboundDate, null);
@@ -700,7 +708,7 @@ test('specialist-owned summary persists across disk reload and the next turn whi
         assert.equal(context.flight.resolvedDestination.airportIATA, null);
         assert.equal(context.flight.segments[0].origin, '');
         assert.equal(context.flight.segments[0].destination, '');
-        assert.equal(context.tripPlanner.lastPlanArtifact.output, 'Lighter itinerary');
+        assert.equal(context.tripPlanner.plan.days[0].title, 'Art day');
         return { output: 'Updated day 3', finalAgentName: 'Manager Agent', context, lastResponseId: 'resp_follow_up' };
       },
     });
@@ -708,8 +716,8 @@ test('specialist-owned summary persists across disk reload and the next turn whi
     assert.deepEqual(nextEvents.map((item) => item.event), ['conversation.ready', 'turn.started', 'delta', 'done']);
     assert.equal(nextEvents.at(-1).data.summaryStatus, 'skipped');
     const nextStored = restartedStore.getChat(chat.chatId);
-    assert.deepEqual(nextStored.summaryContext, previousSummary);
-    assert.deepEqual(nextStored.runtimeContext.summaryContext, specialistSummary);
+    assert.deepEqual(nextStored.summaryContext, tripSummary);
+    assert.deepEqual(nextStored.runtimeContext.summaryContext, tripSummary);
     assert.equal(nextStored.turns[1].status, 'completed');
     assert.equal(nextStored.turns[1].summaryStatus, 'skipped');
     assert.equal(nextStored.messages[3].content, 'Updated day 3');

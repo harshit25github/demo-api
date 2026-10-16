@@ -9,7 +9,7 @@ const { ManagerAgent } = await import('../../src/agents/manager-orchestrator/age
 const { buildGatewayContext, runGatewayAgent } = await import('../../src/agents/manager-orchestrator/runner.js');
 const { buildManagerInstructions } = await import('../../src/agents/manager-orchestrator/manager-prompt.js');
 const { flightAgentAsTool } = await import('../../src/agents/manager/specialists/flight.js');
-const { tripPlannerAgentAsTool } = await import('../../src/agents/manager/specialists/trip-planner.js');
+const { tripPlannerV2AgentAsTool } = await import('../../src/agents/manager/specialists/trip-planner-v2.js');
 const { flightManagerOutputSchema } = await import('../../src/agents/flight/manager-output.js');
 const { buildFlightAgentInstructions, FlightManagerAgent } = await import('../../src/agents/flight/agent.js');
 const { createRequestContext, getRequestState } = await import('../../src/shared/runtime/request-context.js');
@@ -42,13 +42,13 @@ async function withModels<T>(managerModel: unknown, flightModel: unknown, body: 
 
 test('the configured Manager singleton registers only the two implemented specialist tools', () => {
   assert.equal(ManagerAgent.modelSettings.parallelToolCalls, false);
-  assert.deepEqual(ManagerAgent.tools, [flightAgentAsTool, tripPlannerAgentAsTool]);
+  assert.deepEqual(ManagerAgent.tools, [flightAgentAsTool, tripPlannerV2AgentAsTool]);
   assert.deepEqual(ManagerAgent.tools.map((item) => item.name), ['flight_agent', 'trip_planner_agent']);
   assert.deepEqual(flightAgentAsTool.inputGuardrails?.map((guardrail) => guardrail.name), ['flight_recovery_turn_boundary']);
   assert.deepEqual(flightAgentAsTool.outputGuardrails?.map((guardrail) => guardrail.name), ['flight_recovery_feedback']);
   assert.equal(flightAgentAsTool.timeoutMs, undefined, 'deadlines belong to model calls, not whole Flight tasks');
-  assert.equal(tripPlannerAgentAsTool.outputGuardrails?.length || 0, 0);
-  assert.equal(tripPlannerAgentAsTool.timeoutErrorFunction, undefined);
+  assert.deepEqual(tripPlannerV2AgentAsTool.outputGuardrails?.map((guardrail) => guardrail.name), ['trip_v2_typed_feedback']);
+  assert.equal(tripPlannerV2AgentAsTool.timeoutErrorFunction, undefined);
 });
 
 test('Manager has bounded routing context without render-tag instructions or private card payloads', () => {

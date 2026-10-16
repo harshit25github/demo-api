@@ -26,18 +26,18 @@ function parseEvents(raw: string) {
   }));
 }
 
-test("v2 hydration converts a v1 chat's Trip-only summary into the client shape", () => {
+test("hydration converts an older chat's Trip-only summary into the client shape", () => {
   const context = hydrateGatewayContext({
     flight: {}, tripPlanner: {}, flightSearchRuntime: null,
     summaryContext: { pax: 3, destination: { city: 'Rome', iata: 'ROM' }, upcomingEvents: [], suggestedQuestions: ['x'], tripType: ['family'] },
-  } as any, createEmptySummaryContext(), { tripPlannerV2: true });
+  } as any, createEmptySummaryContext());
   const summary = context.summaryContext as any;
   assert.equal(summary.passengerData.total, 3);
   assert.deepEqual(summary.destination, { city: 'Rome', iata: 'ROM' });
   for (const key of ['pax', 'upcomingEvents', 'suggestedQuestions']) assert.equal(Object.hasOwn(summary, key), false);
 });
 
-test('a v2 turn saves and returns the client summary, and returns chips and the trip view', async () => {
+test('a turn saves and returns the client summary, and returns chips and the trip view', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'trip-v2-chat-'));
   try {
     const store = await new JsonChatStore({ filePath: path.join(directory, 'chats.json') }).init();
@@ -56,7 +56,7 @@ test('a v2 turn saves and returns the client summary, and returns chips and the 
 
     await streamChatTurn({
       store, writer, response: response as any, chat, isNewChat: false, releaseTurn: store.acquireTurn(chat.chatId)!,
-      message: 'somewhere warm in december, 2 of us', timeZone: 'Asia/Kolkata', tripPlannerV2: true,
+      message: 'somewhere warm in december, 2 of us', timeZone: 'Asia/Kolkata',
       createConversationSession: () => ({ getSessionId: async () => 'conv_v2' }) as any,
       runGateway: async ({ context }) => {
         assert.equal(context.summaryContext.origin.city, 'NEWDELHI');
