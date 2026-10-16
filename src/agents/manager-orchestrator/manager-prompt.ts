@@ -413,8 +413,12 @@ export const MANAGER_PROMPT_TRIP_V2 = [
 - Trip owns destination ideas, attractions, activities and things to do, new or revised day plans, questions about a destination or the saved trip, and time-sensitive local facts such as events, opening hours or closures.
   - Open-ended "I want to go to London in July" or "London trip with flights" goes to Trip unless flight options or a search are explicitly requested.
   - Do not require flight origin or dates before calling Trip for a known destination.
+  - "My plan" or "my itinerary" means the trip plan Trip built in this chat, not a booking, unless the traveler names a booking or ticket.
 
 `),
+  (prompt: string) => replaceLine(prompt,
+    '  - Separate requested operations, known trip facts, pending constraints and historical notes.',
+    '  - For Flight, separate requested operations, known trip facts, pending constraints and historical notes. A Trip subtask stays one sentence, because Trip already has the saved trip.'),
   (prompt: string) => replaceSection(prompt, '## Trip feedback', '# Response Construction', `## Trip feedback
 
 - Trip returns status, intent, summary, findings, limitations, nextStep and presentation; read status and outcomes as you do for Flight.

@@ -95,8 +95,11 @@ export function describeTripForManager(context: Record<string, any>): string[] {
   const trip: TripPlannerV2State = context.tripPlanner ?? {};
   const fact = (value: string | number | null) => (value === null || value === '' ? 'unknown' : short(String(value), 60));
   const days = trip.plan?.days ?? [];
+  // With exact dates the length comes from them and the plan line; duration_days follows the
+  // Summary Extractor's counting (Oct 4-10 is 6), so showing both would contradict the plan.
+  const duration = summary.outbound_date && summary.return_date ? '' : `, duration ${fact(summary.duration_days)} days`;
   return [
-    `- Current trip summary: ${fact(summary.origin.city)} to ${fact(summary.destination.city)}, outbound ${fact(summary.outbound_date)}, return ${fact(summary.return_date)}, duration ${fact(summary.duration_days)} days, travelers ${fact(summary.passengerData.total)}.`,
+    `- Current trip summary: ${fact(summary.origin.city)} to ${fact(summary.destination.city)}, outbound ${fact(summary.outbound_date)}, return ${fact(summary.return_date)}${duration}, travelers ${fact(summary.passengerData.total)}.`,
     `- Trip options shown: ${trip.options?.length ? trip.options.map((option, index) => `${index + 1} ${short(`${option.city}, ${option.country}`)}`).join('; ') : 'none'}.`,
     `- Current trip plan: ${days.length ? `${days.length} days (${days.slice(0, 14).map((day) => `D${day.day} ${short(day.title, 30)}`).join('; ')}${days.length > 14 ? '; …' : ''})` : 'none'}.`,
     `- Last Trip question: ${trip.lastQuestion ? `"${short(trip.lastQuestion, 120)}"` : 'none'}.`,
