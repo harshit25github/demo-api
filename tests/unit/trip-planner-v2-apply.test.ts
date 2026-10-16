@@ -184,5 +184,11 @@ test("the Manager's trip lines resolve options and days without the plan text", 
   assert.equal(lines[2], '- Current trip plan: none.');
   assert.equal(lines[3], '- Last Trip question: "Which one should I plan?".');
   planCartagena(state);
-  assert.match(describeTripForManager(state)[2], /^- Current trip plan: 5 days \(D1 Arrival and the Walled City; D2 /);
+  const [summaryLine, , planLine] = describeTripForManager(state);
+  assert.match(planLine, /^- Current trip plan: 5 days \(D1 Arrival and the Walled City; D2 /);
+  // Exact dates set the length, so the summary line never shows a different day count than the plan.
+  assert.equal(summaryLine, '- Current trip summary: unknown to Cartagena, outbound 2026-12-12, return 2026-12-16, travelers unknown.');
+  const lengthOnly = context();
+  lengthOnly.summaryContext = createClientSummary({ destination: { city: 'Rome', iata: 'ROM' }, duration_days: 4 });
+  assert.match(describeTripForManager(lengthOnly)[0], /, duration 4 days, travelers unknown\.$/);
 });

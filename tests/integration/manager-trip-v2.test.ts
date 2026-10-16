@@ -68,6 +68,11 @@ test('the v2 Manager has the v2 Trip tool and prompt; v1 stays the default', () 
   for (const section of ['## Trip references', '## Trip: one request, Trip decides the rest', '## Trip feedback', '## Trip replies']) {
     assert.ok(MANAGER_PROMPT_TRIP_V2.includes(section), section);
   }
+  // Known trip facts go into Flight subtasks only; "my itinerary" is the plan built in chat, not a booking.
+  assert.match(MANAGER_PROMPT, /\n {2}- Separate requested operations, known trip facts/);
+  assert.doesNotMatch(MANAGER_PROMPT_TRIP_V2, /\n {2}- Separate requested operations, known trip facts/);
+  assert.match(MANAGER_PROMPT_TRIP_V2, /For Flight, separate requested operations, known trip facts.*A Trip subtask stays one sentence/);
+  assert.match(MANAGER_PROMPT_TRIP_V2, /"My plan" or "my itinerary" means the trip plan Trip built in this chat, not a booking/);
   // Flight guidance is shared text, not a copy.
   const flightGuidance = MANAGER_PROMPT.slice(MANAGER_PROMPT.indexOf('## Flight: search versus current-result work'), MANAGER_PROMPT.indexOf('## Trip: destination discovery'));
   assert.ok(MANAGER_PROMPT_TRIP_V2.includes(flightGuidance));
