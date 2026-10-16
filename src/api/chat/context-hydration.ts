@@ -7,6 +7,8 @@ import type {
   FlightAppContext,
   FlightContext,
 } from '../../agents/flight/types.js';
+import { createClientSummary } from '../../agents/trip-planner-v2/client-summary.js';
+import { tripPlannerV2Config } from '../../agents/trip-planner-v2/config.js';
 import type { PersistedRuntimeContext, SummaryContext } from './types.js';
 
 type MutableRecord = Record<string, any>;
@@ -129,6 +131,7 @@ function hydrateFlightFromSummary(
 export function hydrateGatewayContext(
   runtimeContext: Partial<PersistedRuntimeContext> = {},
   summaryContext: SummaryContext = createEmptySummaryContext(),
+  { tripPlannerV2 = tripPlannerV2Config.enabled }: { tripPlannerV2?: boolean } = {},
 ): FlightAppContext {
   const context = ensureFlightRuntimeContext(
     structuredClone(runtimeContext || {}) as MutableRecord,
@@ -136,9 +139,12 @@ export function hydrateGatewayContext(
   const summary = structuredClone(summaryContext || createEmptySummaryContext());
   // Legacy summaries seed old chats only; current runtime state may clear fields.
   if (!runtimeContext.summaryContext) hydrateFlightFromSummary(context, summary);
-  context.summaryContext = runtimeContext.summaryContext
-    ? structuredClone(runtimeContext.summaryContext)
-    : tripPlannerSummary(summary, context.summaryContext);
+  // Trip v2 keeps the client summary itself, so a v1 chat's Trip-only copy converts to the client shape.
+  context.summaryContext = tripPlannerV2
+    ? createClientSummary(runtimeContext.summaryContext ?? summary) as unknown as FlightAppContext['summaryContext']
+    : runtimeContext.summaryContext
+      ? structuredClone(runtimeContext.summaryContext)
+      : tripPlannerSummary(summary, context.summaryContext);
   context.tripPlanner = context.tripPlanner || {};
 
   const searchKey = context.flight.searchKey;
@@ -158,6 +164,13 @@ const DURABLE_TRIP_PLANNER_FIELDS = [
   'placeImageCache',
   'lastPlanArtifact',
   'lastPlanSnapshot',
+  // Trip Planner v2
+  'options',
+  'plan',
+  'facts',
+  'lastQuestion',
+  'suggestions',
+  'photos',
 ];
 
 function durableTripPlannerState(value: MutableRecord = {}) {

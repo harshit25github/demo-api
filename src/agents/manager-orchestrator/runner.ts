@@ -14,6 +14,7 @@ import { createRequestContext } from '../../shared/runtime/request-context.js';
 import { modelDeadlineProvider } from '../../shared/runtime/model-deadline.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
 import { ManagerAgent } from './agent.js';
+import { composeTripTurnReply } from '../trip-planner-v2/view.js';
 import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import type { FlightAppContext } from '../flight/types.js';
 
@@ -36,6 +37,8 @@ export interface ManagerRunOptions {
   stream?: boolean;
   /** Substitute Runner, for tests that fake the run. Production uses the default. */
   runner?: Pick<Runner, 'run'>;
+  /** Substitute Manager, for tests of the Trip Planner v2 Manager. Production uses ManagerAgent. */
+  manager?: typeof ManagerAgent;
 }
 
 /**
@@ -101,7 +104,7 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   const sessionId = options.sessionId ?? 'default';
   const {
     input, context, session, signal, stream = false, maxTurns = 12,
-    now = new Date(), timeZone, runner = mainChatRunner,
+    now = new Date(), timeZone, runner = mainChatRunner, manager = ManagerAgent,
   } = options;
   if (!input) {
     throw new Error('input is required.');
@@ -122,8 +125,8 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
       'travel-manager',
       async () => {
         const runOptions = { context: requestContext, maxTurns, session, signal };
-        if (!stream) return runner.run(ManagerAgent, input, runOptions);
-        const streamed = await runner.run(ManagerAgent, input, { ...runOptions, stream: true });
+        if (!stream) return runner.run(manager, input, runOptions);
+        const streamed = await runner.run(manager, input, { ...runOptions, stream: true });
         // Observe completion immediately: the iterator and completed promise
         // can both reject for the same failure.
         void streamed.completed.catch(() => undefined);
@@ -143,15 +146,18 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
     finalizeFlightSuggestedQuestions(appContext);
   }
 
-  // Existing link policy only; no render decisions or specialist composition.
-  const sanitized = sanitizeNoLinks(String(result.finalOutput ?? ''), { preserveCardImageUrls: true });
+  // Trip v2 cards and days are rendered by the app from saved trip state, never by a model.
+  // Without a Trip v2 view for this request the Manager's text passes through unchanged.
+  const reply = await composeTripTurnReply(appContext, String(result.finalOutput ?? ''));
+  const sanitized = sanitizeNoLinks(reply.text, { preserveCardImageUrls: true });
   assertNoLinks(sanitized.text, { allowCardImageUrls: true });
   return {
     requestId,
     traceId,
     sessionId,
     output: sanitized.text,
-    finalAgentName: ManagerAgent.name,
+    tripView: reply.tripView,
+    finalAgentName: manager.name,
     context: appContext,
     latencyMs: Date.now() - startedAt,
     lastResponseId: result.lastResponseId || null,
