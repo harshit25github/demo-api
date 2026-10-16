@@ -63,13 +63,14 @@ const tripChangesSchema = z.object({
   clear: z.array(z.enum(['origin', 'destination', 'outbound_date', 'return_date', 'duration_days', 'budget', 'tripType', 'passengerData'])).max(8),
 }).strict();
 
+/** One day as Trip returns it. In a "days" update, null keeps the saved value; a full plan fills every field. */
 const tripDaySchema = z.object({
   day: z.number().int().positive(),
-  title: text,
-  morning: text,
-  afternoon: text,
-  evening: text,
-  places: z.array(text).max(8),
+  title: text.nullable(),
+  morning: text.nullable(),
+  afternoon: text.nullable(),
+  evening: text.nullable(),
+  places: z.array(text).max(8).nullable(),
 }).strict();
 
 /**
@@ -97,16 +98,29 @@ export const tripResultSchema = z.object({
   suggestions: z.array(text).max(3),
 }).strict();
 
-/** What the Manager receives: Flight's field names, plus what the app shows with the reply. */
+const dayNumber = z.number().int().positive();
+
+/**
+ * What the Manager receives. saved is measured by the app on the trip before and after this
+ * result, so it lists only what was really saved. cards and days are what the Manager shows,
+ * copied from the saved trip in the client's card and day fields.
+ */
 export const tripFeedbackSchema = z.object({
   status,
   intent,
   summary: text,
+  saved: z.object({
+    plan: z.enum(['created', 'updated', 'cleared', 'unchanged']),
+    days: z.array(z.object({ day: dayNumber, changed: z.array(z.enum(['new', 'title', 'morning', 'afternoon', 'evening'])) }).strict()),
+    removedDays: z.array(dayNumber),
+    tripDetails: z.array(z.enum(['destination', 'origin', 'dates', 'duration', 'travelers', 'budget', 'tripType'])),
+  }).strict(),
+  presentation: z.enum(['trip_options', 'trip_plan', 'trip_days']).nullable(),
+  cards: z.array(z.object({ title: text, image: text, known_for: text, weather: text, budget: text }).strict()),
+  days: z.array(z.object({ day: dayNumber, title: text, morning: text, afternoon: text, evening: text }).strict()),
   findings: z.array(text),
   limitations: z.array(text),
   nextStep: text.nullable(),
-  presentation: z.enum(['trip_options', 'trip_plan', 'trip_days']).nullable(),
-  presentationDays: z.array(z.number().int().positive()),
 }).strict();
 
 /** The client summary's shape, written out so it holds in strict and non-strict builds; clientSummarySchema checks it. */
@@ -137,7 +151,8 @@ export type TripDay = TripPlanUpdate['days'][number];
 export type TripFact = NonNullable<TripResult['facts']>[number];
 export type TripCost = TripOption['cost'];
 export type TripFeedback = z.infer<typeof tripFeedbackSchema>;
-export type TripPresentation = NonNullable<TripFeedback['presentation']>;
+export type TripSaved = TripFeedback['saved'];
+export type TripCard = TripFeedback['cards'][number];
 
 export interface TripClock {
   localDate: string;
@@ -148,10 +163,20 @@ export interface SavedTripOption extends Omit<TripOption, 'code'> {
   code: string | null;
 }
 
+/** A saved day: every field filled. */
+export interface SavedTripDay {
+  day: number;
+  title: string;
+  morning: string;
+  afternoon: string;
+  evening: string;
+  places: string[];
+}
+
 export interface TripPlan {
   destination: ClientSummary['destination'];
   card: TripPlanUpdate['card'];
-  days: TripDay[];
+  days: SavedTripDay[];
 }
 
 export interface SavedTripFact extends TripFact {
@@ -167,22 +192,4 @@ export interface TripPlannerV2State {
   lastQuestion?: string | null;
   suggestions?: string[];
   photos?: Record<string, string>;
-  /** What the app shows with this turn's reply. Shown once and never persisted. */
-  turnView?: { presentation: TripPresentation; presentationDays: number[] };
-}
-
-export interface TripViewCard {
-  code: string | null;
-  title: string;
-  imageUrl: string | null;
-  knownFor: string;
-  bestTime: string;
-  cost: string;
-}
-
-/** What the client shows with the reply, built from saved trip state. */
-export interface TripView {
-  presentation: TripPresentation;
-  cards: TripViewCard[];
-  days: TripDay[];
 }

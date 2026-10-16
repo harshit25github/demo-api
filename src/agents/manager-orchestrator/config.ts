@@ -1,6 +1,7 @@
 import type { ModelSettings } from '@openai/agents';
 
-const model = 'gpt-5.4-mini';
+// The model the Manager's replies are tested and tuned on; change it only with a new round of live tests.
+const model = 'gpt-5.2';
 const isGpt5Model = /^gpt-5/i.test(model);
 
 export const gatewayAgentConfig = {

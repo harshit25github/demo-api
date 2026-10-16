@@ -16,7 +16,6 @@ interface GatewayResult {
   finalAgentName: string | null;
   lastResponseId: string | null;
   context: FlightAppContext;
-  tripView?: unknown;
 }
 
 interface StreamChatTurnOptions {
@@ -206,7 +205,6 @@ export async function streamChatTurn({
       flightContext: gatewayResult.context.flight,
       tripContext: {
         suggestedQuestions: [...((gatewayResult.context.tripPlanner as Record<string, any> | undefined)?.suggestions ?? [])],
-        view: gatewayResult.tripView ?? null,
       },
     });
   } catch (error) {
@@ -214,7 +212,12 @@ export async function streamChatTurn({
     const completedAt = new Date().toISOString();
     await store.updateChat(chat.chatId, (record) => {
       if (gatewayContext) {
-        record.runtimeContext = snapshotGatewayContext(gatewayContext);
+        // Flight's search state is kept, but Trip changes the traveler never saw are not.
+        record.runtimeContext = {
+          ...snapshotGatewayContext(gatewayContext),
+          tripPlanner: structuredClone(record.runtimeContext?.tripPlanner ?? {}),
+          summaryContext: structuredClone(record.runtimeContext?.summaryContext),
+        };
       }
       if (draftText) {
         record.messages.push({

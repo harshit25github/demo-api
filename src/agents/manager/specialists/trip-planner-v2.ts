@@ -32,7 +32,7 @@ export const tripPlannerV2AgentAsTool = TripPlannerV2Agent.asTool({
     // A researched fact counts only when a hosted web_search completed in this run.
     const researched = result.newItems.some((item: any) => item.rawItem?.type === 'hosted_tool_call'
       && ['web_search_call', 'web_search'].includes(item.rawItem.name) && item.rawItem.status === 'completed');
-    return JSON.stringify(applyTripResult(state, result.finalOutput, { researched, checkedOn: clock?.localDate ?? null }));
+    return JSON.stringify(await applyTripResult(state, result.finalOutput, { researched, checkedOn: clock?.localDate ?? null }));
   },
 });
 
