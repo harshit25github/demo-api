@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import type { ServerResponse } from 'node:http';
 import { runGatewayAgent } from '../../agents/manager-orchestrator/runner.js';
 import { createClientSummary } from '../../agents/trip-planner-v2/client-summary.js';
-import { tripPlannerV2Config } from '../../agents/trip-planner-v2/config.js';
 import { hydrateGatewayContext, snapshotGatewayContext } from './context-hydration.js';
 import type { JsonChatStore } from './store.js';
 import type { SseWriter } from './sse.js';
@@ -36,8 +35,6 @@ interface StreamChatTurnOptions {
     conversationId?: string;
   }) => OpenAIConversationsSession;
   runGateway?: (options: Record<string, any>) => Promise<GatewayResult>;
-  /** Trip Planner v2 saves and returns the client summary Trip keeps. Defaults to the configured switch. */
-  tripPlannerV2?: boolean;
 }
 
 function errorDetails(error: unknown) {
@@ -68,7 +65,6 @@ export async function streamChatTurn({
   now,
   createConversationSession = (options) => new OpenAIConversationsSession(options),
   runGateway = runGatewayAgent as unknown as StreamChatTurnOptions['runGateway'],
-  tripPlannerV2 = tripPlannerV2Config.enabled,
 }: StreamChatTurnOptions): Promise<void> {
   const turnId = randomUUID();
   const requestId = randomUUID();
@@ -144,7 +140,7 @@ export async function streamChatTurn({
 
     // Kept so a failure after this point can still persist the turn's runtime
     // state: the run prepares this same object in place.
-    const appContext = hydrateGatewayContext(chat.runtimeContext, previousSummary, { tripPlannerV2 });
+    const appContext = hydrateGatewayContext(chat.runtimeContext, previousSummary);
     gatewayContext = appContext;
 
     // SDK streaming can be requested internally, but only the sanitized final
@@ -168,10 +164,8 @@ export async function streamChatTurn({
       draftText = finalText;
       writer.send('delta', { chatId: chat.chatId, turnId, text: finalText });
     }
-    // v1 leaves the client summary unchanged; v2 returns the one Trip keeps, in the client's shape.
-    const summaryContext = tripPlannerV2
-      ? createClientSummary(gatewayResult.context.summaryContext)
-      : previousSummary;
+    // The client summary Trip keeps, in the client's exact shape.
+    const summaryContext = createClientSummary(gatewayResult.context.summaryContext);
     const summaryStatus = 'skipped';
 
     const assistantMessageId = randomUUID();
@@ -210,14 +204,10 @@ export async function streamChatTurn({
       summaryContext,
       summaryStatus,
       flightContext: gatewayResult.context.flight,
-      ...(tripPlannerV2
-        ? {
-            tripContext: {
-              suggestedQuestions: [...((gatewayResult.context.tripPlanner as Record<string, any> | undefined)?.suggestions ?? [])],
-              view: gatewayResult.tripView ?? null,
-            },
-          }
-        : {}),
+      tripContext: {
+        suggestedQuestions: [...((gatewayResult.context.tripPlanner as Record<string, any> | undefined)?.suggestions ?? [])],
+        view: gatewayResult.tripView ?? null,
+      },
     });
   } catch (error) {
     const aborted = abortController.signal.aborted;
