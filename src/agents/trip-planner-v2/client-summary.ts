@@ -149,6 +149,7 @@ function clearField(summary: ClientSummary, field: ClearField): void {
   else if (field === 'budget') summary.budget = emptyBudget();
   else if (field === 'tripType') summary.tripType = [];
   else if (field === 'passengerData') summary.passengerData = emptyPassengers();
+  else if (field === 'duration_days') summary.duration_days = null;
   else summary[field] = null;
 }
 
@@ -293,7 +294,7 @@ export function applyTripChanges(current: unknown, changes: TripChanges | null):
   };
 }
 
-export function validateClientSummary(summary: ClientSummary): { ok: true } | { ok: false; error: string } {
+export function validateClientSummary(summary: ClientSummary): { ok: boolean; error: string | null } {
   const result = summaryAgentContextSchema.safeParse(summary);
-  return result.success ? { ok: true } : { ok: false, error: result.error.message };
+  return { ok: result.success, error: result.success ? null : result.error.message };
 }
