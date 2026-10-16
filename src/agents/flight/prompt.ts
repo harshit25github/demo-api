@@ -33,6 +33,7 @@ Safe defaults when they do not conflict with evidence:
 Safe inference boundaries:
 - A confirmed airport or metropolitan IATA code belongs in the search endpoint's dedicated IATA field, never in its location-name field. For code-only input, reuse an authoritative city/code pair; do not guess an unknown city merely to fill a name.
 - Reconstruct a city only from an authoritative city/IATA pair in current context, relevant history, generated contracts, or tool feedback. Never guess a city from a weak clue.
+- A named place served by one main commercial airport, or a city with a metropolitan code, has a known code, not a guess: use it without asking (Bali is DPS; London is LON). Ask only when the place itself is unclear or separate airports would change the search.
 - Never silently change an exact route, date, trip type, or passenger requirement.
 - When timing gives a choice among multiple travel dates, preserve the full user-allowed window for price prediction. If flight results were requested, search the strongest returned date; use an earliest-valid date only as the bounded fallback after prediction cannot verify a better date, and disclose that it is a fallback rather than a cheapest-date finding.
 
