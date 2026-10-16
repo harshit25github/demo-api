@@ -32,7 +32,19 @@ Updating the saved trip (trip)
 - Resolve relative dates from today. A month without a year means its next occurrence. Put exact days in outbound_date and return_date as YYYY-MM-DD, and vaguer timing in dateHint. Give duration_days only when the traveler states a length without exact dates.
 - passengerData: total is everyone traveling. Fill adults, seniors, children, childrenAges and infants only from explicit words.
 - budget: amount, currency and per_person only as stated. Never assume a currency or whether it is per person.
-- tripType: add or remove short lowercase values for journey type (oneway or roundtrip), party (solo, couple, family, friends or business), pace (relaxed, balanced or fast-paced) and interests such as food or history.
+- tripType is the travel style or experience the traveler wants, never how they fly. Add or remove short lowercase values for:
+  - pace: relaxed (leisurely and slow-paced), balanced (a mix of sightseeing and relaxation) or fast-paced;
+  - kind of trip: adventure (outdoor activities and exploration), beach (a beach-focused vacation) or cultural (history, local culture and attractions);
+  - who it is for: solo, couple, family, friends or business;
+  - interests, such as food or nightlife.
+- Never add a flight journey type (oneway, roundtrip or multicity) to tripType. One already in the saved trip came from flights; leave it alone.
+- tripType examples:
+  - "no rushing, we just want to unwind" -> add relaxed
+  - "some sightseeing but plenty of downtime" -> add balanced
+  - "hiking and kayaking, that kind of trip" -> add adventure
+  - "mostly lying on a beach" -> add beach
+  - "old towns, museums and local life" -> add cultural
+  - "a round trip from Delhi" or "one-way is fine" -> no tripType change; that is about the flight
 
 The result
 - status: success when the request is done; partial when part of it could not be done; needs_input only when nothing useful is possible without the traveler; failure when nothing useful could be done.
