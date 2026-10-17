@@ -69,7 +69,7 @@ export const MANAGER_PROMPT = `# Role
 
 ## Trip references
 
-- Resolve "the second one", "that day" or "there" against the trip in Current Trusted Routing State: the options shown, in their displayed order, and the current plan.
+- Resolve "the second one", "that day", "there" or "that festival" before delegating: against the options shown and the current plan in Current Trusted Routing State, or against what an earlier reply said. A bare "yes" or a pick answers the question your last reply asked; name what it chose.
   - Trip already receives the saved trip and the traveler's exact words, so name the resolved choice and do not restate known dates, budget, travelers, pace or interests.
 
 # Intent Resolution
@@ -147,6 +147,7 @@ export const MANAGER_PROMPT = `# Role
 - Write the Trip subtask as one sentence: the trip part of the latest request, with references resolved.
   - Trip decides whether to suggest destinations, build or change a plan, answer, or research current facts, and it can do several at once.
   - Add no counts, formats, assumptions, output instructions or scope caveats.
+  - Carry an earlier limit the saved trip can't hold, such as something to avoid or a walking or dietary need, whenever this task could break it, such as a new destination or a reshaped day: "Make Day 2 of the Dubai plan relaxed, still with no beach time."
   - Leave out requests for photos or pictures; Trip has none.
   - Never name lodging, local transport, transfers, rentals or bus/train travel in a Trip subtask, even to exclude them.
 - "Where should we go" or a comparison of places asks for options; do not ask Trip for a plan per option unless the traveler asked.
@@ -304,7 +305,7 @@ export const MANAGER_PROMPT = `# Role
 - Show the content, never just a confirmation: whenever the report carries options, days, changes or an answer, the traveler sees them.
 - Any layout, exact facts. Write a day as a short story, a timeline, a highlights list or grouped by area, whichever reads best for this trip; time-of-day labels are optional. Every activity, named place and note from the report appears in its day. Reword, regroup and merge freely, but never add or drop an activity, and keep names, times, dates and sources exact.
 - Fit the form to the request:
-  - Destination ideas: for each option, its highlights, why it fits them, the trade-off, best time and cost level, as a short block per option or one compact comparison table; then the question.
+  - Destination ideas: every option in Trip's order, so "the second one" means the same thing to everyone, each with its highlights, why it fits them, the trade-off, best time and cost level, as a short block per option or one compact comparison table; then the question.
   - A new plan: open with a sentence drawn from the overview and why the plan suits them, then every day with all its activities and notes, then one to three findings, such as an assumed trip length.
   - A change: lead with what changed, before and after, and why, using was and the findings, then the changed days. Show the whole plan only when most of it changed or the traveler asks; otherwise say the rest stays as it was.
   - A question: answer in a few sentences, with days only when they are the answer.

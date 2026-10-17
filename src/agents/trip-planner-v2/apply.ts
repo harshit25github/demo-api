@@ -13,7 +13,7 @@ import {
   type TripResult,
 } from './schema.js';
 import { isOutOfTripScope } from './scope.js';
-import { plainText, tripDetailText } from './state.js';
+import { chipsShown, plainText, tripDetailText } from './state.js';
 
 const ASSISTANT_STYLE = /^\s*(?:would\s+you\s+like|do\s+you\s+want|should\s+i|can\s+i)\b/i;
 const COST_LABELS: Record<TripCost, TripFeedback['options'][number]['cost']> = { $: 'Budget-friendly', $$: 'Mid-range', $$$: 'Splurge' };
@@ -241,7 +241,7 @@ export async function applyTripResult(
   else if (result.trip) unsaved.push('Some trip details could not be saved.');
 
   trip.lastQuestion = result.nextStep ? plainText(result.nextStep) || null : null;
-  trip.suggestions = acceptedSuggestions(result.suggestions, trip.suggestions ?? []);
+  trip.suggestions = acceptedSuggestions(result.suggestions, chipsShown(summaryBefore, trip));
 
   // A new destination's plan counts as created, not as every day changed.
   const plan = trip.plan;

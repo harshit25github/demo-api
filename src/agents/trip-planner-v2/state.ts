@@ -74,6 +74,11 @@ export function tripDetailText(detail: TripDetailName, summary: ClientSummary, d
   }
 }
 
+/** The chips the traveler saw: the combined list, or Trip's own in chats saved before it existed. */
+export function chipsShown(summary: ClientSummary, trip: TripPlannerV2State): string[] {
+  return summary.suggestedQuestions.length ? summary.suggestedQuestions : trip.suggestions ?? [];
+}
+
 /** What Trip reads each run, added to its input so the static instructions stay cached. */
 export function describeTripForModel(context: Record<string, any>, clock: TripClock | null): string {
   const summary = createClientSummary(context.summaryContext);
@@ -97,7 +102,7 @@ export function describeTripForModel(context: Record<string, any>, clock: TripCl
     ...plan,
     ...(trip.facts?.length ? ['researched facts:', ...trip.facts.map((fact) => `  ${fact.text} (${fact.source}, checked ${fact.checkedOn ?? 'earlier'})`)] : []),
     `last question: ${trip.lastQuestion ?? 'none'}`,
-    `chips shown: ${trip.suggestions?.length ? trip.suggestions.join(' · ') : 'none'}`,
+    `chips shown: ${chipsShown(summary, trip).join(' · ') || 'none'}`,
   ];
   return [
     `<today>${clock ? `${clock.localDate} · ${clock.timeZone}` : 'unknown'}</today>`,
