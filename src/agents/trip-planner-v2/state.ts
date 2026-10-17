@@ -1,5 +1,5 @@
 import { createClientSummary } from './client-summary.js';
-import type { ClientSummary, TripClock, TripPlannerV2State } from './schema.js';
+import type { ClientSummary, TripClock, TripDetailName, TripPlannerV2State } from './schema.js';
 
 /** One plain line: no links, markdown emphasis or line breaks, which would break line-based cards. */
 export function plainText(value: string): string {
@@ -54,6 +54,26 @@ function budget(value: ClientSummary['budget']): string {
   return value.per_person === false ? `${money} total` : `${money}, per person or total not said`;
 }
 
+function exactDates(summary: ClientSummary): string {
+  if (summary.outbound_date && summary.return_date) return `${summary.outbound_date} to ${summary.return_date}`;
+  if (summary.outbound_date) return `from ${summary.outbound_date}`;
+  return summary.return_date ? `until ${summary.return_date}` : 'not set';
+}
+
+/** One trip detail in plain words, for the report's was and now values. */
+export function tripDetailText(detail: TripDetailName, summary: ClientSummary, dateHint: string | null | undefined): string {
+  switch (detail) {
+    case 'destination': return place(summary.destination);
+    case 'origin': return place(summary.origin);
+    case 'dates': return exactDates(summary);
+    case 'timing': return dateHint || 'not set';
+    case 'duration': return summary.duration_days ? `${summary.duration_days} days` : 'not set';
+    case 'travelers': return travelers(summary.passengerData);
+    case 'budget': return budget(summary.budget);
+    case 'tripType': return summary.tripType.join(', ') || 'none';
+  }
+}
+
 /** What Trip reads each run, added to its input so the static instructions stay cached. */
 export function describeTripForModel(context: Record<string, any>, clock: TripClock | null): string {
   const summary = createClientSummary(context.summaryContext);
@@ -62,7 +82,8 @@ export function describeTripForModel(context: Record<string, any>, clock: TripCl
     ? [
         `plan for ${place(trip.plan.destination)}:`,
         ...trip.plan.days.map((day) =>
-          `  Day ${day.day} ${day.title} | ${day.morning} | ${day.afternoon} | ${day.evening}${day.places.length ? ` | places: ${day.places.join(', ')}` : ''}`),
+          `  Day ${day.day} ${day.title} | ${day.morning} | ${day.afternoon} | ${day.evening}`
+          + `${day.notes?.length ? ` | notes: ${day.notes.join('; ')}` : ''}${day.places.length ? ` | places: ${day.places.join(', ')}` : ''}`),
       ]
     : ['plan: none'];
   const lines = [

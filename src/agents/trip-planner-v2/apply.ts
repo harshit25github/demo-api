@@ -1,69 +1,63 @@
 import { applyTripChanges, createClientSummary } from './client-summary.js';
-import { fetchTripPhotos } from './photos.js';
 import {
   clientSummarySchema,
-  type ClientSummary,
   type SavedTripDay,
   type SavedTripFact,
-  type SavedTripOption,
-  type TripCard,
   type TripCost,
   type TripDay,
+  type TripDetailName,
   type TripFeedback,
   type TripPlan,
   type TripPlannerV2State,
+  type TripReportDay,
   type TripResult,
-  type TripSaved,
 } from './schema.js';
 import { isOutOfTripScope } from './scope.js';
-import { plainText } from './state.js';
+import { plainText, tripDetailText } from './state.js';
 
 const ASSISTANT_STYLE = /^\s*(?:would\s+you\s+like|do\s+you\s+want|should\s+i|can\s+i)\b/i;
-const COST_LABELS: Record<TripCost, string> = { $: 'Budget-friendly', $$: 'Mid-range', $$$: 'Splurge' };
-const DAY_PARTS = ['title', 'morning', 'afternoon', 'evening'] as const;
-// The app supplies every photo, so Trip has nothing to report about them, even when the traveler
-// asked for photos; live runs showed Trip saying "I can't attach photos here" despite the prompt.
-const PHOTOS = /\b(?:photos?|images?|pictures?)\b/i;
-const PHOTO_ABILITY = /\b(?:app|chat|attach\w*|link\w*|can(?:no|'|’)t|cannot|unable)\b/i;
+const COST_LABELS: Record<TripCost, TripFeedback['options'][number]['cost']> = { $: 'Budget-friendly', $$: 'Mid-range', $$$: 'Splurge' };
+const TEXT_PARTS = ['title', 'morning', 'afternoon', 'evening'] as const;
+// Hard ceilings, applied here and never by the decoder: a schema maxLength cuts strings mid-word
+// (src/agents/flight/manager-output.ts). The prompt's length targets sit well below them.
+const SLOT_WORDS = 60;
+const NOTE_WORDS = 25;
+const SENTENCE_END = /[.!?](?=\s|$)/g;
+const TRIP_DETAILS: TripDetailName[] = ['destination', 'origin', 'dates', 'timing', 'duration', 'travelers', 'budget', 'tripType'];
 
-/** The trip details the Manager may say changed, read from the client summary. */
-const TRIP_DETAILS: Array<[TripSaved['tripDetails'][number], (summary: ClientSummary) => unknown]> = [
-  ['destination', (summary) => summary.destination],
-  ['origin', (summary) => summary.origin],
-  ['dates', (summary) => [summary.outbound_date, summary.return_date]],
-  ['duration', (summary) => summary.duration_days],
-  ['travelers', (summary) => summary.passengerData],
-  ['budget', (summary) => summary.budget],
-  ['tripType', (summary) => summary.tripType],
-];
+type DayChange = { day: SavedTripDay; changed: NonNullable<TripReportDay['changed']>; was?: TripReportDay['was'] };
 
 /** Typed failure for a result the app cannot use; never SDK error text the Manager would retry. */
 export function tripFailureFeedback(): TripFeedback {
-  return {
-    status: 'failure',
-    intent: 'answer',
-    summary: 'The trip request could not be completed.',
-    saved: { plan: 'unchanged', days: [], removedDays: [], tripDetails: [] },
-    presentation: null,
-    cards: [],
-    days: [],
-    findings: [],
-    limitations: [],
-    nextStep: null,
-  };
+  return { status: 'failure', intent: 'answer', options: [], plan: null, tripDetails: [], findings: [], limitations: [], nextStep: null };
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+/** At most maxWords words, cut at the last full sentence that fits, or at a word with an ellipsis. */
+function bounded(value: string, maxWords: number): string {
+  const words = value.split(' ');
+  if (words.length <= maxWords) return value;
+  const head = words.slice(0, maxWords).join(' ');
+  let end = 0;
+  for (const match of head.matchAll(SENTENCE_END)) end = (match.index ?? 0) + 1;
+  return end > 0 ? head.slice(0, end) : `${head.replace(/[\s,;:–—-]+$/u, '')}…`;
 }
 
 /** A day from Trip; a null field keeps the saved day's value. */
 function savedDay(day: TripDay, kept?: SavedTripDay): SavedTripDay {
   const field = (value: string | null, keptValue: string | undefined, fallback: string) =>
-    (value === null ? keptValue : plainText(value) || keptValue) || fallback;
+    (value === null ? keptValue : bounded(plainText(value), SLOT_WORDS) || keptValue) || fallback;
   return {
     day: day.day,
     title: field(day.title, kept?.title, `Day ${day.day}`),
     morning: field(day.morning, kept?.morning, 'Free time'),
     afternoon: field(day.afternoon, kept?.afternoon, 'Free time'),
     evening: field(day.evening, kept?.evening, 'Free time'),
-    places: day.places === null ? [...(kept?.places ?? [])] : [...new Set(day.places.map(plainText).filter(Boolean))],
+    notes: day.notes === null ? [...(kept?.notes ?? [])] : unique(day.notes.map((note) => bounded(plainText(note), NOTE_WORDS))).slice(0, 3),
+    places: day.places === null ? [...(kept?.places ?? [])] : unique(day.places.map(plainText)),
   };
 }
 
@@ -71,11 +65,11 @@ function savedDay(day: TripDay, kept?: SavedTripDay): SavedTripDay {
 function mergePlan(
   existing: TripPlan | null | undefined,
   update: NonNullable<TripResult['plan']>,
-  destination: ClientSummary['destination'],
+  destination: TripPlan['destination'],
 ): { plan: TripPlan; skipped: number[] } {
   const days = new Map<number, SavedTripDay>();
   const skipped: number[] = [];
-  if (update.scope === 'days') for (const day of existing?.days ?? []) days.set(day.day, day);
+  if (update.scope === 'days') for (const day of existing?.days ?? []) days.set(day.day, { ...day, notes: day.notes ?? [] });
   for (const day of update.days) {
     if (update.scope === 'days' && !days.has(day.day)) {
       skipped.push(day.day);
@@ -90,20 +84,42 @@ function mergePlan(
   return { plan: { destination: { ...destination }, card, days: [...days.values()].sort((left, right) => left.day - right.day) }, skipped };
 }
 
-/** What changed in the plan, measured on the saved plan before and after. */
-function planChanges(before: TripPlan | null | undefined, after: TripPlan | null | undefined): Omit<TripSaved, 'tripDetails'> {
+/** What changed in the plan, measured on the saved plan before and after, with each changed part's previous value. */
+function planChanges(before: TripPlan | null | undefined, after: TripPlan | null | undefined) {
   const previous = new Map((before?.days ?? []).map((day) => [day.day, day]));
   const kept = new Set((after?.days ?? []).map((day) => day.day));
-  const days = (after?.days ?? []).flatMap((day) => {
+  const days = (after?.days ?? []).flatMap((day): DayChange[] => {
     const old = previous.get(day.day);
-    const changed: TripSaved['days'][number]['changed'] = old ? DAY_PARTS.filter((part) => old[part] !== day[part]) : ['new'];
-    return changed.length ? [{ day: day.day, changed }] : [];
+    if (!old) return [{ day, changed: ['new'] }];
+    const changed: DayChange['changed'] = [];
+    const was: NonNullable<TripReportDay['was']> = {};
+    for (const part of TEXT_PARTS) {
+      if (old[part] !== day[part]) {
+        changed.push(part);
+        was[part] = old[part];
+      }
+    }
+    if (JSON.stringify(old.notes ?? []) !== JSON.stringify(day.notes ?? [])) {
+      changed.push('notes');
+      was.notes = [...(old.notes ?? [])];
+    }
+    return changed.length ? [{ day, changed, was }] : [];
   });
-  const removedDays = [...previous.keys()].filter((day) => !kept.has(day));
-  const plan = !previous.size && kept.size ? 'created'
+  const removedDays = [...previous.values()].filter((day) => !kept.has(day.day)).map((day) => ({ day: day.day, title: day.title }));
+  const change: NonNullable<TripFeedback['plan']>['change'] = !previous.size && kept.size ? 'created'
     : previous.size && !kept.size ? 'cleared'
       : days.length || removedDays.length ? 'updated' : 'unchanged';
-  return { plan, days, removedDays };
+  return { change, days, removedDays };
+}
+
+function reportDay(day: SavedTripDay, change?: DayChange): TripReportDay {
+  const content = { day: day.day, title: day.title, morning: day.morning, afternoon: day.afternoon, evening: day.evening, notes: [...(day.notes ?? [])] };
+  if (!change) return content;
+  return change.was ? { ...content, changed: change.changed, was: change.was } : { ...content, changed: change.changed };
+}
+
+function destinationName(plan: TripPlan): string {
+  return [plan.destination.city ?? plan.destination.iata, plan.card?.country].filter(Boolean).join(', ') || 'the destination';
 }
 
 /** update suggested questions: up to three 3-8 word chips, new and in scope. Invalid ones are dropped, never retried. */
@@ -125,23 +141,23 @@ function acceptedSuggestions(values: string[], previous: string[]): string[] {
 /**
  * Applies one Trip result: update trip context (the client summary and the Trip-owned plan,
  * options and facts), update suggested questions (chips), and the report for the Manager.
- * The report says what was saved, measured here, and carries the cards and days to show.
+ * Everything the report says changed is measured here, and its days come from the saved plan.
  */
 export async function applyTripResult(
   context: Record<string, any>,
   result: TripResult,
   { researched, checkedOn }: { researched: boolean; checkedOn: string | null },
 ): Promise<TripFeedback> {
-  const clean = (values: string[]) => values.map(plainText).filter((value) => value && !(PHOTOS.test(value) && PHOTO_ABILITY.test(value)));
+  const clean = (values: string[]) => values.map(plainText).filter(Boolean);
   if (result.status === 'failure') {
     // A failed run changes nothing that was saved.
-    const failure = tripFailureFeedback();
-    return { ...failure, intent: result.intent, summary: plainText(result.summary) || failure.summary, limitations: clean(result.limitations) };
+    return { ...tripFailureFeedback(), intent: result.intent, limitations: clean(result.limitations) };
   }
 
   if (!context.tripPlanner || typeof context.tripPlanner !== 'object') context.tripPlanner = {};
   const trip = context.tripPlanner as TripPlannerV2State;
   const summaryBefore = createClientSummary(context.summaryContext);
+  const hintBefore = trip.dateHint ?? null;
   const planBefore = structuredClone(trip.plan ?? null);
   const update = applyTripChanges(context.summaryContext, result.trip);
   const summary = update.summary;
@@ -161,18 +177,31 @@ export async function applyTripResult(
     trip.plan = merged.plan;
     skipped = merged.skipped;
   }
+
+  let options: TripFeedback['options'] = [];
   if (result.options) {
-    trip.options = result.options
-      .map((option): SavedTripOption => ({
-        code: /^[A-Z]{3}$/.test(option.code.trim().toUpperCase()) ? option.code.trim().toUpperCase() : null,
-        city: plainText(option.city),
-        country: plainText(option.country),
-        why: plainText(option.why),
-        bestTime: plainText(option.bestTime),
-        cost: option.cost,
-      }))
-      .filter((option, index, all) => option.city
-        && all.findIndex((other) => `${other.city}|${other.country}`.toLowerCase() === `${option.city}|${option.country}`.toLowerCase()) === index);
+    const seen = new Set<string>();
+    const accepted = result.options.flatMap((option) => {
+      const shown = { city: plainText(option.city), country: plainText(option.country), why: plainText(option.why), bestTime: plainText(option.bestTime) };
+      const key = `${shown.city}|${shown.country}`.toLowerCase();
+      if (!shown.city || !shown.why || !shown.bestTime || seen.has(key)) return [];
+      seen.add(key);
+      return [{ option, shown }];
+    });
+    trip.options = accepted.map(({ option, shown }) => ({
+      code: /^[A-Z]{3}$/.test(option.code.trim().toUpperCase()) ? option.code.trim().toUpperCase() : null,
+      ...shown,
+      cost: option.cost,
+    }));
+    options = accepted.map(({ option, shown }) => ({
+      city: shown.city,
+      country: shown.country,
+      why: shown.why,
+      highlights: unique(option.highlights.map(plainText)).slice(0, 3),
+      watchOut: plainText(option.watchOut ?? '') || null,
+      bestTime: shown.bestTime,
+      cost: COST_LABELS[option.cost],
+    }));
   }
 
   const factFindings: string[] = [];
@@ -217,53 +246,59 @@ export async function applyTripResult(
   // A new destination's plan counts as created, not as every day changed.
   const plan = trip.plan;
   const changes = planChanges(update.destinationChanged && plan?.days.length ? null : planBefore, plan);
-  const tripDetails = summarySaved
-    ? TRIP_DETAILS.filter(([, read]) => JSON.stringify(read(summaryBefore)) !== JSON.stringify(read(summary))).map(([name]) => name)
-    : [];
+  const summaryAfter = summarySaved ? summary : summaryBefore;
+  const tripDetails = TRIP_DETAILS.flatMap((detail) => {
+    const was = tripDetailText(detail, summaryBefore, hintBefore);
+    const now = tripDetailText(detail, summaryAfter, trip.dateHint);
+    return was === now ? [] : [{ detail, was, now }];
+  });
+  // Trip meant to change the plan and nothing in it was saved: its findings describe work that didn't happen.
+  const planWorkLost = (result.intent === 'revise' && changes.change === 'unchanged' && !tripDetails.length)
+    || (result.intent === 'plan' && !plan?.days.length);
   if (skipped.length) {
     unsaved.push(skipped.length === 1
       ? `Day ${skipped[0]} is not in the plan, so it was not changed.`
       : `Days ${skipped.join(', ')} are not in the plan, so they were not changed.`);
-  } else if (result.intent === 'revise' && changes.plan === 'unchanged' && !tripDetails.length) {
+  } else if (result.intent === 'revise' && planWorkLost) {
     unsaved.push('The plan was not changed.');
   }
-  if (result.intent === 'plan' && !plan?.days.length) unsaved.push('No day-by-day plan was made.');
+  if (result.intent === 'plan' && planWorkLost) unsaved.push('No day-by-day plan was made.');
   // Trip's own success claim stands only when everything it describes was saved.
   const status = unsaved.length && result.status === 'success' ? 'partial' : result.status;
 
-  let presentation: TripFeedback['presentation'] = null;
-  let days: SavedTripDay[] = [];
-  const cards: TripCard[] = [];
-  const card = (title: string, code: string | null, knownFor: string, bestTime: string, cost: TripCost): TripCard => ({
-    title, image: (code && trip.photos?.[code]) || 'Photo unavailable', known_for: knownFor, weather: bestTime, budget: COST_LABELS[cost],
-  });
-  if (plan?.days.length && (changes.plan === 'created' || result.plan?.scope === 'full')) {
-    presentation = 'trip_plan';
-    days = plan.days;
-    const title = [plan.destination.city, plan.card?.country].filter(Boolean).join(', ');
-    if (plan.card && title) {
-      await fetchTripPhotos(trip, [plan.destination.iata]);
-      cards.push(card(title, plan.destination.iata, plan.card.knownFor, plan.card.bestTime, plan.card.cost));
+  // The days the Manager gets: every day of a new plan, every day of a rebuilt one with its changes
+  // marked, otherwise the changed days and the ones Trip says this turn is about.
+  let reportPlan: TripFeedback['plan'] = null;
+  if (changes.change === 'cleared' && planBefore) {
+    reportPlan = { change: 'cleared', destination: destinationName(planBefore), overview: null, totalDays: 0, days: [], removedDays: changes.removedDays };
+  } else if (plan?.days.length) {
+    const byDay = new Map(changes.days.map((entry) => [entry.day.day, entry]));
+    const relevant = new Set(result.relevantDays);
+    const everyDay = changes.change === 'created' || (changes.change === 'updated' && result.plan?.scope === 'full');
+    const days = plan.days
+      .filter((day) => everyDay || byDay.has(day.day) || relevant.has(day.day))
+      .map((day) => reportDay(day, changes.change === 'created' ? undefined : byDay.get(day.day)));
+    if (days.length || changes.removedDays.length) {
+      reportPlan = {
+        change: changes.change,
+        destination: destinationName(plan),
+        overview: changes.change === 'created' && plan.card
+          ? { knownFor: plan.card.knownFor, bestTime: plan.card.bestTime, cost: COST_LABELS[plan.card.cost] }
+          : null,
+        totalDays: plan.days.length,
+        days,
+        removedDays: changes.removedDays,
+      };
     }
-  } else if (plan?.days.length && changes.days.length) {
-    presentation = 'trip_days';
-    const changed = new Set(changes.days.map((entry) => entry.day));
-    days = plan.days.filter((day) => changed.has(day.day));
-  } else if (result.options?.length && trip.options?.length) {
-    presentation = 'trip_options';
-    await fetchTripPhotos(trip, trip.options.map((option) => option.code));
-    for (const option of trip.options) cards.push(card(`${option.city}, ${option.country}`, option.code, option.why, option.bestTime, option.cost));
   }
 
   return {
     status,
     intent: result.intent,
-    summary: plainText(result.summary) || 'The trip request was handled.',
-    saved: { ...changes, tripDetails },
-    presentation,
-    cards,
-    days: days.map(({ day, title, morning, afternoon, evening }) => ({ day, title, morning, afternoon, evening })),
-    findings: [...clean(result.findings), ...factFindings],
+    options,
+    plan: reportPlan,
+    tripDetails,
+    findings: [...(planWorkLost ? [] : clean(result.findings)), ...factFindings],
     limitations: [...new Set([...clean(result.limitations), ...limitations, ...unsaved])],
     nextStep: trip.lastQuestion,
   };

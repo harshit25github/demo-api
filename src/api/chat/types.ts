@@ -41,6 +41,8 @@ export interface SummaryContext {
   tripType: string[];
   placesOfInterest: PlaceOfInterest[];
   passengerData: SummaryPassengerData;
+  /** The chips the client shows, combined at the end of each turn from the specialists that ran. */
+  suggestedQuestions: string[];
 }
 
 export interface PersistedRuntimeContext {

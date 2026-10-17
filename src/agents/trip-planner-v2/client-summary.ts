@@ -88,6 +88,9 @@ export function createClientSummary(value: unknown): ClientSummary {
   const passengers = isRecord(source.passengerData) ? source.passengerData : {};
   const tripTypes = Array.isArray(source.tripType) ? source.tripType.map(text).filter((item): item is string => Boolean(item)) : [];
   const places = Array.isArray(source.placesOfInterest) ? source.placesOfInterest : [];
+  const chips = Array.isArray(source.suggestedQuestions)
+    ? source.suggestedQuestions.map(text).filter((item): item is string => Boolean(item))
+    : [];
   return {
     origin: endpoint(source.origin),
     destination: endpoint(source.destination),
@@ -117,6 +120,8 @@ export function createClientSummary(value: unknown): ClientSummary {
         ? passengers.childrenAges.map(count).filter((age): age is number => age !== null)
         : [],
     },
+    // The chips the client shows: written at the end of each turn from the specialists that ran.
+    suggestedQuestions: chips.filter((item, index) => chips.findIndex((other) => sameText(other, item)) === index),
   };
 }
 

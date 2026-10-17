@@ -44,6 +44,7 @@ export function createEmptySummaryContext(): SummaryContext {
       seatInfants: null,
       childrenAges: [],
     },
+    suggestedQuestions: [],
   };
 }
 
@@ -130,7 +131,6 @@ const DURABLE_TRIP_PLANNER_FIELDS = [
   'facts',
   'lastQuestion',
   'suggestions',
-  'photos',
 ];
 
 function durableTripPlannerState(value: MutableRecord = {}) {

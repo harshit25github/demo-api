@@ -14,7 +14,6 @@ import { createRequestContext } from '../../shared/runtime/request-context.js';
 import { modelDeadlineProvider } from '../../shared/runtime/model-deadline.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
 import { ManagerAgent } from './agent.js';
-import { keepApprovedPhotos } from '../trip-planner-v2/photos.js';
 import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import type { FlightAppContext } from '../flight/types.js';
 
@@ -142,9 +141,7 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
     finalizeFlightSuggestedQuestions(appContext);
   }
 
-  // The Manager writes trip cards and days from Trip's report; their photos must be ones the app supplied.
-  const photos = (appContext.tripPlanner as { photos?: Record<string, string> } | undefined)?.photos;
-  const reply = keepApprovedPhotos(String(result.finalOutput ?? ''), photos);
+  const reply = String(result.finalOutput ?? '');
   const sanitized = sanitizeNoLinks(reply, { preserveCardImageUrls: true });
   assertNoLinks(sanitized.text, { allowCardImageUrls: true });
   return {

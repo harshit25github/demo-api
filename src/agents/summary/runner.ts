@@ -34,7 +34,9 @@ export async function extractSummaryContext({
   usageCorrelation?: UsageCorrelation;
   onUsage?: (usage: ChatTurnUsage) => void;
 }): Promise<SummaryContext> {
-  const previousSummaryToon = encode(previousSummary);
+  // The extractor owns the trip facts, not the chips: they pass through unchanged.
+  const { suggestedQuestions = [], ...extractedSummary } = previousSummary;
+  const previousSummaryToon = encode(extractedSummary);
   const input = `Old Summary Context (TOON):
 \`\`\`toon
 ${previousSummaryToon}
@@ -57,7 +59,7 @@ ${agentResponse}`;
       if (!result.finalOutput) {
         throw new Error('Summary Extractor returned no output.');
       }
-      return result.finalOutput.summary as SummaryContext;
+      return { ...result.finalOutput.summary, suggestedQuestions: [...suggestedQuestions] } as SummaryContext;
     } finally {
       onUsage?.(usage.snapshot());
     }
