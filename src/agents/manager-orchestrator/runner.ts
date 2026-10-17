@@ -142,8 +142,8 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   }
 
   const reply = String(result.finalOutput ?? '');
-  const sanitized = sanitizeNoLinks(reply, { preserveCardImageUrls: true });
-  assertNoLinks(sanitized.text, { allowCardImageUrls: true });
+  const sanitized = sanitizeNoLinks(reply);
+  assertNoLinks(sanitized.text);
   return {
     requestId,
     traceId,

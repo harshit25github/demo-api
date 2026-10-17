@@ -3,55 +3,6 @@ const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\(((?:https?:\/\/|www\.|[a-z0-9.-]+
 const RAW_URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>()\]]+/gi;
 const BARE_DOMAIN_PATTERN =
   /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|gov|edu|io|co|travel|info|biz|in|uk|us|ca|au|de|fr|it|es|ae|sg|jp|cn|me|app|dev)(?:\/[^\s<>()\]]*)?/gi;
-const CARD_MARKER = ':::cards';
-const CARD_IMAGE_LINE_PATTERN = /^(\s*image:\s*)(https?:\/\/\S+)(\s*)$/i;
-
-interface LinkSanitizerOptions {
-  preserveCardImageUrls?: boolean;
-  allowCardImageUrls?: boolean;
-}
-
-function protectCardImageUrls(text: string) {
-  const protectedUrls: string[] = [];
-  const lines = String(text || '').split('\n');
-  const markerIndexes = lines
-    .map((line, index) => (line.trim() === CARD_MARKER ? index : null))
-    .filter((index) => index !== null);
-  const protectedLineIndexes = new Set();
-  for (let index = 0; index + 1 < markerIndexes.length; index += 2) {
-    for (
-      let lineIndex = markerIndexes[index] + 1;
-      lineIndex < markerIndexes[index + 1];
-      lineIndex += 1
-    ) {
-      protectedLineIndexes.add(lineIndex);
-    }
-  }
-
-  const protectedText = lines
-    .map((line, lineIndex) => {
-      if (!protectedLineIndexes.has(lineIndex)) {
-        return line;
-      }
-      return line.replace(CARD_IMAGE_LINE_PATTERN, (_match, prefix, url, suffix) => {
-        const token = `__TRIP_PLANNER_CARD_IMAGE_${protectedUrls.length}__`;
-        protectedUrls.push(url);
-        return `${prefix}${token}${suffix}`;
-      });
-    })
-    .join('\n');
-
-  return {
-    text: protectedText,
-    restore(value: string) {
-      return protectedUrls.reduce(
-        (result, url, index) =>
-          result.replace(`__TRIP_PLANNER_CARD_IMAGE_${index}__`, url),
-        value,
-      );
-    },
-  };
-}
 
 function stripHtmlTags(value: string) {
   return String(value || '').replace(/<[^>]+>/g, '').trim();
@@ -73,17 +24,11 @@ function testPattern(pattern: RegExp, value: string): boolean {
   return pattern.test(value);
 }
 
-export function sanitizeNoLinks(
-  text = '',
-  { preserveCardImageUrls = false }: LinkSanitizerOptions = {},
-) {
+export function sanitizeNoLinks(text = '') {
   const original = String(text || '');
-  const protectedCardImages = preserveCardImageUrls
-    ? protectCardImageUrls(original)
-    : { text: original, restore: (value: string) => value };
   let removedCount = 0;
 
-  let sanitized = protectedCardImages.text.replace(HTML_ANCHOR_PATTERN, (_match, label) => {
+  let sanitized = original.replace(HTML_ANCHOR_PATTERN, (_match, label) => {
     removedCount += 1;
     return stripHtmlTags(label);
   });
@@ -103,7 +48,7 @@ export function sanitizeNoLinks(
     return '';
   });
 
-  sanitized = protectedCardImages.restore(normalizeWhitespace(sanitized));
+  sanitized = normalizeWhitespace(sanitized);
 
   return {
     text: sanitized,
@@ -112,12 +57,8 @@ export function sanitizeNoLinks(
   };
 }
 
-export function containsLinkLikeText(
-  text = '',
-  { allowCardImageUrls = false }: LinkSanitizerOptions = {},
-): boolean {
-  const original = String(text || '');
-  const value = allowCardImageUrls ? protectCardImageUrls(original).text : original;
+export function containsLinkLikeText(text = ''): boolean {
+  const value = String(text || '');
   return (
     testPattern(HTML_ANCHOR_PATTERN, value) ||
     testPattern(MARKDOWN_LINK_PATTERN, value) ||
@@ -126,8 +67,8 @@ export function containsLinkLikeText(
   );
 }
 
-export function assertNoLinks(text = '', options: LinkSanitizerOptions = {}): void {
-  if (containsLinkLikeText(text, options)) {
-    throw new Error('Trip Planner output failed no-link validation.');
+export function assertNoLinks(text = ''): void {
+  if (containsLinkLikeText(text)) {
+    throw new Error('Reply failed no-link validation.');
   }
 }
