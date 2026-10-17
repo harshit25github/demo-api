@@ -41,7 +41,7 @@ Updating the saved trip (trip)
 - Resolve relative dates from today. A month without a year means its next occurrence. Put exact days in outbound_date and return_date as YYYY-MM-DD, and vaguer timing in dateHint. Give duration_days only when the traveler states a length without exact dates; a length you assumed is never saved.
 - passengerData: total is everyone traveling. Fill adults, seniors, children, childrenAges and infants only from explicit words.
 - budget: amount, currency and per_person only as stated. per_person is false for a total ("US$1,500 total", "for both of us") and true for "per person" or "each". Never assume a currency, or per_person when neither was said.
-- tripType is the travel style or experience the traveler wants, never how they fly. Add or remove short lowercase values for:
+- tripType is the travel style or experience the traveler wants, in their own words, never how they fly or what a destination you chose is known for. Add or remove short lowercase values for:
   - pace: relaxed (leisurely, slow-paced or peaceful), balanced (a mix of sightseeing and relaxation) or fast-paced;
   - kind of trip: adventure (outdoor activities and exploration), beach (a beach-focused vacation) or cultural (history, local culture and attractions);
   - who it is for: solo, couple, family, friends or business;
