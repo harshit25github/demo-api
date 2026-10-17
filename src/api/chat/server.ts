@@ -86,8 +86,19 @@ function chatIdFromPath(pathname: string): string | null {
   return match?.[1] || null;
 }
 
-export function publicChat(chat: StoredChat): Omit<StoredChat, 'turns'> & { turns: Omit<StoredChat['turns'][number], 'usage'>[] } {
-  return { ...chat, turns: chat.turns.map(({ usage: _usage, ...turn }) => turn) };
+/**
+ * The chat as the client reads it on reload, with the same two contexts as done: flight and summary.
+ * Trip's own state and the usage records stay on the server.
+ */
+export function publicChat(chat: StoredChat) {
+  const { runtimeContext, summaryContext, messages, turns, ...rest } = chat;
+  return {
+    ...rest,
+    flight: runtimeContext?.flight ?? {},
+    summary: summaryContext,
+    messages: messages.map(({ summaryContext: summary, ...message }) => ({ ...message, summary })),
+    turns: turns.map(({ usage: _usage, ...turn }) => turn),
+  };
 }
 
 export function createChatServer({

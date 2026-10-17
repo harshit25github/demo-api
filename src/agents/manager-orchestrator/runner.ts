@@ -14,6 +14,7 @@ import { createRequestContext } from '../../shared/runtime/request-context.js';
 import { modelDeadlineProvider } from '../../shared/runtime/model-deadline.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
 import { ManagerAgent } from './agent.js';
+import { combineSuggestedQuestions } from './suggested-questions.js';
 import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import type { FlightAppContext } from '../flight/types.js';
 
@@ -112,9 +113,12 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
     requestId,
     sessionId,
   });
+  // Trip stores a new chip list each time its result is saved, so a different list means Trip ran.
+  const tripChipsBefore = appContext.tripPlanner?.suggestions;
   const requestClock = createRequestClock({ now, timeZone });
   const requestContext = createRequestContext(appContext, requestClock);
   let result;
+  let flightTurn: ReturnType<typeof finalizeFlightSuggestedQuestions>;
   try {
     result = await withTrace(
       'travel-manager',
@@ -138,12 +142,23 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   } finally {
     // Also on failure: the caller persists this context, and a Flight run that
     // died before its final tool call must not leave last turn's suggestions.
-    finalizeFlightSuggestedQuestions(appContext);
+    flightTurn = finalizeFlightSuggestedQuestions(appContext);
   }
 
   const reply = String(result.finalOutput ?? '');
   const sanitized = sanitizeNoLinks(reply);
   assertNoLinks(sanitized.text);
+  const tripChips = appContext.tripPlanner?.suggestions;
+  const shownChips = appContext.summaryContext?.suggestedQuestions;
+  appContext.summaryContext = {
+    ...appContext.summaryContext,
+    suggestedQuestions: combineSuggestedQuestions({
+      flight: flightTurn.flightRan ? appContext.flight.suggestedQuestions : null,
+      trip: tripChips !== tripChipsBefore && Array.isArray(tripChips) ? tripChips : null,
+      previous: Array.isArray(shownChips) ? shownChips : [],
+      reply: sanitized.text,
+    }),
+  };
   return {
     requestId,
     traceId,

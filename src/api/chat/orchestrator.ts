@@ -1,9 +1,11 @@
 import { generateTraceId } from '@openai/agents';
+import type { Session } from '@openai/agents';
 import { OpenAIConversationsSession } from '@openai/agents-openai';
 import { randomUUID } from 'node:crypto';
 import type { ServerResponse } from 'node:http';
 import { runGatewayAgent } from '../../agents/manager-orchestrator/runner.js';
 import { createClientSummary } from '../../agents/trip-planner-v2/client-summary.js';
+import { log } from '../../shared/logging/logger.js';
 import { hydrateGatewayContext, snapshotGatewayContext } from './context-hydration.js';
 import type { JsonChatStore } from './store.js';
 import type { SseWriter } from './sse.js';
@@ -50,6 +52,28 @@ function clientErrorMessage(error: unknown) {
   return 'The request could not be completed. Please try again.';
 }
 
+// A Manager turn saves far fewer items; the cap only bounds a walk-back gone wrong.
+const MAX_CANCELLED_TURN_ITEMS = 100;
+
+/**
+ * Removes a cancelled turn from the conversation. The SDK saves the turn's message and finished
+ * steps when a run is cancelled, while the chat keeps the state from before the turn, so the next
+ * turn's history could show a change that was never kept. A finished reply on top means the turn
+ * saved nothing.
+ */
+async function removeCancelledTurn(session: Session): Promise<number> {
+  const [newest] = (await session.getItems(1)) as { type?: string; role?: string }[];
+  if (!newest || (newest.type === 'message' && newest.role === 'assistant')) return 0;
+  let removed = 0;
+  while (removed < MAX_CANCELLED_TURN_ITEMS) {
+    const item = (await session.popItem()) as { role?: string } | undefined;
+    if (!item) break;
+    removed += 1;
+    if (item.role === 'user') break;
+  }
+  return removed;
+}
+
 export async function streamChatTurn({
   store,
   writer,
@@ -73,6 +97,7 @@ export async function streamChatTurn({
   const previousSummary = structuredClone(chat.summaryContext);
   const abortController = new AbortController();
   let gatewayContext: FlightAppContext | null = null;
+  let conversationSession: Session | null = null;
   let draftText = '';
   let finished = false;
 
@@ -86,10 +111,11 @@ export async function streamChatTurn({
       writer.send('chat.created', { chatId: chat.chatId });
     }
 
-    const conversationSession = createConversationSession({
+    const session = createConversationSession({
       conversationId: chat.conversationId || undefined,
     });
-    const conversationId = await conversationSession.getSessionId();
+    conversationSession = session;
+    const conversationId = await session.getSessionId();
     if (conversationId !== chat.conversationId) {
       const updatedChat = await store.updateChat(chat.chatId, (record) => {
         record.conversationId = conversationId;
@@ -150,7 +176,7 @@ export async function streamChatTurn({
       traceId,
       sessionId: chat.chatId,
       context: appContext,
-      session: conversationSession,
+      session,
       signal: abortController.signal,
       maxTurns,
       stream,
@@ -163,14 +189,14 @@ export async function streamChatTurn({
       draftText = finalText;
       writer.send('delta', { chatId: chat.chatId, turnId, text: finalText });
     }
-    // The client summary Trip keeps, in the client's exact shape.
-    const summaryContext = createClientSummary(gatewayResult.context.summaryContext);
+    // The client summary Trip keeps, in the client's exact shape, ending with this turn's chips.
+    const summary = createClientSummary(gatewayResult.context.summaryContext);
     const summaryStatus = 'skipped';
 
     const assistantMessageId = randomUUID();
     const completedAt = new Date().toISOString();
     const completedChat = await store.updateChat(chat.chatId, (record) => {
-      record.summaryContext = structuredClone(summaryContext);
+      record.summaryContext = structuredClone(summary);
       record.runtimeContext = snapshotGatewayContext(gatewayResult.context);
       record.messages.push({
         id: assistantMessageId,
@@ -180,7 +206,7 @@ export async function streamChatTurn({
         agent: gatewayResult.finalAgentName,
         status: 'completed',
         createdAt: completedAt,
-        summaryContext: structuredClone(summaryContext),
+        summaryContext: structuredClone(summary),
       });
       const turn = record.turns.find((item) => item.id === turnId);
       if (!turn) throw new Error('Active chat turn was not found.');
@@ -200,15 +226,19 @@ export async function streamChatTurn({
       conversationId,
       finalAgent: gatewayResult.finalAgentName,
       finalText,
-      summaryContext,
+      // The client's two contexts; the chips it shows are summary.suggestedQuestions.
+      summary,
       summaryStatus,
-      flightContext: gatewayResult.context.flight,
-      tripContext: {
-        suggestedQuestions: [...((gatewayResult.context.tripPlanner as Record<string, any> | undefined)?.suggestions ?? [])],
-      },
+      flight: gatewayResult.context.flight,
     });
   } catch (error) {
     const aborted = abortController.signal.aborted;
+    // Only a run that started can have saved to the conversation.
+    if (aborted && gatewayContext && conversationSession) {
+      await removeCancelledTurn(conversationSession).catch((rollbackError: unknown) => {
+        log('warn', 'chat.cancelled_turn_kept_in_conversation', { chatId: chat.chatId, turnId, error: errorDetails(rollbackError) });
+      });
+    }
     const completedAt = new Date().toISOString();
     await store.updateChat(chat.chatId, (record) => {
       if (gatewayContext) {
