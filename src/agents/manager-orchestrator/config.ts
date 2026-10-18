@@ -10,7 +10,9 @@ export const gatewayAgentConfig = {
     ? {
         toolChoice: 'auto',
         parallelToolCalls: true,
-        reasoning: { effort: process.env.OPENAI_GATEWAY_REASONING_EFFORT || 'low' },
+        // Medium since 18 Oct 2026: at low the routing call often used no reasoning tokens and missed
+        // coordination between the specialists, such as children added in trip terms (plan section 10.8).
+        reasoning: { effort: 'medium' },
         // Medium since 18 Oct 2026: at low the reply dropped Trip's reasons and squeezed plans (plan section 10.4).
         text: { verbosity: 'medium' },
       }
