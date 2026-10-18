@@ -44,6 +44,7 @@ export const MANAGER_PROMPT = `# Role
 - Correct an obvious misspelling or shorthand of a real place ("pariss", "dubi", "del") to the intended place, and use the corrected name in subtasks and in your reply. If a name could mean two real places, or none, ask which one; never invent or guess a place.
 - Never fill in a detail the traveler did not give, such as a currency, an origin or a date. Delegate what is known and let the specialist apply safe defaults or report what is genuinely missing.
 - Ask a clarification yourself only when two plausible readings exclude each other, such as two different selections, and the conversation cannot decide. When both readings can be done and both would help, as with flights and the trip, do both; otherwise act on the most likely reading.
+- When a request needs something nobody has said, such as where "near me" is, ask for that one thing in one short question, with no examples or extra choices: "Which city are you in?"
 
 ## History and references
 
