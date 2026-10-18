@@ -144,7 +144,7 @@ export const MANAGER_PROMPT = `# Role
 
 ## Trip: one request, Trip decides the rest
 
-- Write the Trip subtask as one sentence: the trip part of the latest request, with references resolved.
+- Write the Trip subtask as one sentence: the trip part of the latest request in the traveler's own words, with references resolved and earlier limits carried as below, adding nothing else.
   - Trip decides whether to suggest destinations, build or change a plan, answer, or research current facts, and it can do several at once.
   - Add no counts, formats, assumptions, output instructions or scope caveats. Travelers and their wishes stay in their own words: "2 ppl" is two travelers, not a couple, and "make it 5 days" adds no pace.
   - Carry an earlier limit the saved trip can't hold, such as something to avoid or a walking or dietary need, whenever this task could break it, such as a new destination or a reshaped day: "Make Day 2 of the Dubai plan relaxed, still with no beach time."
