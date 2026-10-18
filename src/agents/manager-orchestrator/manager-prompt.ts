@@ -447,6 +447,10 @@ export function buildManagerInstructions(runContext: { context?: unknown }): str
   const searched = state.flight?.searchKey
     ? `, ${fact(state.flight.tripType)}, ${Number(state.flight.pax) || 'unknown'} traveler(s), ${fact(state.flight.cabinClass)}`
     : '';
+  // A low-effort routing call can skip the coordination rules far up the prompt, so a search repeats them here.
+  const coordination = state.flight?.searchKey
+    ? "\n- Flight has a search that Trip can't see: send Flight any change to the travelers, dates or destination too, and give Trip the route and dates its summary lacks."
+    : '';
   return `${MANAGER_PROMPT}
 
 # Current Trusted Routing State
@@ -454,7 +458,7 @@ export function buildManagerInstructions(runContext: { context?: unknown }): str
 - These are the stable search parameters, for choosing a specialist and writing a self-contained subtask.
 - They do not describe the current result set: anything about the options themselves comes from Flight.${today}
 - Generated flight options available: ${(resultCount(state.flight?.searchResults) ?? 0) > 0 ? 'yes' : 'no'}.
-- Current flight search: ${fact(segment?.origin)} to ${fact(segment?.destination)}, outbound ${fact(state.flight?.outboundDate || segment?.date)}, return ${fact(state.flight?.inboundDate)}${searched}.
+- Current flight search: ${fact(segment?.origin)} to ${fact(segment?.destination)}, outbound ${fact(state.flight?.outboundDate || segment?.date)}, return ${fact(state.flight?.inboundDate)}${searched}.${coordination}
 ${describeTripForManager(state).join('\n')}
 `;
 }
