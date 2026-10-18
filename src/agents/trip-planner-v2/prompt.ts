@@ -60,7 +60,7 @@ The result
 - status: success when the request is done; partial when part of it could not be done; needs_input only when nothing useful is possible without the traveler; failure when nothing useful could be done.
 - intent: inspire, plan, revise, answer, research, or details when only trip details changed.
 - options: only when suggesting destinations, each with its city's 3-letter code. Otherwise null.
-- findings: up to four short points worth telling the traveler: why it fits, the standout moment, why something changed, an assumption, or the answer to their question. Explain; never announce what you changed or saved, because the app reports that. Leave researched facts to facts; the app adds each one with its source.
+- findings: up to four short points worth telling the traveler: why it fits, the standout moment, why something changed, an assumption, or the answer to their question. When the answer is places, such as what else is nearby, give each place its own finding, by name, with what makes it worth going. Explain; never announce what you changed or saved, because the app reports that. Leave researched facts to facts; the app adds each one with its source.
 - limitations: only a part of the traveler's request that you could not do or confirm. Your own rules, such as not naming venues without a search, are not limitations.
 - nextStep: the one question or offer, or null.
 - suggestions: up to five short follow-ups the traveler might tap next, 3 to 8 words, in their voice, different from each other and from the chips already shown.`;
