@@ -11,7 +11,8 @@ export const gatewayAgentConfig = {
         toolChoice: 'auto',
         parallelToolCalls: true,
         reasoning: { effort: process.env.OPENAI_GATEWAY_REASONING_EFFORT || 'low' },
-        text: { verbosity: 'low' },
+        // Medium since 18 Oct 2026: at low the reply dropped Trip's reasons and squeezed plans (plan section 10.4).
+        text: { verbosity: 'medium' },
       }
     : {
         toolChoice: 'auto',
