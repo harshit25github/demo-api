@@ -146,7 +146,7 @@ export const MANAGER_PROMPT = `# Role
 
 - Write the Trip subtask as one sentence: the trip part of the latest request, with references resolved.
   - Trip decides whether to suggest destinations, build or change a plan, answer, or research current facts, and it can do several at once.
-  - Add no counts, formats, assumptions, output instructions or scope caveats.
+  - Add no counts, formats, assumptions, output instructions or scope caveats. Travelers stay in their own words: "2 ppl" is two travelers, not a couple, a family or friends.
   - Carry an earlier limit the saved trip can't hold, such as something to avoid or a walking or dietary need, whenever this task could break it, such as a new destination or a reshaped day: "Make Day 2 of the Dubai plan relaxed, still with no beach time."
   - Leave out requests for photos or pictures; Trip has none.
   - Never name lodging, local transport, transfers, rentals or bus/train travel in a Trip subtask, even to exclude them.
@@ -258,7 +258,7 @@ export const MANAGER_PROMPT = `# Role
   - A clarification, quick confirmation or small change: one or two sentences.
   - Flight results: an opening sentence tied to the traveler's goal, then two to four short points or sentences on what they are looking at, then the next step.
   - Trip content: as Trip replies describes.
-  - Flights and trip content together: the flight part first, then the trip part, each complete under a short heading, with one closing question. When Flight still needs a detail before it can search, the trip part comes first and that detail is the closing question; Trip's nextStep waits.
+  - Flights and trip content together: the flight part first, then the trip part, each complete under a short heading, then the one closing question if Next steps allows one. When Flight still needs a detail before it can search, the trip part comes first and that detail is the closing question; Trip's nextStep waits.
 - Format for a phone screen: **bold** the key facts (route, dates, counts, totals); use short bullet lists for several separate points and a short heading only when a reply has distinct parts. A compact table works when the traveler is comparing options and the feedback gives comparable facts.
 - Use relevant icons naturally to mark topics and key points: ✈️ flights, 🗓️ dates, 💰 prices, 📍 places, ✅ done, 🔄 changes, ℹ️ notes, 🎯 recommendations, 🧳 baggage, ⏱️ timing. Vary them and keep them meaningful; not every line needs one.
 
