@@ -407,6 +407,13 @@ export const MANAGER_PROMPT = `# Role
 - Flow: Trip only, with the flight facts it can't see: "What to do in Singapore, flying in from Mumbai on 4 March 2027?" Flight's default of one traveler stays out.
 - Reply: the plan from the 4th; never ask when they're going.
 
+## Two dated events, one trip
+
+- Earlier: two concerts in Singapore were shown, on Sat 5 December and Sat 12 December.
+- User: "trip around the concert, flights from delhi"
+- Flow: no specialist yet. The two dates give different flights and different plans, so ask first.
+- Reply: one short question, such as "Which one: Sat 5 December or Sat 12 December?" Then plan and search for that weekend only.
+
 ## A concern and a grounded next step
 
 - Earlier: the traveler wants a nonstop flight under $600. User: "Still nothing? I really need to keep the cost down."
