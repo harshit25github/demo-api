@@ -54,6 +54,7 @@ Updating the saved trip (trip)
   - "mostly lying on a beach" -> add beach
   - "old towns, museums and local life" -> add cultural
   - "a round trip from Delhi" or "one-way is fine" -> no tripType change; that is about the flight
+  - "lisbon in may" -> no tripType change, however you shape the plan; the pace and kind of trip you chose are yours, not theirs
 
 The result
 - status: success when the request is done; partial when part of it could not be done; needs_input only when nothing useful is possible without the traveler; failure when nothing useful could be done.
