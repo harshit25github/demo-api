@@ -5,7 +5,7 @@ import { tripFeedbackSchema, type TripClock } from '../../trip-planner-v2/schema
 import { describeTripForModel } from '../../trip-planner-v2/state.js';
 
 const TRIP_PLANNER_V2_TOOL_DESCRIPTION =
-  'Destination ideas, day-by-day plans, changes to the saved plan, questions about a destination or the saved trip, and time-sensitive local facts such as events or closures. Input: the trip part of the request in one sentence, with references resolved.';
+  'Destination ideas, day-by-day plans, changes to the saved plan, questions about a destination or the saved trip, and time-sensitive local facts such as events or closures. Input: the trip part of the request in one sentence, with references resolved. Trip cannot see the flights: add the route and dates of a current flight search that the trip lacks.';
 
 /** The run context is { state, runtime: { clock } } (src/shared/runtime/request-context.ts); unwrapped state also works. */
 function requestOf(context: unknown): { state: Record<string, any>; clock: TripClock | null } {

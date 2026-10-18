@@ -6,7 +6,7 @@ import { getRequestState } from '../../../shared/runtime/request-context.js';
 import { isRecord } from '../../../shared/types/json.js';
 
 const FLIGHT_TOOL_DESCRIPTION =
-  'Find or start booking flights; change search route, dates, passengers, or cabin; apply or clear listing filters; compare current flight options; find cheaper travel dates with price prediction. Use even on a booking/listing page when the action changes search results. Do not use for seats or selected-booking benefits.';
+  'Find or start booking flights; change search route, dates, passengers, or cabin; apply or clear listing filters; compare current flight options; find cheaper travel dates with price prediction. Use even on a booking/listing page when the action changes search results, and alongside trip_planner_agent when the traveler changes travelers, dates or destination in trip terms, such as "kids 5 and 8", while a search exists. Do not use for seats or selected-booking benefits.';
 
 // The Manager turn starts with flightRanThisTurn = false because it does not yet
 // know whether Flight will run. Flight sets it here when a run actually starts,
