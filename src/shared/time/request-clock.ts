@@ -4,6 +4,13 @@ export interface RequestClock {
   timeZone: string;
 }
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** The weekday of a YYYY-MM-DD local date, so models don't work it out themselves and label event days wrongly. */
+export function weekdayOf(localDate: string): string {
+  return WEEKDAYS[new Date(`${localDate}T00:00:00Z`).getUTCDay()] ?? '';
+}
+
 function formatterParts(now: Date, timeZone: string) {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone,

@@ -1,6 +1,7 @@
 import { resultCount } from '../flight/context/flight-context.js';
 import { describeTripForManager } from '../trip-planner-v2/state.js';
 import { getRequestClock, getRequestState } from '../../shared/runtime/request-context.js';
+import { weekdayOf } from '../../shared/time/request-clock.js';
 
 export const MANAGER_PROMPT = `# Role
 
@@ -72,6 +73,7 @@ export const MANAGER_PROMPT = `# Role
 ## Trip references
 
 - Resolve "the second one", "that day", "there" or "that festival" before delegating: against the options shown and the current plan in Current Trusted Routing State, or against what an earlier reply said. A bare "yes" or a pick answers the question your last reply asked; name what it chose.
+  - When the reference fits more than one thing shown and their dates or places differ, such as two festivals, ask which in one short question that names them.
   - Trip already receives the saved trip and the traveler's exact words, so name the resolved choice and do not restate the dates, budget, travelers, pace or interests the saved trip already has.
 
 # Intent Resolution
@@ -454,7 +456,7 @@ export function buildManagerInstructions(runContext: { context?: unknown }): str
   // used its own date and wrote dates into subtasks that Flight then trusted.
   const clock = getRequestClock(raw);
   const today = clock
-    ? `\n- Today in the traveler's time zone: ${clock.localDate} (${clock.timeZone}). Resolve relative dates such as "next week" from this date only.`
+    ? `\n- Today in the traveler's time zone: ${clock.localDate} (${clock.timeZone}), a ${weekdayOf(clock.localDate)}. Resolve relative dates such as "next week" from this date only.`
     : '';
   // Travelers, cabin and trip type count only once a search exists; before that they are defaults, not facts.
   const searched = state.flight?.searchKey

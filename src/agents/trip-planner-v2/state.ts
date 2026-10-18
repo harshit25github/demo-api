@@ -1,5 +1,6 @@
 import { createClientSummary } from './client-summary.js';
 import type { ClientSummary, TripClock, TripDetailName, TripPlannerV2State } from './schema.js';
+import { weekdayOf } from '../../shared/time/request-clock.js';
 
 /** One plain line: no links, markdown emphasis or line breaks, which would break line-based cards. */
 export function plainText(value: string): string {
@@ -105,7 +106,7 @@ export function describeTripForModel(context: Record<string, any>, clock: TripCl
     `chips shown: ${chipsShown(summary, trip).join(' · ') || 'none'}`,
   ];
   return [
-    `<today>${clock ? `${clock.localDate} · ${clock.timeZone}` : 'unknown'}</today>`,
+    `<today>${clock ? `${clock.localDate} (${weekdayOf(clock.localDate)}) · ${clock.timeZone}` : 'unknown'}</today>`,
     `<saved_trip>\n${lines.join('\n')}\n</saved_trip>`,
     `<traveler_said>${String(context.currentUserMessage || '').trim()}</traveler_said>`,
   ].join('\n');
