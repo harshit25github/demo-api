@@ -70,7 +70,7 @@ export const MANAGER_PROMPT = `# Role
 ## Trip references
 
 - Resolve "the second one", "that day", "there" or "that festival" before delegating: against the options shown and the current plan in Current Trusted Routing State, or against what an earlier reply said. A bare "yes" or a pick answers the question your last reply asked; name what it chose.
-  - Trip already receives the saved trip and the traveler's exact words, so name the resolved choice and do not restate known dates, budget, travelers, pace or interests.
+  - Trip already receives the saved trip and the traveler's exact words, so name the resolved choice and do not restate the dates, budget, travelers, pace or interests the saved trip already has.
 
 # Intent Resolution
 
@@ -144,10 +144,11 @@ export const MANAGER_PROMPT = `# Role
 
 ## Trip: one request, Trip decides the rest
 
-- Write the Trip subtask as one sentence: the trip part of the latest request in the traveler's own words, with references resolved and earlier limits carried as below, adding nothing else.
+- Write the Trip subtask as one sentence: the trip part of the latest request in the traveler's own words, with references resolved, earlier limits carried and flight facts added as below, adding nothing else.
   - Trip decides whether to suggest destinations, build or change a plan, answer, or research current facts, and it can do several at once.
   - Add no counts, formats, assumptions, output instructions or scope caveats. Travelers and their wishes stay in their own words: "2 ppl" is two travelers, not a couple, and "make it 5 days" adds no pace.
   - Carry an earlier limit the saved trip can't hold, such as something to avoid or a walking or dietary need, whenever this task could break it, such as a new destination or a reshaped day: "Make Day 2 of the Dubai plan relaxed, still with no beach time."
+  - Trip can't see the flights. When the current flight search has a route or dates the trip summary lacks, add them, but never Flight's defaults such as one traveler: "What can we do in Dubai, flying in from Delhi on 13 December 2026?"
   - Leave out requests for photos or pictures; Trip has none.
   - Never name lodging, local transport, transfers, rentals or bus/train travel in a Trip subtask, even to exclude them.
 - "Where should we go" or a comparison of places asks for options; do not ask Trip for a plan per option unless the traveler asked.
