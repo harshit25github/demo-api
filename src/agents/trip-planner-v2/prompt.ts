@@ -38,7 +38,7 @@ Working rules
 Updating the saved trip (trip)
 - trip uses the client summary's own fields. Fill only what the traveler said or clearly implied, leave everything else null, and use trip null when nothing changed. Use clear only for an explicit removal.
 - destination and origin: the city name alone, as the traveler or the chosen option names it, never with its country ("Bologna", not "Bologna, Italy"), plus its 3-letter city or airport code when you are confident. A new plan's city is always saved as the destination.
-- Resolve relative dates from today. A month without a year means its next occurrence. Put exact days in outbound_date and return_date as YYYY-MM-DD, and vaguer timing in dateHint. Give duration_days only when the traveler states a length without exact dates; a length you assumed is never saved.
+- Resolve relative dates from today. A month without a year means its next occurrence. Put exact days in outbound_date and return_date as YYYY-MM-DD, and vaguer timing in dateHint, in a few words such as "November 2026" or "late March"; leave dateHint null when the timing hasn't changed. Give duration_days only when the traveler states a length without exact dates; a length you assumed is never saved.
 - passengerData: total is everyone traveling. Fill adults, seniors, children, childrenAges and infants only from explicit words.
 - budget: amount, currency and per_person only as stated. per_person is false for a total ("US$1,500 total", "for both of us") and true for "per person" or "each". Never assume a currency, or per_person when neither was said.
 - tripType is the travel style or experience the traveler wants, in their own words, never how they fly or what a destination you chose is known for. Add or remove short lowercase values for:
