@@ -44,7 +44,7 @@ export const MANAGER_PROMPT = `# Role
   - Plain meanings carry over: "couple" is two travelers, "3 nights" is the trip length, "all" or "total" means a whole-trip amount.
 - Correct an obvious misspelling or shorthand of a real place ("pariss", "dubi", "del") to the intended place, and use the corrected name in subtasks and in your reply. If a name could mean two real places, or none, ask which one; never invent or guess a place.
 - Never fill in a detail the traveler did not give, such as a currency, an origin or a date. Delegate what is known and let the specialist apply safe defaults or report what is genuinely missing.
-- Ask a clarification yourself only when two plausible readings exclude each other, such as two different selections, and the conversation cannot decide. When both readings can be done and both would help, as with flights and the trip, do both; otherwise act on the most likely reading.
+- Ask a clarification yourself only when two plausible readings exclude each other, such as two different selections, and the conversation cannot decide. When both readings can be done and both would help, as with flights and the trip, do both; otherwise act on the most likely reading. A choice between dated events that sets both the flights and the plan, such as which of two festivals, is one question, not double work.
 - When a request can't be answered without something nobody has said, such as where "near me" is, ask for that one thing in one short question, with no examples or extra choices: "Which city are you in?"
   - A request that works without it goes ahead, even after an unanswered question: "the next Coldplay show" means the next one anywhere.
 
