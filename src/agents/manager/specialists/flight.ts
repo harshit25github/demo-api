@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { FlightManagerAgent } from '../../flight/agent.js';
 import { flightAgentConfig } from '../../flight/config.js';
 import { flightManagerOutputSchema } from '../../flight/manager-output.js';
@@ -83,6 +84,12 @@ function interruptedFeedback(appContext: FlightAppContext, baseline?: Invocation
 export const flightAgentAsTool = FlightManagerAgent.asTool({
   toolName: 'flight_agent',
   toolDescription: FLIGHT_TOOL_DESCRIPTION,
+  parameters: z.object({
+    input: z.string(),
+    acknowledgement: z.string().describe(
+      'One brief acknowledgement of the entire user request on the first specialist call this turn; an empty string on every other call.',
+    ),
+  }),
   // Also captures the scoped subtask as RunContext.toolInput for Flight tools.
   inputBuilder: ({ params }) => params.input,
   runOptions: { maxTurns: flightAgentConfig.maxTurns },

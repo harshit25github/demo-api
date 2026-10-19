@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { TripPlannerV2Agent } from '../../trip-planner-v2/agent.js';
 import { applyTripResult, tripFailureFeedback } from '../../trip-planner-v2/apply.js';
 import { tripPlannerV2Config } from '../../trip-planner-v2/config.js';
@@ -17,6 +18,12 @@ function requestOf(context: unknown): { state: Record<string, any>; clock: TripC
 export const tripPlannerV2AgentAsTool = TripPlannerV2Agent.asTool({
   toolName: 'trip_planner_agent',
   toolDescription: TRIP_PLANNER_V2_TOOL_DESCRIPTION,
+  parameters: z.object({
+    input: z.string(),
+    acknowledgement: z.string().describe(
+      'One brief acknowledgement of the entire user request on the first specialist call this turn; an empty string on every other call.',
+    ),
+  }),
   inputBuilder: ({ params }) => params.input,
   runOptions: { maxTurns: tripPlannerV2Config.maxTurns },
   runConfig: {
