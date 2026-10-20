@@ -72,3 +72,9 @@ export function assertNoLinks(text = ''): void {
     throw new Error('Reply failed no-link validation.');
   }
 }
+
+/** assertNoLinks for a reply the backend added photo links to: those exact links pass, anything else still fails. */
+export function assertOnlyIssuedLinks(text = '', issued: readonly string[] = []): void {
+  const allowed = new Set(issued);
+  assertNoLinks(String(text || '').replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (link, label, url) => (allowed.has(url) ? label : link)));
+}

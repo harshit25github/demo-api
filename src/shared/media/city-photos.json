@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "cities": [
+    { "codes": ["DPS"], "name": "Bali", "aliases": ["Denpasar"], "photo": "https://media.example.com/places/DPS/bali.jpg" },
+    { "codes": ["PAR", "CDG", "ORY"], "name": "Paris", "aliases": [], "photo": "https://media.example.com/places/PAR/paris.jpg" },
+    { "codes": ["DXB", "DWC"], "name": "Dubai", "aliases": [], "photo": "https://media.example.com/places/DXB/dubai.jpg" },
+    { "codes": ["HKG"], "name": "Hong Kong", "aliases": [], "photo": "https://media.example.com/places/HKG/hong-kong.jpg" },
+    { "codes": ["ROM", "FCO", "CIA"], "name": "Rome", "aliases": ["Roma"], "photo": "https://media.example.com/places/ROM/rome.jpg" },
+    { "codes": ["LON", "LHR", "LGW", "STN", "LTN", "LCY"], "name": "London", "aliases": [], "photo": "https://media.example.com/places/LON/london.jpg" },
+    { "codes": ["NYC", "JFK", "LGA", "EWR"], "name": "New York", "aliases": ["New York City"], "photo": "https://media.example.com/places/NYC/new-york.jpg" },
+    { "codes": ["TYO", "NRT", "HND"], "name": "Tokyo", "aliases": [], "photo": "https://media.example.com/places/TYO/tokyo.jpg" },
+    { "codes": ["BKK", "DMK"], "name": "Bangkok", "aliases": [], "photo": "https://media.example.com/places/BKK/bangkok.jpg" },
+    { "codes": ["SIN"], "name": "Singapore", "aliases": [], "photo": "https://media.example.com/places/SIN/singapore.jpg" },
+    { "codes": ["GOI", "GOX"], "name": "Goa", "aliases": [], "photo": "https://media.example.com/places/GOI/goa.jpg" },
+    { "codes": ["DEL"], "name": "Delhi", "aliases": ["New Delhi"], "photo": "https://media.example.com/places/DEL/delhi.jpg" }
+  ]
+}

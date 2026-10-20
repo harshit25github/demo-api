@@ -15,10 +15,24 @@ import { modelDeadlineProvider } from '../../shared/runtime/model-deadline.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
 import { ManagerAgent } from './agent.js';
 import { combineSuggestedQuestions } from './suggested-questions.js';
-import { assertNoLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
+import { assertNoLinks, assertOnlyIssuedLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
+import { cityPhotosFor } from '../../shared/media/city-photos.js';
+import type { DestinationRef } from '../../shared/media/city-photos.js';
+import { linkCityPhotos } from '../../shared/text/city-photo-links.js';
+import type { TripPlannerV2State } from '../trip-planner-v2/schema.js';
 import type { FlightAppContext } from '../flight/types.js';
 
 assertOpenAIConfig();
+
+/** The destinations of a Trip turn: the options Trip suggested this turn, if it suggested any, and the plan's city. */
+function tripDestinations(trip: TripPlannerV2State | undefined, optionsBefore: unknown): DestinationRef[] {
+  const options = trip?.options && trip.options !== optionsBefore ? trip.options : [];
+  const planCity = trip?.plan?.destination;
+  return [
+    ...options.map((option) => ({ iata: option.code, city: option.city })),
+    ...(planCity ? [{ iata: planCity.iata, city: planCity.city }] : []),
+  ];
+}
 
 export interface ManagerRunOptions {
   input: string;
@@ -115,6 +129,8 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   });
   // Trip stores a new chip list each time its result is saved, so a different list means Trip ran.
   const tripChipsBefore = appContext.tripPlanner?.suggestions;
+  // Likewise its options, which are replaced only when Trip suggests destinations.
+  const tripOptionsBefore = appContext.tripPlanner?.options;
   const requestClock = createRequestClock({ now, timeZone });
   const requestContext = createRequestContext(appContext, requestClock);
   let result;
@@ -149,12 +165,18 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   const sanitized = sanitizeNoLinks(reply);
   assertNoLinks(sanitized.text);
   const tripChips = appContext.tripPlanner?.suggestions;
+  // Photo links on the destination cities of a Trip turn (plan section 11). Only the text the client gets and the
+  // chat stores is linked; the Manager's own conversation history keeps its plain reply.
+  const tripRan = tripChips !== tripChipsBefore && Array.isArray(tripChips);
+  const photos = tripRan ? await cityPhotosFor(tripDestinations(appContext.tripPlanner, tripOptionsBefore)) : [];
+  const linked = linkCityPhotos(sanitized.text, photos);
+  assertOnlyIssuedLinks(linked.text, linked.issued);
   const shownChips = appContext.summaryContext?.suggestedQuestions;
   appContext.summaryContext = {
     ...appContext.summaryContext,
     suggestedQuestions: combineSuggestedQuestions({
       flight: flightTurn.flightRan ? appContext.flight.suggestedQuestions : null,
-      trip: tripChips !== tripChipsBefore && Array.isArray(tripChips) ? tripChips : null,
+      trip: tripRan ? tripChips : null,
       previous: Array.isArray(shownChips) ? shownChips : [],
       reply: sanitized.text,
     }),
@@ -163,7 +185,7 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
     requestId,
     traceId,
     sessionId,
-    output: sanitized.text,
+    output: linked.text,
     finalAgentName: ManagerAgent.name,
     context: appContext,
     latencyMs: Date.now() - startedAt,
