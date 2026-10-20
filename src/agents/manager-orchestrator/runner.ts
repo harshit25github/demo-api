@@ -10,6 +10,7 @@ import {
   beginFlightSuggestionTurn,
   finalizeFlightSuggestedQuestions,
 } from '../flight/tools/suggested-questions-tool.js';
+import { log } from '../../shared/logging/logger.js';
 import { createRequestContext } from '../../shared/runtime/request-context.js';
 import { modelDeadlineProvider } from '../../shared/runtime/model-deadline.js';
 import { createRequestClock } from '../../shared/time/request-clock.js';
@@ -17,7 +18,7 @@ import { ManagerAgent } from './agent.js';
 import { combineSuggestedQuestions } from './suggested-questions.js';
 import { assertNoLinks, assertOnlyIssuedLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import { cityPhotosFor } from '../../shared/media/city-photos.js';
-import type { DestinationRef } from '../../shared/media/city-photos.js';
+import type { CityPhoto, DestinationRef } from '../../shared/media/city-photos.js';
 import { linkCityPhotos } from '../../shared/text/city-photo-links.js';
 import type { TripPlannerV2State } from '../trip-planner-v2/schema.js';
 import type { FlightAppContext } from '../flight/types.js';
@@ -32,6 +33,29 @@ function tripDestinations(trip: TripPlannerV2State | undefined, optionsBefore: u
     ...options.map((option) => ({ iata: option.code, city: option.city })),
     ...(planCity ? [{ iata: planCity.iata, city: planCity.city }] : []),
   ];
+}
+
+/** How long a finished reply waits for its photos before it goes out without links (plan section 11). */
+const PHOTO_LOOKUP_TIMEOUT_MS = 1000;
+
+/** The photos a lookup found, or none when it fails or runs past timeoutMs: photos never fail a reply or hold it up for long. */
+async function photosOrNone(lookup: () => Promise<CityPhoto[]>, timeoutMs: number, requestId: string): Promise<CityPhoto[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<null>((resolve) => { timer = setTimeout(resolve, timeoutMs, null); });
+  try {
+    const photos = await Promise.race([Promise.resolve().then(lookup), timedOut]);
+    if (!photos) log('warn', 'manager.photo_lookup_timed_out', { requestId, timeoutMs });
+    return photos ?? [];
+  } catch (error) {
+    log('warn', 'manager.photo_lookup_failed', {
+      requestId,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export interface ManagerRunOptions {
@@ -51,6 +75,9 @@ export interface ManagerRunOptions {
   stream?: boolean;
   /** Substitute Runner, for tests that fake the run. Production uses the default. */
   runner?: Pick<Runner, 'run'>;
+  /** Substitute photo lookup and wait, for tests. Production uses cityPhotosFor and PHOTO_LOOKUP_TIMEOUT_MS. */
+  photoLookup?: typeof cityPhotosFor;
+  photoTimeoutMs?: number;
 }
 
 /**
@@ -115,6 +142,7 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   const {
     input, context, session, signal, stream = false, maxTurns = 12,
     now = new Date(), timeZone, runner = mainChatRunner,
+    photoLookup = cityPhotosFor, photoTimeoutMs = PHOTO_LOOKUP_TIMEOUT_MS,
   } = options;
   if (!input) {
     throw new Error('input is required.');
@@ -168,7 +196,8 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   // Photo links on the destination cities of a Trip turn (plan section 11). Only the text the client gets and the
   // chat stores is linked; the Manager's own conversation history keeps its plain reply.
   const tripRan = tripChips !== tripChipsBefore && Array.isArray(tripChips);
-  const photos = tripRan ? await cityPhotosFor(tripDestinations(appContext.tripPlanner, tripOptionsBefore)) : [];
+  const destinations = tripRan ? tripDestinations(appContext.tripPlanner, tripOptionsBefore) : [];
+  const photos = destinations.length ? await photosOrNone(() => photoLookup(destinations), photoTimeoutMs, requestId) : [];
   const linked = linkCityPhotos(sanitized.text, photos);
   assertOnlyIssuedLinks(linked.text, linked.issued);
   const shownChips = appContext.summaryContext?.suggestedQuestions;

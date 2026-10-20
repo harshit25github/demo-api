@@ -24,6 +24,7 @@ const normalized = (value: string | null | undefined) => String(value ?? '').tri
  * The photos the inventory has for these destinations: by IATA code, else by city name or alias. A destination the
  * inventory doesn't know is left out, so its name stays plain text (decision P6). This is the dummy inventory; the
  * real one is an image API, which answers the same question with one batched request per turn, hence the promise.
+ * The runner sends the reply without links if this fails or takes over a second, so it never has to catch or retry.
  */
 export async function cityPhotosFor(destinations: readonly DestinationRef[]): Promise<CityPhoto[]> {
   const found = new Set<CityPhoto>();
