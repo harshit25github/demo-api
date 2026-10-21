@@ -3,6 +3,7 @@ import {
   clientSummarySchema,
   type SavedTripDay,
   type SavedTripFact,
+  type SavedTripPlace,
   type TripCost,
   type TripDay,
   type TripDetailName,
@@ -13,7 +14,7 @@ import {
   type TripResult,
 } from './schema.js';
 import { isOutOfTripScope } from './scope.js';
-import { chipsShown, plainText, tripDetailText } from './state.js';
+import { chipsShown, dayPlaces, plainText, tripDetailText } from './state.js';
 
 const ASSISTANT_STYLE = /^\s*(?:would\s+you\s+like|do\s+you\s+want|should\s+i|can\s+i)\b/i;
 const COST_LABELS: Record<TripCost, TripFeedback['options'][number]['cost']> = { $: 'Budget-friendly', $$: 'Mid-range', $$$: 'Splurge' };
@@ -34,6 +35,17 @@ export function tripFailureFeedback(): TripFeedback {
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
+}
+
+/** Each named place once, by name. */
+function uniquePlaces(places: SavedTripPlace[]): SavedTripPlace[] {
+  const seen = new Set<string>();
+  return places.filter((place) => {
+    const key = place.name.toLowerCase();
+    if (!place.name || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** At most maxWords words, cut at the last full sentence that fits, or at a word with an ellipsis. */
@@ -57,7 +69,7 @@ function savedDay(day: TripDay, kept?: SavedTripDay): SavedTripDay {
     afternoon: field(day.afternoon, kept?.afternoon, 'Free time'),
     evening: field(day.evening, kept?.evening, 'Free time'),
     notes: day.notes === null ? [...(kept?.notes ?? [])] : unique(day.notes.map((note) => bounded(plainText(note), NOTE_WORDS))).slice(0, 3),
-    places: day.places === null ? [...(kept?.places ?? [])] : unique(day.places.map(plainText)),
+    places: day.places === null ? [...(kept?.places ?? [])] : uniquePlaces(day.places.map((place) => ({ name: plainText(place.name), kind: place.kind }))),
   };
 }
 
@@ -114,7 +126,7 @@ function planChanges(before: TripPlan | null | undefined, after: TripPlan | null
 
 function reportDay(day: SavedTripDay, change?: DayChange): TripReportDay {
   const content = {
-    day: day.day, title: day.title, morning: day.morning, afternoon: day.afternoon, evening: day.evening, notes: [...(day.notes ?? [])], places: [...(day.places ?? [])],
+    day: day.day, title: day.title, morning: day.morning, afternoon: day.afternoon, evening: day.evening, notes: [...(day.notes ?? [])], places: dayPlaces(day).map((place) => place.name),
   };
   if (!change) return content;
   return change.was ? { ...content, changed: change.changed, was: change.was } : { ...content, changed: change.changed };
@@ -228,7 +240,7 @@ export async function applyTripResult(
   if (trip.plan) {
     summary.placesOfInterest = [];
     for (const day of trip.plan.days) {
-      for (const placeName of day.places) {
+      for (const { name: placeName } of dayPlaces(day)) {
         if (summary.placesOfInterest.some((place) => place.placeName.toLowerCase() === placeName.toLowerCase())) continue;
         summary.placesOfInterest.push({ placeName, description: `Day ${day.day}: ${day.title}` });
       }

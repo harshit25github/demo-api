@@ -11,10 +11,12 @@ import type { JsonChatStore } from './store.js';
 import type { SseWriter } from './sse.js';
 import type { StoredChat } from './types.js';
 import type { FlightAppContext } from '../../agents/flight/types.js';
+import type { PlaceMark } from '../../shared/text/place-marks.js';
 
 type ErrorLike = Error & { code?: string };
 interface GatewayResult {
   output: string;
+  places?: PlaceMark[];
   finalAgentName: string | null;
   lastResponseId: string | null;
   context: FlightAppContext;
@@ -203,6 +205,7 @@ export async function streamChatTurn({
         turn: turnNumber,
         role: 'assistant',
         content: finalText,
+        places: gatewayResult.places ?? [],
         agent: gatewayResult.finalAgentName,
         status: 'completed',
         createdAt: completedAt,
@@ -230,6 +233,8 @@ export async function streamChatTurn({
       summary,
       summaryStatus,
       flight: gatewayResult.context.flight,
+      // Each place: reference in finalText, in order, with its kind and photo (plan 12.4).
+      places: gatewayResult.places ?? [],
     });
   } catch (error) {
     const aborted = abortController.signal.aborted;

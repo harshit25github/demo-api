@@ -19,8 +19,10 @@ import { combineSuggestedQuestions } from './suggested-questions.js';
 import { assertNoLinks, assertOnlyIssuedLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import { cityPhotosFor } from '../../shared/media/city-photos.js';
 import type { CityPhoto, DestinationRef } from '../../shared/media/city-photos.js';
-import { linkCityPhotos } from '../../shared/text/city-photo-links.js';
+import { markPlaces } from '../../shared/text/place-marks.js';
+import type { PlaceCandidate } from '../../shared/text/place-marks.js';
 import type { TripPlannerV2State } from '../trip-planner-v2/schema.js';
+import { dayPlaces } from '../trip-planner-v2/state.js';
 import type { FlightAppContext } from '../flight/types.js';
 
 assertOpenAIConfig();
@@ -35,7 +37,32 @@ function tripDestinations(trip: TripPlannerV2State | undefined, optionsBefore: u
   ];
 }
 
-/** How long a finished reply waits for its photos before it goes out without links (plan section 11). */
+/** A flight search's route cities (plan 12.12, F2). */
+function routeCities(flight: FlightAppContext['flight']): DestinationRef[] {
+  const segment = flight.segments?.[0];
+  return segment
+    ? [{ iata: segment.origin_iata ?? null, city: segment.origin || null }, { iata: segment.destination_iata ?? null, city: segment.destination || null }]
+    : [];
+}
+
+/** A city as a mark candidate under its own name and the inventory's names for it, with its photo when there is one. */
+function cityCandidate(city: DestinationRef, photos: readonly CityPhoto[]): PlaceCandidate | null {
+  const lower = (value: string | null | undefined) => String(value ?? '').trim().toLowerCase();
+  const photo = photos.find((entry) => (city.iata && entry.codes.includes(city.iata.toUpperCase()))
+    || [entry.name, ...entry.aliases].some((name) => lower(name) === lower(city.city)));
+  const names = [...new Set([city.city, photo?.name, ...(photo?.aliases ?? [])].filter((name): name is string => !!name?.trim()))];
+  return names.length ? { names, kind: 'city', photo: photo?.photo ?? null } : null;
+}
+
+/** The named places of the saved plan, by kind. Plans saved before kinds existed have plain names, which stay unmarked. */
+function planPlaces(trip: TripPlannerV2State | undefined): PlaceCandidate[] {
+  return (trip?.plan?.days ?? []).flatMap((day) => dayPlaces(day).flatMap((place) => (place.kind ? [{ names: [place.name], kind: place.kind, photo: null }] : [])));
+}
+
+/** The word "flight" or "flights", marked with the flight icon on a turn that ran a flight search (plan 12.12). */
+const FLIGHTS: PlaceCandidate = { names: ['flights', 'flight'], kind: 'flight', photo: null };
+
+/** How long a finished reply waits for its photos before it goes out with marks but no photos (plan section 11). */
 const PHOTO_LOOKUP_TIMEOUT_MS = 1000;
 
 /** The photos a lookup found, or none when it fails or runs past timeoutMs: photos never fail a reply or hold it up for long. */
@@ -75,7 +102,7 @@ export interface ManagerRunOptions {
   stream?: boolean;
   /** Substitute Runner, for tests that fake the run. Production uses the default. */
   runner?: Pick<Runner, 'run'>;
-  /** Substitute photo lookup and wait, for tests. Production uses cityPhotosFor and PHOTO_LOOKUP_TIMEOUT_MS. */
+  /** Substitute city photo lookup and wait, for tests. Production uses cityPhotosFor and PHOTO_LOOKUP_TIMEOUT_MS. */
   photoLookup?: typeof cityPhotosFor;
   photoTimeoutMs?: number;
 }
@@ -193,13 +220,22 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   const sanitized = sanitizeNoLinks(reply);
   assertNoLinks(sanitized.text);
   const tripChips = appContext.tripPlanner?.suggestions;
-  // Photo links on the destination cities of a Trip turn (plan section 11). Only the text the client gets and the
-  // chat stores is linked; the Manager's own conversation history keeps its plain reply.
+  // Place marks (plan 12.4 and 12.12): Trip's cities and plan places on a Trip turn, the route's cities and the
+  // flights on a flight search turn. Only the text the client gets and the chat stores is marked; the Manager's own
+  // conversation history keeps its plain reply.
   const tripRan = tripChips !== tripChipsBefore && Array.isArray(tripChips);
-  const destinations = tripRan ? tripDestinations(appContext.tripPlanner, tripOptionsBefore) : [];
-  const photos = destinations.length ? await photosOrNone(() => photoLookup(destinations), photoTimeoutMs, requestId) : [];
-  const linked = linkCityPhotos(sanitized.text, photos);
-  assertOnlyIssuedLinks(linked.text, linked.issued);
+  const flightSearched = flightTurn.flightRan && Boolean(appContext.flight.searchKey);
+  const cities = [
+    ...(tripRan ? tripDestinations(appContext.tripPlanner, tripOptionsBefore) : []),
+    ...(flightSearched ? routeCities(appContext.flight) : []),
+  ];
+  const photos = cities.length ? await photosOrNone(() => photoLookup(cities), photoTimeoutMs, requestId) : [];
+  const marked = markPlaces(sanitized.text, [
+    ...cities.flatMap((city) => cityCandidate(city, photos) ?? []),
+    ...(tripRan ? planPlaces(appContext.tripPlanner) : []),
+    ...(flightSearched ? [FLIGHTS] : []),
+  ]);
+  assertOnlyIssuedLinks(marked.text, marked.places.map((place) => `place:${place.ref}`));
   const shownChips = appContext.summaryContext?.suggestedQuestions;
   appContext.summaryContext = {
     ...appContext.summaryContext,
@@ -214,7 +250,9 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
     requestId,
     traceId,
     sessionId,
-    output: linked.text,
+    output: marked.text,
+    // The marks' kinds and photos, in reply order: done.places for the client, saved with the message.
+    places: marked.places,
     finalAgentName: ManagerAgent.name,
     context: appContext,
     latencyMs: Date.now() - startedAt,

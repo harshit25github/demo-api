@@ -11,6 +11,9 @@ const status = z.enum(['success', 'partial', 'needs_input', 'failure']);
 const intent = z.enum(['inspire', 'plan', 'revise', 'answer', 'research', 'details']);
 const dayNumber = z.number().int().positive();
 
+/** The eleven kinds of place Trip tags; the client draws one icon per kind (plan section 12.4). */
+export const PLACE_KINDS = ['city', 'area', 'landmark', 'temple', 'museum', 'park', 'nature', 'market', 'food', 'nightlife', 'daytrip'] as const;
+
 /**
  * The client's trip summary, in exactly the shape and key order the client requires.
  * A local copy of the Summary Extractor contract (src/agents/summary/schema.ts) plus the
@@ -77,7 +80,7 @@ const tripDaySchema = z.object({
   afternoon: text.nullable(),
   evening: text.nullable(),
   notes: z.array(text).max(3).nullable(),
-  places: z.array(text).max(8).nullable(),
+  places: z.array(z.object({ name: text, kind: z.enum(PLACE_KINDS) }).strict()).max(8).nullable(),
 }).strict();
 
 /**
@@ -200,7 +203,15 @@ export interface SavedTripOption {
   cost: TripCost;
 }
 
-/** A saved day: every field filled. Plans saved before notes existed have none. */
+export type PlaceKind = (typeof PLACE_KINDS)[number];
+
+/** A named place in a saved day, with the kind that picks its icon. */
+export interface SavedTripPlace {
+  name: string;
+  kind: PlaceKind;
+}
+
+/** A saved day: every field filled. Plans saved before notes existed have none; plans saved before kinds have plain names. */
 export interface SavedTripDay {
   day: number;
   title: string;
@@ -208,7 +219,7 @@ export interface SavedTripDay {
   afternoon: string;
   evening: string;
   notes?: string[];
-  places: string[];
+  places: Array<SavedTripPlace | string>;
 }
 
 export interface TripPlan {

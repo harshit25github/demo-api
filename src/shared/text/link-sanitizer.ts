@@ -1,5 +1,6 @@
 const HTML_ANCHOR_PATTERN = /<a\b[^>]*href\s*=\s*["'][^"']+["'][^>]*>(.*?)<\/a>/gis;
-const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\(((?:https?:\/\/|www\.|[a-z0-9.-]+\.[a-z]{2,})[^)\s]*)[^)]*\)/gi;
+// place: references are the backend's place marks; one the model wrote is removed like any other link.
+const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\(((?:https?:\/\/|www\.|place:|[a-z0-9.-]+\.[a-z]{2,})[^)\s]*)[^)]*\)/gi;
 const RAW_URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>()\]]+/gi;
 const BARE_DOMAIN_PATTERN =
   /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|gov|edu|io|co|travel|info|biz|in|uk|us|ca|au|de|fr|it|es|ae|sg|jp|cn|me|app|dev)(?:\/[^\s<>()\]]*)?/gi;
@@ -73,7 +74,7 @@ export function assertNoLinks(text = ''): void {
   }
 }
 
-/** assertNoLinks for a reply the backend added photo links to: those exact links pass, anything else still fails. */
+/** assertNoLinks for a reply the backend added place marks to: those exact references pass, anything else still fails. */
 export function assertOnlyIssuedLinks(text = '', issued: readonly string[] = []): void {
   const allowed = new Set(issued);
   assertNoLinks(String(text || '').replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (link, label, url) => (allowed.has(url) ? label : link)));

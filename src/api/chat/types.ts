@@ -3,6 +3,7 @@ import type {
   FlightAppContext,
   FlightSearchRuntime,
 } from '../../agents/flight/types.js';
+import type { PlaceMark } from '../../shared/text/place-marks.js';
 
 export interface SummaryEndpoint {
   city: string | null;
@@ -57,6 +58,8 @@ export interface ChatMessage {
   turn: number;
   role: 'user' | 'assistant';
   content: string;
+  /** The place marks in content, in order: each place: reference's kind and photo (plan 12.4). */
+  places?: PlaceMark[];
   agent: string | null;
   createdAt: string;
   summaryContext: SummaryContext;

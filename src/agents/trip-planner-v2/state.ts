@@ -1,5 +1,5 @@
 import { createClientSummary } from './client-summary.js';
-import type { ClientSummary, TripClock, TripDetailName, TripPlannerV2State } from './schema.js';
+import type { ClientSummary, PlaceKind, SavedTripDay, TripClock, TripDetailName, TripPlannerV2State } from './schema.js';
 import { weekdayOf } from '../../shared/time/request-clock.js';
 
 /** One plain line: no links, markdown emphasis or line breaks, which would break line-based cards. */
@@ -80,6 +80,11 @@ export function chipsShown(summary: ClientSummary, trip: TripPlannerV2State): st
   return summary.suggestedQuestions.length ? summary.suggestedQuestions : trip.suggestions ?? [];
 }
 
+/** A saved day's places, with a null kind for the plain names of plans saved before kinds existed. */
+export function dayPlaces(day: Pick<SavedTripDay, 'places'> | undefined): Array<{ name: string; kind: PlaceKind | null }> {
+  return (day?.places ?? []).map((place) => (typeof place === 'string' ? { name: place, kind: null } : place));
+}
+
 /** What Trip reads each run, added to its input so the static instructions stay cached. */
 export function describeTripForModel(context: Record<string, any>, clock: TripClock | null): string {
   const summary = createClientSummary(context.summaryContext);
@@ -89,7 +94,7 @@ export function describeTripForModel(context: Record<string, any>, clock: TripCl
         `plan for ${place(trip.plan.destination)}:`,
         ...trip.plan.days.map((day) =>
           `  Day ${day.day} ${day.title} | ${day.morning} | ${day.afternoon} | ${day.evening}`
-          + `${day.notes?.length ? ` | notes: ${day.notes.join('; ')}` : ''}${day.places.length ? ` | places: ${day.places.join(', ')}` : ''}`),
+          + `${day.notes?.length ? ` | notes: ${day.notes.join('; ')}` : ''}${day.places.length ? ` | places: ${dayPlaces(day).map((place) => place.name).join(', ')}` : ''}`),
       ]
     : ['plan: none'];
   const lines = [
