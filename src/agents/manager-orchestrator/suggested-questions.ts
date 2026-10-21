@@ -18,7 +18,7 @@ function closingQuestion(reply: string): string {
   return reply.match(/[^.!?\n]*\?/g)?.at(-1) ?? '';
 }
 
-export function combineSuggestedQuestions({ flight, trip, previous, reply }: {
+export function combineSuggestedQuestions({ flight, trip, previous, reply, used }: {
   /** Flight's chips when Flight ran this turn, otherwise null. */
   flight: readonly string[] | null;
   /** Trip's chips when its result was saved this turn, otherwise null. */
@@ -26,8 +26,11 @@ export function combineSuggestedQuestions({ flight, trip, previous, reply }: {
   /** The combined list shown before this turn. */
   previous: readonly string[];
   reply: string;
+  /** The traveler's message: a chip they just tapped is spent, so it leaves the list. */
+  used?: string;
 }): string[] {
-  if (!flight && !trip) return [...previous];
+  const spent = words(used ?? '').join(' ');
+  if (!flight && !trip) return previous.filter((chip) => words(chip).join(' ') !== spent);
   // Two from each when both wrote chips, three from the one that did.
   const share = flight?.length && trip?.length ? 2 : 3;
   const offered = new Set(words(closingQuestion(reply)));

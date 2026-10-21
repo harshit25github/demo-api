@@ -27,7 +27,7 @@ import type { FlightAppContext } from '../flight/types.js';
 
 assertOpenAIConfig();
 
-/** The destinations of a Trip turn: the options Trip suggested this turn, if it suggested any, and the plan's city. */
+/** The cities a reply may name: the options Trip suggested this turn, if it ran and suggested any, and the plan's city. */
 function tripDestinations(trip: TripPlannerV2State | undefined, optionsBefore: unknown): DestinationRef[] {
   const options = trip?.options && trip.options !== optionsBefore ? trip.options : [];
   const planCity = trip?.plan?.destination;
@@ -220,19 +220,20 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   const sanitized = sanitizeNoLinks(reply);
   assertNoLinks(sanitized.text);
   const tripChips = appContext.tripPlanner?.suggestions;
-  // Place marks (plan 12.4 and 12.12): Trip's cities and plan places on a Trip turn, the route's cities and the
-  // flights on a flight search turn. Only the text the client gets and the chat stores is marked; the Manager's own
+  // Place marks (plan 12.4 and 12.12): the plan's city and places whenever there is a plan, the options Trip suggested
+  // this turn, and the route's cities and the flights on a flight search turn. Only the text the client gets and the chat stores is marked; the Manager's own
   // conversation history keeps its plain reply.
   const tripRan = tripChips !== tripChipsBefore && Array.isArray(tripChips);
   const flightSearched = flightTurn.flightRan && Boolean(appContext.flight.searchKey);
   const cities = [
-    ...(tripRan ? tripDestinations(appContext.tripPlanner, tripOptionsBefore) : []),
+    // A plan is marked on any turn, so a zoom answered from the last Trip report gets its marks too (R6).
+    ...(tripRan || appContext.tripPlanner?.plan ? tripDestinations(appContext.tripPlanner, tripRan ? tripOptionsBefore : appContext.tripPlanner?.options) : []),
     ...(flightSearched ? routeCities(appContext.flight) : []),
   ];
   const photos = cities.length ? await photosOrNone(() => photoLookup(cities), photoTimeoutMs, requestId) : [];
   const marked = markPlaces(sanitized.text, [
     ...cities.flatMap((city) => cityCandidate(city, photos) ?? []),
-    ...(tripRan ? planPlaces(appContext.tripPlanner) : []),
+    ...planPlaces(appContext.tripPlanner),
     ...(flightSearched ? [FLIGHTS] : []),
   ]);
   assertOnlyIssuedLinks(marked.text, marked.places.map((place) => `place:${place.ref}`));
@@ -244,6 +245,7 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
       trip: tripRan ? tripChips : null,
       previous: Array.isArray(shownChips) ? shownChips : [],
       reply: sanitized.text,
+      used: input,
     }),
   };
   return {

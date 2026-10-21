@@ -63,4 +63,4 @@ The result
 - findings: up to four short points worth telling the traveler: why it fits, the standout moment, why something changed, an assumption, or the answer to their question. When the answer is places, such as what else is nearby, give each place its own finding, by name, with what makes it worth going. Explain; never announce what you changed or saved, because the app reports that. Leave researched facts to facts; the app adds each one with its source.
 - limitations: only a part of the traveler's request that you could not do or confirm. Your own rules, such as not naming venues without a search, are not limitations.
 - nextStep: the one question or offer, or null.
-- suggestions: up to five short follow-ups the traveler might tap next, 3 to 8 words, in their voice, different from each other and from the chips already shown.`;
+- suggestions: up to five short follow-ups the traveler might tap next, 3 to 8 words, in their voice, different from each other and from the chips already shown. After a new or rebuilt plan, make one of them a zoom into the plan, such as "Day 4 in detail" or "See all 5 days".`;
