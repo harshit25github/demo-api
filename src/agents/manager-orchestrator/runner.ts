@@ -19,6 +19,7 @@ import { combineSuggestedQuestions } from './suggested-questions.js';
 import { assertNoLinks, assertOnlyIssuedLinks, sanitizeNoLinks } from '../../shared/text/link-sanitizer.js';
 import { cityPhotosFor } from '../../shared/media/city-photos.js';
 import type { CityPhoto, DestinationRef } from '../../shared/media/city-photos.js';
+import { boldLabelsOnly } from '../../shared/text/label-bold.js';
 import { markPlaces } from '../../shared/text/place-marks.js';
 import type { PlaceCandidate } from '../../shared/text/place-marks.js';
 import type { TripPlannerV2State } from '../trip-planner-v2/schema.js';
@@ -221,8 +222,8 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   assertNoLinks(sanitized.text);
   const tripChips = appContext.tripPlanner?.suggestions;
   // Place marks (plan 12.4 and 12.12): the plan's city and places whenever there is a plan, the options Trip suggested
-  // this turn, and the route's cities and the flights on a flight search turn. Only the text the client gets and the chat stores is marked; the Manager's own
-  // conversation history keeps its plain reply.
+  // this turn, and the route's cities and the flights on a flight search turn. Bold stays only on line labels. Only the
+  // text the client gets and the chat stores changes; the Manager's own conversation history keeps its plain reply.
   const tripRan = tripChips !== tripChipsBefore && Array.isArray(tripChips);
   const flightSearched = flightTurn.flightRan && Boolean(appContext.flight.searchKey);
   const cities = [
@@ -231,7 +232,7 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
     ...(flightSearched ? routeCities(appContext.flight) : []),
   ];
   const photos = cities.length ? await photosOrNone(() => photoLookup(cities), photoTimeoutMs, requestId) : [];
-  const marked = markPlaces(sanitized.text, [
+  const marked = markPlaces(boldLabelsOnly(sanitized.text), [
     ...cities.flatMap((city) => cityCandidate(city, photos) ?? []),
     ...planPlaces(appContext.tripPlanner),
     ...(flightSearched ? [FLIGHTS] : []),
