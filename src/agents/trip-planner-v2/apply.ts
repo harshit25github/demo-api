@@ -113,7 +113,9 @@ function planChanges(before: TripPlan | null | undefined, after: TripPlan | null
 }
 
 function reportDay(day: SavedTripDay, change?: DayChange): TripReportDay {
-  const content = { day: day.day, title: day.title, morning: day.morning, afternoon: day.afternoon, evening: day.evening, notes: [...(day.notes ?? [])] };
+  const content = {
+    day: day.day, title: day.title, morning: day.morning, afternoon: day.afternoon, evening: day.evening, notes: [...(day.notes ?? [])], places: [...(day.places ?? [])],
+  };
   if (!change) return content;
   return change.was ? { ...content, changed: change.changed, was: change.was } : { ...content, changed: change.changed };
 }

@@ -21,7 +21,7 @@ export const tripPlannerV2AgentAsTool = TripPlannerV2Agent.asTool({
   parameters: z.object({
     input: z.string(),
     acknowledgement: z.string().describe(
-      'One brief acknowledgement of the entire user request on the first specialist call this turn; an empty string on every other call.',
+      'One sentence of 11 to 21 words, with no emojis, acknowledging the entire user request on the first specialist call this turn; an empty string on every other call.',
     ),
   }),
   inputBuilder: ({ params }) => params.input,

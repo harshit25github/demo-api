@@ -133,6 +133,8 @@ export const tripFeedbackSchema = z.object({
       afternoon: text,
       evening: text,
       notes: z.array(text),
+      // The day's named places, so the Manager writes each name exactly as saved.
+      places: z.array(text),
       changed: z.array(z.union([z.literal('new'), dayPart])).optional(),
       was: z.object({
         title: text.optional(), morning: text.optional(), afternoon: text.optional(), evening: text.optional(), notes: z.array(text).optional(),
