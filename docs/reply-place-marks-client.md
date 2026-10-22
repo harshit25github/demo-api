@@ -104,6 +104,7 @@ The chat dashboard (`public/chat-dashboard/app.js`) shows both, and it renders r
 These need no client work, but explain what testers will see:
 
 - **No emojis or icons from the model.** The only icons in the chat are the marks above.
+- **An opening line.** A reply with results starts with one sentence saying what was done for the traveler and why it suits them, such as "Here's a balanced 5-day solo Tokyo plan that clusters neighborhoods so you're not crisscrossing the city every day." Lists and day labels come after it.
 - **No headings.** Bold is used only for a label that starts a line, such as "**Day 1 · Old Tokyo:**".
 - **Shorter replies, sized to the request.** Word limits:
 
