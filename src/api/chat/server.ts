@@ -21,6 +21,10 @@ const staticFiles = new Map<string, StaticFile>([
     [path.join(publicDirectory, 'flightContracts.js'), 'text/javascript; charset=utf-8'],
   ],
   ['/styles.css', [path.join(publicDirectory, 'styles.css'), 'text/css; charset=utf-8']],
+  // The settled reply style, shared with the test-runs viewer (plan section 12).
+  ['/shared/reply.js', [path.resolve(__dirname, '../../../public/shared/reply.js'), 'text/javascript; charset=utf-8']],
+  ['/shared/reply.css', [path.resolve(__dirname, '../../../public/shared/reply.css'), 'text/css; charset=utf-8']],
+  ['/vendor/marked.js', [path.resolve(__dirname, '../../../node_modules/marked/lib/marked.esm.js'), 'text/javascript; charset=utf-8']],
   [
     '/vendor/lucide.js',
     [path.resolve(__dirname, '../../../node_modules/lucide/dist/umd/lucide.min.js'), 'text/javascript; charset=utf-8'],

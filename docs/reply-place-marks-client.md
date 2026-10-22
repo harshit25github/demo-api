@@ -1,6 +1,6 @@
 # Place marks in replies: what the client renders
 
-For the team building the production chat client. Since 22 October 2026, assistant replies name places with **place marks**, which the backend adds after the reply is written. This guide covers what arrives, how to render it, and what to do when you don't support it yet. The test-runs viewer (`public/test-runs/viewer.js`, `placeMark`) is the reference implementation.
+For the team building the production chat client. Since 22 October 2026, assistant replies name places with **place marks**, which the backend adds after the reply is written. This guide covers what arrives, how to render it, and what to do when you don't support it yet. The shared module `public/shared/reply.js` (`renderReply`, `createPhotoPeek`), which the chat dashboard and the test-runs viewer both use, is the reference implementation.
 
 ## What the reply contains
 
@@ -82,6 +82,22 @@ The reference icons are 16 × 16 line icons with `fill: none`, `stroke: currentC
 <symbol id="pk-daytrip" viewBox="0 0 16 16"><circle cx="3.8" cy="12.2" r="1.6"/><circle cx="12.2" cy="3.8" r="1.6"/><path d="M5.2 11.3c2.3-.6 1.4-3.6 3.6-4.6 1.2-.5 1.8-1.1 2.1-1.6" stroke-dasharray="1.6 1.6"/></symbol>
 <symbol id="pk-flight" viewBox="0 0 16 16"><path d="M14.6 8c0-.5-.7-.9-1.6-.9H9.8L6.6 2.4H5.2l1.6 4.7H3.6L2.4 5.2h-1L2 8l-.6 2.8h1l1.2-1.9h3.2l-1.6 4.7h1.4l3.2-4.7H13c.9 0 1.6-.4 1.6-.9z"/></symbol>
 ```
+
+## The acknowledgement and the chips
+
+Two more pieces of a turn the client shows:
+
+- **The acknowledgement.** When the specialists run, the stream sends one `acknowledgement` event before `done`, as soon as the work starts:
+
+  ```
+  event: acknowledgement
+  data: {"chatId":"…","turnId":"…","text":"Putting together a 5-day solo Tokyo itinerary and checking what flight details are needed."}
+  ```
+
+  Show it while the turn runs, as a muted line where the reply will appear, and keep it above the reply once `done` arrives. The reply never repeats it. It is one sentence of 11 to 21 words with no emojis. The chat also saves it with the message as `messages[].acknowledgement`. A turn the Manager answers alone, such as small talk or a day zoom, has none.
+- **The chips.** `done.summary.suggestedQuestions` holds up to four short follow-ups. Show them as buttons under the latest reply; a tap sends the chip's words as the traveler's next message and clears the row. After a plan, one chip usually zooms in, such as "Day 4 in detail".
+
+The chat dashboard (`public/chat-dashboard/app.js`) shows both, and it renders replies with the same shared module as the test-runs viewer: `public/shared/reply.js` and `public/shared/reply.css`.
 
 ## What else changed in replies
 

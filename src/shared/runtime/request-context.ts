@@ -5,12 +5,15 @@ export interface RequestContext<TState extends object> {
   readonly state: TState;
   readonly runtime: {
     readonly clock: RequestClock;
+    /** Receives the turn's acknowledgement as the first specialist call starts, for the client (plan 12.12). */
+    readonly onAcknowledgement?: (text: string) => void;
   };
 }
 
 export function createRequestContext<TState extends object>(
   state: TState,
   clock: RequestClock,
+  onAcknowledgement?: (text: string) => void,
 ): RequestContext<TState> {
   if (!isRecord(state)) {
     throw new TypeError('Request state must be an object.');
@@ -21,7 +24,7 @@ export function createRequestContext<TState extends object>(
 
   return Object.freeze({
     state,
-    runtime: Object.freeze({ clock }),
+    runtime: Object.freeze(onAcknowledgement ? { clock, onAcknowledgement } : { clock }),
   });
 }
 
@@ -32,6 +35,11 @@ export function getRequestState<TState extends object>(
   return isRecord(candidate.state) && isRecord(candidate.runtime?.clock)
     ? candidate.state
     : (context as TState);
+}
+
+export function getAcknowledgementListener(context: unknown): ((text: string) => void) | null {
+  const listener = isRecord(context) && isRecord(context.runtime) ? context.runtime.onAcknowledgement : null;
+  return typeof listener === 'function' ? (listener as (text: string) => void) : null;
 }
 
 export function getRequestClock(

@@ -165,6 +165,7 @@ export async function streamChatTurn({
       traceId,
     });
 
+    let acknowledgement = '';
     // Kept so a failure after this point can still persist the turn's runtime
     // state: the run prepares this same object in place.
     const appContext = hydrateGatewayContext(chat.runtimeContext, previousSummary);
@@ -184,6 +185,11 @@ export async function streamChatTurn({
       stream,
       now: turnNow,
       timeZone,
+      // The acknowledgement shows while the specialists work (plan 12.12, A1).
+      onAcknowledgement: (text: string) => {
+        acknowledgement = text;
+        writer.send('acknowledgement', { chatId: chat.chatId, turnId, text });
+      },
     });
 
     const finalText = gatewayResult.output;
@@ -206,6 +212,7 @@ export async function streamChatTurn({
         role: 'assistant',
         content: finalText,
         places: gatewayResult.places ?? [],
+        ...(acknowledgement ? { acknowledgement } : {}),
         agent: gatewayResult.finalAgentName,
         status: 'completed',
         createdAt: completedAt,

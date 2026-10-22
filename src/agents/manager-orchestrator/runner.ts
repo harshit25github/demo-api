@@ -106,6 +106,8 @@ export interface ManagerRunOptions {
   /** Substitute city photo lookup and wait, for tests. Production uses cityPhotosFor and PHOTO_LOOKUP_TIMEOUT_MS. */
   photoLookup?: typeof cityPhotosFor;
   photoTimeoutMs?: number;
+  /** Receives the turn's acknowledgement once, as the first specialist call starts (plan 12.12). */
+  onAcknowledgement?: (text: string) => void;
 }
 
 /**
@@ -188,7 +190,13 @@ export async function runGatewayAgent(options: ManagerRunOptions) {
   // Likewise its options, which are replaced only when Trip suggests destinations.
   const tripOptionsBefore = appContext.tripPlanner?.options;
   const requestClock = createRequestClock({ now, timeZone });
-  const requestContext = createRequestContext(appContext, requestClock);
+  // Once per turn, even if a later call repeats the sentence instead of sending "".
+  let acknowledged = false;
+  const requestContext = createRequestContext(appContext, requestClock, options.onAcknowledgement && ((text: string) => {
+    if (acknowledged) return;
+    acknowledged = true;
+    options.onAcknowledgement!(text);
+  }));
   let result;
   let flightTurn: ReturnType<typeof finalizeFlightSuggestedQuestions>;
   try {

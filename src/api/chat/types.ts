@@ -60,6 +60,8 @@ export interface ChatMessage {
   content: string;
   /** The place marks in content, in order: each place: reference's kind and photo (plan 12.4). */
   places?: PlaceMark[];
+  /** The sentence shown while the specialists worked, when they ran (plan 12.12). */
+  acknowledgement?: string;
   agent: string | null;
   createdAt: string;
   summaryContext: SummaryContext;
